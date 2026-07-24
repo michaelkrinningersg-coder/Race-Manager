@@ -1,4 +1,4 @@
-/** Kleine Formatierungs-Helfer fuer die Anzeige. */
+/** Kleine Formatierungs-Helfer für die Anzeige. */
 
 const NUMBER = new Intl.NumberFormat('de-DE');
 

@@ -9,7 +9,7 @@ export function renderTeam(world: World, tier: number, teamId: string): string {
   const row = season.table.find((entry) => entry.team.id === teamId);
   if (!row) {
     return `<section class="panel"><h1>Team nicht gefunden</h1>
-      <p><a href="#/liga/${tier}">Zurueck zur Liga</a></p></section>`;
+      <p><a href="#/liga/${tier}">Zurück zur Liga</a></p></section>`;
   }
   const team = row.team;
 
@@ -57,18 +57,18 @@ export function renderTeam(world: World, tier: number, teamId: string): string {
 
       <div class="stat-row">
         <div class="stat"><span class="stat__value">${Math.round(carScore(team, league))} %</span><span class="stat__label">Auto am Deckel</span></div>
-        <div class="stat"><span class="stat__value">${team.reliability}</span><span class="stat__label">Zuverlaessigkeit</span></div>
+        <div class="stat"><span class="stat__value">${team.reliability}</span><span class="stat__label">Zuverlässigkeit</span></div>
         <div class="stat"><span class="stat__value">${team.prestige}</span><span class="stat__label">Prestige</span></div>
         <div class="stat"><span class="stat__value">${formatMoney(team.budget)}</span><span class="stat__label">Budget (Deckel ${formatMoney(league.costCap)})</span></div>
         <div class="stat"><span class="stat__value">${row.wins}</span><span class="stat__label">Siege</span></div>
-        <div class="stat"><span class="stat__value">${row.dnf}</span><span class="stat__label">Ausfaelle</span></div>
+        <div class="stat"><span class="stat__value">${row.dnf}</span><span class="stat__label">Ausfälle</span></div>
       </div>
 
       <h2>Bauteilgruppen</h2>
       <p class="muted small">
-        Alle Werte liegen auf der weltweiten 0–1000-Skala. Der Balken zeigt die Ausschoepfung
+        Alle Werte liegen auf der weltweiten 0–1000-Skala. Der Balken zeigt die Ausschöpfung
         des Reglementdeckels dieser Liga – beim Aufstieg steigt der Deckel, die eigenen Werte
-        bleiben zunaechst gleich.
+        bleiben zunächst gleich.
       </p>
       <ul class="parts">${parts}</ul>
 
@@ -81,9 +81,9 @@ export function renderTeam(world: World, tier: number, teamId: string): string {
           <tbody>${drivers}</tbody>
         </table>
       </div>
-      <p class="muted small">Staerkster Fahrer im Kader: ${escapeHtml(bestDriver.name)}
+      <p class="muted small">Stärkster Fahrer im Kader: ${escapeHtml(bestDriver.name)}
         (Score ${Math.round(driverScore(bestDriver))}).</p>
 
-      <p><a href="#/liga/${tier}">← Zurueck zur Tabelle</a></p>
+      <p><a href="#/liga/${tier}">← Zurück zur Tabelle</a></p>
     </section>`;
 }

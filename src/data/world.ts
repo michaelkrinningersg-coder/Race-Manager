@@ -66,13 +66,13 @@ const TEAM_SUFFIXES_LOW = ['Racing', 'Motorsport', 'Garage', 'Rennsport', 'Squad
 const COUNTRIES = [
   { code: 'DEU', name: 'Deutschland' },
   { code: 'ITA', name: 'Italien' },
-  { code: 'GBR', name: 'Grossbritannien' },
+  { code: 'GBR', name: 'Großbritannien' },
   { code: 'FRA', name: 'Frankreich' },
   { code: 'ESP', name: 'Spanien' },
   { code: 'JPN', name: 'Japan' },
   { code: 'USA', name: 'USA' },
   { code: 'BRA', name: 'Brasilien' },
-  { code: 'AUT', name: 'Oesterreich' },
+  { code: 'AUT', name: 'Österreich' },
   { code: 'NLD', name: 'Niederlande' },
   { code: 'SWE', name: 'Schweden' },
   { code: 'AUS', name: 'Australien' },
@@ -122,7 +122,7 @@ const COLORS = [
 ];
 
 /* ------------------------------------------------------------------ */
-/* Entitaeten                                                          */
+/* Entitäten                                                          */
 /* ------------------------------------------------------------------ */
 
 export interface Driver {
@@ -159,7 +159,7 @@ export interface Team {
   budget: number;
   /** Bauteilwerte auf der weltweiten 0-1000-Skala */
   parts: Record<PartKey, number>;
-  /** Zuverlaessigkeit 0-100 */
+  /** Zuverlässigkeit 0-100 */
   reliability: number;
   drivers: Driver[];
 }
@@ -197,20 +197,31 @@ export interface World {
 /* Generierung                                                         */
 /* ------------------------------------------------------------------ */
 
-function teamSuffix(rng: () => number, tier: number): string {
-  if (tier <= 3) return pick(rng, TEAM_SUFFIXES_TOP);
-  if (tier <= 7) return pick(rng, TEAM_SUFFIXES_MID);
-  return pick(rng, TEAM_SUFFIXES_LOW);
+/**
+ * Zieht einen Namenszusatz und bevorzugt dabei den in dieser Liga bisher
+ * seltensten, damit eine Tabelle nicht aus sieben "Works"-Teams besteht.
+ */
+function teamSuffix(rng: () => number, tier: number, used: Map<string, number>): string {
+  const pool = tier <= 3 ? TEAM_SUFFIXES_TOP : tier <= 7 ? TEAM_SUFFIXES_MID : TEAM_SUFFIXES_LOW;
+  const minUsage = Math.min(...pool.map((suffix) => used.get(suffix) ?? 0));
+  const candidates = pool.filter((suffix) => (used.get(suffix) ?? 0) === minUsage);
+  const chosen = pick(rng, candidates);
+  used.set(chosen, minUsage + 1);
+  return chosen;
 }
 
 function createDriver(rng: () => number, tier: number, index: number, teamStrength: number): Driver {
-  // Fahrerniveau haengt an der Liga: Tier 1 ~ 88, Tier 10 ~ 48.
+  // Fahrerniveau hängt an der Liga: Tier 1 ~ 88, Tier 10 ~ 48.
   const tierBase = 92 - (tier - 1) * 4.6;
-  // Der zweite Fahrer eines Teams ist im Schnitt etwas schwaecher.
+  // Der zweite Fahrer eines Teams ist im Schnitt etwas schwächer.
   const seatPenalty = index === 0 ? 0 : between(rng, 1, 6);
   const teamPull = (teamStrength - 0.5) * 6;
   const pace = clamp(tierBase + teamPull - seatPenalty + between(rng, -5, 5), 25, 99);
-  const age = Math.round(between(rng, tier >= 8 ? 17 : 20, tier >= 8 ? 30 : 38));
+  // Altersverteilung mit Schwerpunkt Mitte 20: rng^1.5 zieht die Werte nach unten,
+  // damit Routiniers jenseits der 33 die Ausnahme bleiben.
+  const minAge = tier >= 8 ? 17 : 20;
+  const maxAge = tier >= 8 ? 30 : 37;
+  const age = Math.round(minAge + Math.pow(rng(), 1.5) * (maxAge - minAge));
   const growth = age <= 23 ? between(rng, 6, 16) : age <= 27 ? between(rng, 1, 6) : 0;
   const country = pick(rng, COUNTRIES).code;
 
@@ -231,30 +242,37 @@ function createDriver(rng: () => number, tier: number, index: number, teamStreng
 }
 
 /**
- * Zieht einen Teamnamen, der in dieser Liga noch nicht vergeben ist. Der Praefix
- * muss innerhalb einer Liga eindeutig sein (sonst gaebe es "Obsidian Racing" und
+ * Zieht einen Teamnamen, der in dieser Liga noch nicht vergeben ist. Der Präfix
+ * muss innerhalb einer Liga eindeutig sein (sonst gäbe es "Obsidian Racing" und
  * "Obsidian Motorsport" in derselben Tabelle), der volle Name weltweit.
  */
+interface LeagueNames {
+  /** In dieser Liga bereits vergebene Präfixe */
+  prefixes: Set<string>;
+  /** Wie oft ein Namenszusatz in dieser Liga schon verwendet wurde */
+  suffixes: Map<string, number>;
+}
+
 function drawTeamName(
   rng: () => number,
   tier: number,
-  usedPrefixes: Set<string>,
+  leagueNames: LeagueNames,
   usedNames: Set<string>,
 ): string {
   for (let attempt = 0; attempt < 200; attempt += 1) {
     const prefix = pick(rng, TEAM_PREFIXES);
-    if (usedPrefixes.has(prefix)) continue;
-    const name = `${prefix} ${teamSuffix(rng, tier)}`;
+    if (leagueNames.prefixes.has(prefix)) continue;
+    const name = `${prefix} ${teamSuffix(rng, tier, leagueNames.suffixes)}`;
     if (usedNames.has(name)) continue;
-    usedPrefixes.add(prefix);
+    leagueNames.prefixes.add(prefix);
     usedNames.add(name);
     return name;
   }
-  // Notausgang: durchnummerieren, damit die Generierung nie haengen bleibt.
+  // Notausgang: durchnummerieren, damit die Generierung nie hängen bleibt.
   let counter = 2;
-  let fallback = `${pick(rng, TEAM_PREFIXES)} ${teamSuffix(rng, tier)}`;
+  let fallback = `${pick(rng, TEAM_PREFIXES)} ${teamSuffix(rng, tier, leagueNames.suffixes)}`;
   while (usedNames.has(fallback)) {
-    fallback = `${fallback.split(' ')[0]} ${teamSuffix(rng, tier)} ${counter}`;
+    fallback = `${fallback.split(' ')[0]} ${teamSuffix(rng, tier, leagueNames.suffixes)} ${counter}`;
     counter += 1;
   }
   usedNames.add(fallback);
@@ -265,13 +283,13 @@ function createTeam(
   rng: () => number,
   league: League,
   index: number,
-  usedPrefixes: Set<string>,
+  leagueNames: LeagueNames,
   usedNames: Set<string>,
 ): Team {
-  // Relative Staerke des Teams innerhalb seiner Liga (0 = Schlusslicht, 1 = Spitze).
+  // Relative Stärke des Teams innerhalb seiner Liga (0 = Schlusslicht, 1 = Spitze).
   const strength = rng();
   const cap = league.partCap;
-  // Selbst das beste Team schoepft den Reglementdeckel nicht ganz aus.
+  // Selbst das beste Team schöpft den Reglementdeckel nicht ganz aus.
   const level = cap * (0.68 + strength * 0.3);
   const parts = {} as Record<PartKey, number>;
   for (const group of PART_GROUPS) {
@@ -283,7 +301,7 @@ function createTeam(
   const team: Team = {
     id: `t${league.tier}-${index}`,
     tier: league.tier,
-    name: drawTeamName(rng, league.tier, usedPrefixes, usedNames),
+    name: drawTeamName(rng, league.tier, leagueNames, usedNames),
     shortName: '',
     country: pick(rng, COUNTRIES).code,
     colorPrimary,
@@ -340,8 +358,8 @@ function simulateSeason(rng: () => number, league: League, teams: Team[]): Leagu
   for (let race = 0; race < league.raceCount; race += 1) {
     const results: { entry: Entry; score: number; dnf: boolean }[] = entries.map((entry) => {
       const base = carScore(entry.team, league) * 0.6 + driverScore(entry.driver) * 0.4;
-      // Streuung: unkonstante Fahrer schwanken staerker. Die Groesse ist so gewaehlt,
-      // dass Spitzenteams klar dominieren, das Mittelfeld aber regelmaessig punktet.
+      // Streuung: unkonstante Fahrer schwanken stärker. Die Größe ist so gewählt,
+      // dass Spitzenteams klar dominieren, das Mittelfeld aber regelmäßig punktet.
       const spread = 5 + (100 - entry.driver.consistency) * 0.18;
       const noise = (rng() + rng() + rng() - 1.5) * spread;
       const failureChance = league.dnfRate * (2 - entry.team.reliability / 100);
@@ -417,9 +435,9 @@ export function buildWorld(seed = 20260724, season = 1): World {
 
   for (const league of LEAGUES) {
     const teams: Team[] = [];
-    const usedPrefixes = new Set<string>();
+    const leagueNames: LeagueNames = { prefixes: new Set(), suffixes: new Map() };
     for (let index = 0; index < league.teamCount; index += 1) {
-      teams.push(createTeam(rng, league, index, usedPrefixes, usedNames));
+      teams.push(createTeam(rng, league, index, leagueNames, usedNames));
     }
     seasons.set(league.tier, simulateSeason(rng, league, teams));
   }
@@ -429,11 +447,11 @@ export function buildWorld(seed = 20260724, season = 1): World {
 
 export function getSeason(world: World, tier: number): LeagueSeason {
   const season = world.seasons.get(tier);
-  if (!season) throw new Error(`Keine Saisondaten fuer Tier ${tier}`);
+  if (!season) throw new Error(`Keine Saisondaten für Tier ${tier}`);
   return season;
 }
 
-/** Gesamtzahlen fuer die Kopfzeile der Pyramide. */
+/** Gesamtzahlen für die Kopfzeile der Pyramide. */
 export function worldTotals(world: World): { teams: number; drivers: number; races: number } {
   let teams = 0;
   let drivers = 0;

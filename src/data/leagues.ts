@@ -2,13 +2,13 @@
  * Stammdaten der Ligenpyramide.
  *
  * Die Werte spiegeln Abschnitt 3 des Konzepts
- * (docs/KONZEPT_MEHRLIGA_RENNMANAGER.md) wider. Spaeter kommen diese Daten
- * aus CSV-Dateien bzw. aus der Backend-Datenbank; fuer den Ligen-Explorer
+ * (docs/KONZEPT_MEHRLIGA_RENNMANAGER.md) wider. Später kommen diese Daten
+ * aus CSV-Dateien bzw. aus der Backend-Datenbank; für den Ligen-Explorer
  * liegen sie hier statisch im Frontend.
  */
 
 export interface League {
-  /** 1 = hoechste Liga, 10 = unterste Liga */
+  /** 1 = höchste Liga, 10 = unterste Liga */
   tier: number;
   name: string;
   shortName: string;
@@ -17,11 +17,11 @@ export interface League {
   raceCount: number;
   /** Kostendeckel in Euro */
   costCap: number;
-  /** Reglement-Deckel fuer Bauteilwerte auf der weltweiten 0-1000-Skala */
+  /** Reglement-Deckel für Bauteilwerte auf der weltweiten 0-1000-Skala */
   partCap: number;
   minWeightKg: number;
   tyreSetsPerWeekend: number;
-  /** Ausfallwahrscheinlichkeit pro Auto und Rennen (Richtwert fuer die Light-Sim) */
+  /** Ausfallwahrscheinlichkeit pro Auto und Rennen (Richtwert für die Light-Sim) */
   dnfRate: number;
   weekendFormat: string;
   flavour: string;
@@ -42,7 +42,7 @@ export const LEAGUES: League[] = [
     dnfRate: 0.07,
     weekendFormat: '3× Training · Q1/Q2/Q3 · Rennen (6× Sprintformat)',
     flavour:
-      'Die Weltmeisterschaft. Werksprogramme, Kostendeckel, aerodynamische Testrestriktion – hier entscheidet Effizienz, nicht Budgethoehe.',
+      'Die Weltmeisterschaft. Werksprogramme, Kostendeckel, aerodynamische Testrestriktion – hier entscheidet Effizienz, nicht Budgethöhe.',
   },
   {
     tier: 2,
@@ -106,7 +106,7 @@ export const LEAGUES: League[] = [
     dnfRate: 0.15,
     weekendFormat: '1× Training · Qualifying · Rennen',
     flavour:
-      'Halbprofessionell. Pay Driver finanzieren hier ganze Saisons – und blockieren Cockpits fuer schnellere Talente.',
+      'Halbprofessionell. Pay Driver finanzieren hier ganze Saisons – und blockieren Cockpits für schnellere Talente.',
   },
   {
     tier: 6,
@@ -154,7 +154,7 @@ export const LEAGUES: League[] = [
     dnfRate: 0.2,
     weekendFormat: 'Training · Qualifying · 2 Sprintrennen',
     flavour:
-      'Werkstattbetrieb statt Fabrik: Zuverlaessigkeit schlaegt Leistung, weil Ersatzteile schlicht fehlen.',
+      'Werkstattbetrieb statt Fabrik: Zuverlässigkeit schlägt Leistung, weil Ersatzteile schlicht fehlen.',
   },
   {
     tier: 9,
@@ -186,7 +186,7 @@ export const LEAGUES: League[] = [
     dnfRate: 0.22,
     weekendFormat: 'Kurztraining · Qualifying · 2 kurze Rennen',
     flavour:
-      'Der Einstieg. Kein Fallschirm, kein Fangnetz: Die letzten zwei Teams verlieren ihre Lizenz an Neugruendungen.',
+      'Der Einstieg. Kein Fallschirm, kein Fangnetz: Die letzten zwei Teams verlieren ihre Lizenz an Neugründungen.',
   },
 ];
 
@@ -222,14 +222,14 @@ export function movementRules(tier: number): MovementRules {
 
 export const PART_GROUPS = [
   { key: 'chassis', label: 'Monocoque / Chassis' },
-  { key: 'front_wing', label: 'Frontfluegel & Nase' },
-  { key: 'rear_wing', label: 'Heckfluegel' },
+  { key: 'front_wing', label: 'Frontflügel & Nase' },
+  { key: 'rear_wing', label: 'Heckflügel' },
   { key: 'floor', label: 'Unterboden / Diffusor' },
   { key: 'powertrain', label: 'Antriebseinheit' },
-  { key: 'ers', label: 'Energierueckgewinnung' },
+  { key: 'ers', label: 'Energierückgewinnung' },
   { key: 'gearbox', label: 'Getriebe' },
-  { key: 'suspension', label: 'Fahrwerk & Aufhaengung' },
-  { key: 'brakes', label: 'Bremsen & Kuehlung' },
+  { key: 'suspension', label: 'Fahrwerk & Aufhängung' },
+  { key: 'brakes', label: 'Bremsen & Kühlung' },
 ] as const;
 
 export type PartKey = (typeof PART_GROUPS)[number]['key'];

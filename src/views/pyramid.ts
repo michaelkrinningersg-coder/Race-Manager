@@ -35,7 +35,7 @@ export function renderPyramid(world: World): string {
           <p class="lead">
             Zehn Ligen, eine Welt. Jede Saison steigen die beiden Ersten auf und die beiden
             Letzten ab; Platz 3 und der Drittletzte treffen sich in der Barrage.
-            Alle Tabellen unten stammen aus einer vollstaendig durchsimulierten Beispielsaison.
+            Alle Tabellen unten stammen aus einer vollständig durchsimulierten Beispielsaison.
           </p>
         </div>
       </header>
@@ -45,7 +45,7 @@ export function renderPyramid(world: World): string {
         <div class="stat"><span class="stat__value">${formatNumber(totals.teams)}</span><span class="stat__label">Teams</span></div>
         <div class="stat"><span class="stat__value">${formatNumber(totals.drivers)}</span><span class="stat__label">Stammfahrer</span></div>
         <div class="stat"><span class="stat__value">${formatNumber(totals.races)}</span><span class="stat__label">Rennen pro Saison</span></div>
-        <div class="stat"><span class="stat__value">${formatNumber(world.seed)}</span><span class="stat__label">Welt-Seed</span></div>
+        <div class="stat"><span class="stat__value">${world.seed}</span><span class="stat__label">Welt-Seed</span></div>
       </div>
 
       <div class="pyramid">${rows}</div>

@@ -1,4 +1,4 @@
-/** Kurzfassung des Konzepts mit Verweis auf das vollstaendige Dokument. */
+/** Kurzfassung des Konzepts mit Verweis auf das vollständige Dokument. */
 export function renderConcept(): string {
   return `
     <section class="panel">
@@ -7,7 +7,7 @@ export function renderConcept(): string {
           <h1>Konzept in Kurzform</h1>
           <p class="lead">
             APEX – Racing Director ist ein Motorsport-Manager in der Tradition von
-            <em>Grand Prix Manager</em> (MicroProse), aber mit deutlich groesserer Tiefe:
+            <em>Grand Prix Manager</em> (MicroProse), aber mit deutlich größerer Tiefe:
             zehn Ligen, saisonaler Auf- und Abstieg, ein Auto aus neun Bauteilgruppen und
             eine nachvollziehbare Rennsimulation.
           </p>
@@ -27,35 +27,35 @@ export function renderConcept(): string {
         </article>
         <article class="card">
           <h3>Lizenz statt Automatik</h3>
-          <p>Sportlicher Aufstieg reicht nicht: Liquiditaet, Infrastruktur und Personal
-             muessen die Lizenzstufe der Zielliga erfuellen, sonst rueckt ein anderes Team nach.</p>
+          <p>Sportlicher Aufstieg reicht nicht: Liquidität, Infrastruktur und Personal
+             müssen die Lizenzstufe der Zielliga erfüllen, sonst rückt ein anderes Team nach.</p>
         </article>
         <article class="card">
           <h3>Neun Bauteilgruppen</h3>
-          <p>Chassis, Fluegel, Unterboden, Antrieb, ERS, Getriebe, Fahrwerk, Bremsen – je mit
-             Performance, Zuverlaessigkeit, Gewicht und Reifegrad.</p>
+          <p>Chassis, Flügel, Unterboden, Antrieb, ERS, Getriebe, Fahrwerk, Bremsen – je mit
+             Performance, Zuverlässigkeit, Gewicht und Reifegrad.</p>
         </article>
         <article class="card">
           <h3>Kein Tod nach dem Abstieg</h3>
-          <p>Fallschirmzahlungen ueber zwei Saisons, Werterhalt der Bauteile – aber
-             Fixkosten einer zu grossen Fabrik koennen ein Team trotzdem ruinieren.</p>
+          <p>Fallschirmzahlungen über zwei Saisons, Werterhalt der Bauteile – aber
+             Fixkosten einer zu großen Fabrik können ein Team trotzdem ruinieren.</p>
         </article>
         <article class="card">
           <h3>Nachvollziehbare Simulation</h3>
-          <p>Nach jedem Rennen wird der Rueckstand zerlegt: Auto, Fahrer, Setup, Reifen,
-             Boxenstopps, Verkehr – in Sekunden, nicht in Bauchgefuehl.</p>
+          <p>Nach jedem Rennen wird der Rückstand zerlegt: Auto, Fahrer, Setup, Reifen,
+             Boxenstopps, Verkehr – in Sekunden, nicht in Bauchgefühl.</p>
         </article>
       </div>
 
       <h2>Diese Seite</h2>
       <p>
         Der Ligen-Explorer zeigt eine deterministisch erzeugte Beispielwelt: 167 Teams,
-        knapp 300 Stammfahrer, jede Liga ueber eine volle Saison im Light-Sim-Verfahren
+        knapp 300 Stammfahrer, jede Liga über eine volle Saison im Light-Sim-Verfahren
         durchgerechnet. Gleicher Seed, gleiche Welt – die Tabellen sind bei jedem Aufruf
         identisch.
       </p>
       <p>
-        Das vollstaendige Designdokument liegt im Repository unter
+        Das vollständige Designdokument liegt im Repository unter
         <code>docs/KONZEPT_MEHRLIGA_RENNMANAGER.md</code> und beschreibt Reglements,
         Entwicklungsformeln, Rennsimulation, Wirtschaft, Datenmodell und Roadmap im Detail.
       </p>
