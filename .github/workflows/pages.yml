@@ -22,7 +22,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
 
       - name: Abhaengigkeiten installieren
@@ -31,7 +31,11 @@ jobs:
       - name: Typen pruefen und bauen
         run: npm run build
 
+      # enablement: true aktiviert GitHub Pages beim ersten Lauf selbst,
+      # damit die Seite ohne manuellen Schritt in den Repo-Einstellungen live geht.
       - uses: actions/configure-pages@v5
+        with:
+          enablement: true
 
       - uses: actions/upload-pages-artifact@v3
         with:
