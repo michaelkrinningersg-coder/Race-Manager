@@ -45,7 +45,7 @@ Code, Bezeichner und Dateinamen auf Englisch.
 
 * GitHub Pages wird über `.github/workflows/pages.yml` aus dem Vite-Build (`npm run build`)
   bei jedem Push auf `main` deployed.
-* `vite.config.ts` setzt `base: '/race-manager/'` – beim Umbenennen des Repos muss der
+* `vite.config.ts` setzt `base: '/Race-Manager/'` – beim Umbenennen des Repos muss der
   Basispfad mitgezogen werden.
 
 ## 6. Projektüberblick

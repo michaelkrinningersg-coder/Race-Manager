@@ -10,7 +10,7 @@ Dieses Repository enthält aktuell:
   Beispielwelt (167 Teams, ~290 Stammfahrer, alle zehn Ligen über eine volle Saison
   durchsimuliert) im Browser darstellt.
 
-**Live:** https://michaelkrinningersg-coder.github.io/race-manager/
+**Live:** https://michaelkrinningersg-coder.github.io/Race-Manager/
 
 ---
 
@@ -63,7 +63,7 @@ npm run preview    # gebauten Stand lokal ansehen
 **Projektstruktur**
 
 ```text
-race-manager/
+Race-Manager/
 ├── docs/KONZEPT_MEHRLIGA_RENNMANAGER.md   # Designdokument
 ├── src/
 │   ├── data/leagues.ts                    # Stammdaten der 10 Ligen, Punkte, Bewegungsregeln
@@ -73,7 +73,7 @@ race-manager/
 │   ├── main.ts                            # Hash-Router und Layout
 │   └── style.css
 ├── .github/workflows/pages.yml            # Build + Deployment auf GitHub Pages
-└── vite.config.ts                         # base: '/race-manager/' für Pages
+└── vite.config.ts                         # base: '/Race-Manager/' für Pages
 ```
 
 ---
