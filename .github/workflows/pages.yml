@@ -31,11 +31,10 @@ jobs:
       - name: Typen pruefen und bauen
         run: npm run build
 
-      # enablement: true aktiviert GitHub Pages beim ersten Lauf selbst,
-      # damit die Seite ohne manuellen Schritt in den Repo-Einstellungen live geht.
+      # Voraussetzung (einmalig): Settings -> Pages -> Source = "GitHub Actions".
+      # Das Aktivieren per Workflow ist nicht moeglich, der Actions-Token darf
+      # die Pages-API nicht schreiben.
       - uses: actions/configure-pages@v5
-        with:
-          enablement: true
 
       - uses: actions/upload-pages-artifact@v3
         with:

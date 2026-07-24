@@ -39,7 +39,10 @@ Code, Bezeichner und Dateinamen auf Englisch.
   * Neuer Meilenstein aus der Roadmap → Minor-Sprung (`v0.2.0`, `v0.3.0`, …)
   * Korrekturen und kleine Ergänzungen → Patch-Sprung (`v0.1.1`, …)
   * `v1.0.0` erst, wenn eine vollständige Karriere spielbar ist.
-* Jeder Tag wird annotiert (`git tag -a`) und zusammen mit dem Branch gepusht.
+* Tags entstehen **automatisch** über `.github/workflows/tag.yml`: Der Workflow liest die
+  Version aus `package.json` und legt `v<version>` an, sobald sie auf `main` erhöht wird.
+  Für eine neue Version genügt also das Anheben von `version` in `package.json`.
+  (Hintergrund: Aus der Claude-Session heraus sind Tag-Pushes durch den Git-Proxy gesperrt.)
 
 ## 5. Deployment
 

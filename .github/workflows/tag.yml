@@ -1,0 +1,38 @@
+name: Tag bei Versionswechsel
+
+# Legt automatisch den SemVer-Tag zur Version aus package.json an, sobald diese
+# auf main erhoeht wird. Bereits vorhandene Tags werden nicht ueberschrieben.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Version aus package.json lesen
+        id: version
+        run: echo "value=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Tag anlegen, falls er noch fehlt
+        env:
+          TAG: v${{ steps.version.outputs.value }}
+        run: |
+          if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
+            echo "Tag $TAG existiert bereits – nichts zu tun."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$TAG" -m "Release $TAG"
+          git push origin "$TAG"
+          echo "Tag $TAG angelegt."

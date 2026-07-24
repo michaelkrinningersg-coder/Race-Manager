@@ -87,7 +87,12 @@ Jeder Push auf `main` baut die App und veröffentlicht `dist/` über GitHub Page
 ## Versionierung
 
 SemVer-Tags ab dem ersten Stand: `v0.1.0` = Konzept + Ligen-Explorer + Pages.
-Jeder Roadmap-Meilenstein bekommt einen Minor-Sprung. Siehe [`CLAUDE.md`](CLAUDE.md).
+Jeder Roadmap-Meilenstein bekommt einen Minor-Sprung.
+
+Getaggt wird automatisch: Der Workflow `Tag bei Versionswechsel` liest die `version` aus
+`package.json` und legt bei jedem Push auf `main` den passenden Tag an, falls er noch fehlt.
+Für ein neues Release genügt daher das Anheben der Versionsnummer in `package.json`.
+Siehe [`CLAUDE.md`](CLAUDE.md).
 
 ## Hinweis
 
