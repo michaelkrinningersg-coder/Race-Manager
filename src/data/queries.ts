@@ -645,6 +645,8 @@ export interface ResultRow {
   points: number;
   pole: number;
   fastest_lap: number;
+  /** Zeitstrafe in Sekunden, bereits in position verrechnet (Konzept 12.4). */
+  penalty_s: number;
 }
 
 export function raceResults(
@@ -658,7 +660,8 @@ export function raceResults(
     db,
     `SELECT rr.driver_id, d.first_name || ' ' || d.last_name AS name,
             rr.team_id, t.short_name AS team, t.colour_primary,
-            rr.grid, rr.position, rr.status, rr.points, rr.pole, rr.fastest_lap
+            rr.grid, rr.position, rr.status, rr.points, rr.pole, rr.fastest_lap,
+            rr.penalty_s
        FROM race_results rr
        JOIN drivers d ON d.driver_id = rr.driver_id
        JOIN teams t ON t.team_id = rr.team_id
@@ -715,6 +718,7 @@ export interface AnalysisRow {
   lost_fuel_s: number;
   lost_traffic_s: number;
   lost_pits_s: number;
+  lost_incidents_s: number;
   position: number | null;
   status: string;
 }
@@ -738,7 +742,8 @@ export function raceAnalysis(
     db,
     `SELECT ra.driver_id, d.first_name || ' ' || d.last_name AS name, ra.stops,
             ra.best_lap_ms, ra.total_ms, ra.lost_tyres_s, ra.lost_fuel_s,
-            ra.lost_traffic_s, ra.lost_pits_s, rr.position, rr.status
+            ra.lost_traffic_s, ra.lost_pits_s, ra.lost_incidents_s,
+            rr.position, rr.status
        FROM race_analysis ra
        JOIN drivers d ON d.driver_id = ra.driver_id
        LEFT JOIN race_results rr ON rr.season = ra.season AND rr.tier = ra.tier

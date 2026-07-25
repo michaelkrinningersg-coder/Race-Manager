@@ -363,6 +363,12 @@ code {
   font-variant-numeric: tabular-nums;
 }
 
+/* Selbstverschuldeter Zeitverlust. Hervorgehoben, weil er als einziger Posten
+   der Zerlegung nicht am Auto haengt, sondern am Fahrer. */
+.table .num--incident {
+  color: #ff8f7d;
+}
+
 .table .movement {
   font-size: 0.78rem;
   color: var(--muted);
@@ -809,6 +815,13 @@ code {
 .tag--fl {
   background: rgba(186, 104, 255, 0.18);
   color: #c79bff;
+}
+
+/* Zeitstrafe. Bewusst dieselbe Farbfamilie wie ein Zwischenfall in der
+   Verlaufskurve - beide erzaehlen dieselbe Geschichte. */
+.tag--penalty {
+  background: rgba(255, 107, 87, 0.18);
+  color: #ff8f7d;
 }
 
 /* ---------- Rennen ---------- */

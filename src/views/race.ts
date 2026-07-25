@@ -28,6 +28,39 @@ function isDnf(status: string): boolean {
 }
 
 /**
+ * Klartext fuer `lap_records.event`.
+ *
+ * Die Engine schreibt Schluessel, keine Saetze - sonst haengt die Sprache der
+ * Oberflaeche in der Simulation fest. Uebersetzt wird deshalb hier.
+ */
+const EVENT_LABEL: Record<string, string> = {
+  pit: 'Boxenstopp',
+  pit_sc: 'Boxenstopp unter Safety Car',
+  pit_weather: 'Reifenwechsel wegen Wetter',
+  pit_damage: 'Boxenstopp wegen Schadens',
+  safety_car: 'Safety Car',
+  traffic: 'im Verkehr aufgehalten',
+  overtake: 'Überholmanöver',
+  collision: 'Kollision',
+  collision_hit: 'in eine Kollision verwickelt',
+  mistake: 'Fahrfehler',
+  spin: 'Dreher',
+  crash: 'Ausritt',
+  track_limits: 'Strafe: Streckenbegrenzung',
+  dnf: 'technischer Ausfall',
+};
+
+/** Ereignisse, die als Zwischenfall gelten - sie bekommen einen eigenen Punkt. */
+const INCIDENT_EVENTS = new Set([
+  'collision',
+  'collision_hit',
+  'mistake',
+  'spin',
+  'crash',
+  'track_limits',
+]);
+
+/**
  * Ein Rennwochenende.
  *
  * Ergebnisse gibt es fuer jedes Rennen aller zwanzig Saisons. Den vollstaendigen
@@ -69,6 +102,12 @@ export function renderRace(
   const safetyCarLaps = new Set(
     laps.filter((lap) => lap.event === 'safety_car' || lap.event === 'pit_sc').map((lap) => lap.lap),
   ).size;
+  // Zwischenfaelle zaehlen nur einmal je Vorfall: Eine Kollision schreibt zwei
+  // Zeilen, die des Angreifers und die des Getroffenen.
+  const incidents = laps.filter(
+    (lap) => lap.event && INCIDENT_EVENTS.has(lap.event) && lap.event !== 'collision_hit',
+  ).length;
+  const penalties = results.filter((entry) => entry.penalty_s > 0).length;
   const weatherLabel = laps.length
     ? laps.some((lap) => lap.compound === 'R')
       ? 'Regen'
@@ -99,6 +138,11 @@ export function renderRace(
           </a>
           ${entry.pole ? '<span class="tag tag--pole">Pole</span>' : ''}
           ${entry.fastest_lap ? '<span class="tag tag--fl">Schnellste</span>' : ''}
+          ${
+            entry.penalty_s > 0
+              ? `<span class="tag tag--penalty" title="Zeitstrafe, bereits in der Platzierung verrechnet">+${entry.penalty_s} s</span>`
+              : ''
+          }
         </td>
         <td>
           <a class="team-link" href="${withSeason(`#/team/${entry.team_id}`, season)}">
@@ -161,6 +205,16 @@ export function renderRace(
         ${
           safetyCarLaps > 0
             ? `<div class="stat"><span class="stat__value">${safetyCarLaps}</span><span class="stat__label">Runden Safety Car</span></div>`
+            : ''
+        }
+        ${
+          incidents > 0
+            ? `<div class="stat"><span class="stat__value">${incidents}</span><span class="stat__label">Zwischenfälle</span></div>`
+            : ''
+        }
+        ${
+          penalties > 0
+            ? `<div class="stat"><span class="stat__value">${penalties}</span><span class="stat__label">Zeitstrafen</span></div>`
             : ''
         }
       </div>
@@ -245,15 +299,19 @@ function renderLapChart(laps: LapRow[]): string {
       const sorted = [...entries].sort((a, b) => a.lap - b.lap);
       const d = sorted.map((lap, index) => `${index === 0 ? 'M' : 'L'}${x(lap.lap).toFixed(1)},${y(lap.position).toFixed(1)}`).join(' ');
       const colour = sorted[0].colour_primary ?? '#8899aa';
+      // Verkehr und Safety Car stehen in fast jeder Runde und wuerden die Linie
+      // zur Punktkette machen. Gezeichnet wird nur, was das Rennen veraendert.
       const events = sorted
-        .filter((lap) => lap.event)
-        .map(
-          (lap) =>
-            `<circle cx="${x(lap.lap).toFixed(1)}" cy="${y(lap.position).toFixed(1)}" r="3"
-                     fill="${escapeHtml(colour)}" stroke="#0b0e14" stroke-width="1">
-               <title>Runde ${lap.lap}: ${escapeHtml(lap.event ?? '')}</title>
-             </circle>`,
-        )
+        .filter((lap) => lap.event && lap.event !== 'traffic' && lap.event !== 'safety_car')
+        .map((lap) => {
+          const incident = INCIDENT_EVENTS.has(lap.event ?? '');
+          return `<circle cx="${x(lap.lap).toFixed(1)}" cy="${y(lap.position).toFixed(1)}"
+                     r="${incident ? 4 : 3}"
+                     fill="${incident ? '#ff6b57' : escapeHtml(colour)}"
+                     stroke="#0b0e14" stroke-width="1">
+               <title>Runde ${lap.lap}: ${escapeHtml(EVENT_LABEL[lap.event ?? ''] ?? lap.event ?? '')}</title>
+             </circle>`;
+        })
         .join('');
       return `<g class="lapline" data-driver="${driverId}">
                 <path d="${d}" fill="none" stroke="${escapeHtml(colour)}" stroke-width="1.6"
@@ -282,8 +340,9 @@ function renderLapChart(laps: LapRow[]): string {
   return `
     <h2>Positionsverlauf</h2>
     <p class="muted small">
-      Eine Linie je Fahrer über ${maxLap} Runden. Punkte markieren Boxenstopps, Reifenwechsel
-      bei Wetterumschwung, Safety-Car-Phasen und Ausfälle – Mouseover zeigt, was passiert ist.
+      Eine Linie je Fahrer über ${maxLap} Runden. Punkte markieren Boxenstopps und Reifenwechsel,
+      rote Punkte Zwischenfälle: Fahrfehler, Dreher, Kollisionen, Ausritte und Strafen –
+      Mouseover zeigt, was passiert ist.
     </p>
     <div class="chart-scroll">
       <svg class="chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="Positionsverlauf">
@@ -314,6 +373,7 @@ function renderAnalysis(analysis: ReturnType<typeof raceAnalysis>): string {
         <td class="num">${formatSeconds(entry.lost_fuel_s)}</td>
         <td class="num">${formatSeconds(entry.lost_traffic_s)}</td>
         <td class="num">${formatSeconds(entry.lost_pits_s)}</td>
+        <td class="num ${entry.lost_incidents_s > 0 ? 'num--incident' : ''}">${formatSeconds(entry.lost_incidents_s)}</td>
       </tr>`,
     )
     .join('');
@@ -321,8 +381,9 @@ function renderAnalysis(analysis: ReturnType<typeof raceAnalysis>): string {
   return `
     <h2>Rennanalyse</h2>
     <p class="muted small">
-      Wo die Zeit geblieben ist: Reifenabbau, Spritlast, Verkehr und Boxenstopps – die vier
-      Posten, aus denen die Tick-Sim die Rundenzeit zusammensetzt (Konzept 12.6).
+      Wo die Zeit geblieben ist: Reifenabbau, Spritlast, Verkehr, Boxenstopps – und was der
+      Fahrer selbst verschenkt hat (Konzept 12.6). Die Spalte „Fehler“ fasst Verbremser,
+      Dreher, Kollisionen und die Folgeschäden bis zur Reparatur zusammen.
     </p>
     <div class="table-scroll">
       <table class="table table--compact">
@@ -330,7 +391,7 @@ function renderAnalysis(analysis: ReturnType<typeof raceAnalysis>): string {
           <tr>
             <th>Fahrer</th><th class="num">Stopps</th><th class="num">Beste Runde</th>
             <th class="num">Rückstand</th><th class="num">Reifen</th><th class="num">Sprit</th>
-            <th class="num">Verkehr</th><th class="num">Box</th>
+            <th class="num">Verkehr</th><th class="num">Box</th><th class="num">Fehler</th>
           </tr>
         </thead>
         <tbody>${rows}</tbody>
