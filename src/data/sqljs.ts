@@ -55,29 +55,30 @@ function bindingFor(sql: string, params: unknown[]): Bindable {
 }
 
 class SqlJsStatementAdapter implements Statement {
+  private cached: SqlJsStatement | null = null;
+
   constructor(
     private readonly db: SqlJsDatabase,
     private readonly sql: string,
   ) {}
 
   /**
-   * Bereitet je Aufruf neu vor statt einmal im Konstruktor. Der Grund ist
-   * `free()`: Ein wiederverwendeter Cursor muesste zwischen den Aufrufen
-   * zurueckgesetzt werden, und ein vergessenes reset liefert stillschweigend
-   * die Zeilen der vorigen Abfrage. Neu vorbereiten kostet Zeit, aber es kann
-   * nicht falsch sein.
+   * Bereitet einmal vor und setzt danach zurueck.
+   *
+   * Die erste Fassung bereitete je Aufruf neu vor - sicher, aber unbrauchbar:
+   * Die Vorbereitung der ersten Saison schreibt fuer 167 Teams Bauteile,
+   * Fahrer, Personal und Anlagen, und der Browser kam nach drei Minuten nicht
+   * durch. `reset()` loescht Bindungen und Cursor, `bind()` setzt neu - damit
+   * kann der wiederverwendete Cursor keine Zeilen der Vorabfrage liefern.
    */
   private run$<T>(params: unknown[], read: (statement: SqlJsStatement) => T): T {
-    const statement = this.db.prepare(this.sql);
-    try {
-      const binding = bindingFor(this.sql, params);
-      if (Array.isArray(binding) ? binding.length > 0 : Object.keys(binding).length > 0) {
-        statement.bind(binding);
-      }
-      return read(statement);
-    } finally {
-      statement.free();
+    const statement = (this.cached ??= this.db.prepare(this.sql));
+    statement.reset();
+    const binding = bindingFor(this.sql, params);
+    if (Array.isArray(binding) ? binding.length > 0 : Object.keys(binding).length > 0) {
+      statement.bind(binding);
     }
+    return read(statement);
   }
 
   all(...params: unknown[]): unknown[] {
@@ -99,6 +100,11 @@ class SqlJsStatementAdapter implements Statement {
       statement.step();
     });
   }
+
+  release(): void {
+    this.cached?.free();
+    this.cached = null;
+  }
 }
 
 class SqlJsDatabaseAdapter implements Database {
@@ -107,8 +113,20 @@ class SqlJsDatabaseAdapter implements Database {
 
   constructor(private readonly db: SqlJsDatabase) {}
 
+  /**
+   * Vorbereitete Anweisungen werden je SQL-Text wiederverwendet. Die Engine
+   * bereitet in Schleifen vor - ohne diesen Zwischenspeicher entstuenden je
+   * Saison zehntausende Cursor.
+   */
+  private readonly statements = new Map<string, SqlJsStatementAdapter>();
+
   prepare(sql: string): Statement {
-    return new SqlJsStatementAdapter(this.db, sql);
+    let statement = this.statements.get(sql);
+    if (!statement) {
+      statement = new SqlJsStatementAdapter(this.db, sql);
+      this.statements.set(sql, statement);
+    }
+    return statement;
   }
 
   exec(sql: string): void {
@@ -142,6 +160,8 @@ class SqlJsDatabaseAdapter implements Database {
   }
 
   close(): void {
+    for (const statement of this.statements.values()) statement.release();
+    this.statements.clear();
     this.db.close();
   }
 

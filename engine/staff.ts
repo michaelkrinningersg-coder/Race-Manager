@@ -25,7 +25,7 @@
 
 import type { Database } from './savegame.js';
 import { createRng, gaussian, seedFrom } from './rng.js';
-import { playerTeam, withoutPlayer } from './player.js';
+import { scopeTeams } from './player.js';
 
 /** Wirkungen, die das Personal traegt. Namensgleich mit den Spalten der CSV. */
 export type StaffEffect =
@@ -375,7 +375,10 @@ export function retireStaff(db: Database, season: number): number {
  * zugreift - und sie springt mindestens zwei Ligastufen (getroffene
  * Entscheidung).
  */
-export function runStaffMarket(db: Database, season: number): StaffSummary {
+export function runStaffMarket(db: Database, season: number,
+  /** Nur dieses Team rechnen - der Weg der Voreinstellung im Karrieremodus. */
+  onlyTeam?: number,
+): StaffSummary {
   const worldSeed = (db.prepare('SELECT world_seed FROM game_state WHERE id = 1').get() as {
     world_seed: number;
   }).world_seed;
@@ -388,7 +391,7 @@ export function runStaffMarket(db: Database, season: number): StaffSummary {
     .all(season) as { team_id: number; tier: number }[];
   // Der Spieler verpflichtet sein Personal selbst (Konzept 14.2). Die Tierkarte
   // unten braucht trotzdem alle Teams - sonst kennt die Abwerbung sein Team nicht.
-  const teams = withoutPlayer(allTeams, playerTeam(db));
+  const teams = scopeTeams(allTeams, db, onlyTeam);
   const tierOf = new Map(teams.map((row) => [row.team_id, row.tier]));
   const costCaps = new Map(
     (db.prepare('SELECT tier, cost_cap FROM league_regulations WHERE season = 1').all() as Record<

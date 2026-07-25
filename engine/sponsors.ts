@@ -14,7 +14,7 @@
 
 import type { Database } from './savegame.js';
 import { createRng, seedFrom } from './rng.js';
-import { playerTeam, withoutPlayer } from './player.js';
+import { scopeTeams } from './player.js';
 
 /** Bezugslaenge fuer Podest- und Siegvorgaben (siehe sponsors.csv). */
 const REFERENCE_RACES = 16;
@@ -72,7 +72,10 @@ export interface SponsorSummary {
  * dieselbe Rangfolge wie die Tabelle, was den Vorjahreserfolg ein zweites Mal
  * belohnt (Konzept 9.1: der Wert haengt am Vorjahresplatz).
  */
-export function assignSponsors(db: Database, season: number): SponsorSummary {
+export function assignSponsors(db: Database, season: number,
+  /** Nur dieses Team rechnen - der Weg der Voreinstellung im Karrieremodus. */
+  onlyTeam?: number,
+): SponsorSummary {
   const worldSeed = (db.prepare('SELECT world_seed FROM game_state WHERE id = 1').get() as {
     world_seed: number;
   }).world_seed;
@@ -109,7 +112,7 @@ export function assignSponsors(db: Database, season: number): SponsorSummary {
   // die Ausschliesslichkeit: Sein Titelsponsor blockiert den Platz in der Liga
   // trotzdem - deshalb faellt er erst aus der Vergabeschleife, nicht aus den
   // laufenden Vertraegen.
-  const negotiating = withoutPlayer(teams, playerTeam(db));
+  const negotiating = scopeTeams(teams, db, onlyTeam);
 
   // Laufende Vertraege aus der Vorsaison.
   const running = new Map<string, Record<string, number | string>>();

@@ -44,6 +44,7 @@ interface Options {
   inPath: string;
   outPath: string;
   dataDir: string;
+  worldPath: string;
 }
 
 function parseArgs(argv: string[]): Options {
@@ -51,12 +52,14 @@ function parseArgs(argv: string[]): Options {
     inPath: resolve(repoRoot, 'build', 'savegame.db'),
     outPath: resolve(repoRoot, 'public', 'apex.db'),
     dataDir: resolve(repoRoot, 'data'),
+    worldPath: resolve(repoRoot, 'build', 'world_data.db'),
   };
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
     if (arg === '--in') options.inPath = resolve(argv[++i]);
     else if (arg === '--out') options.outPath = resolve(argv[++i]);
     else if (arg === '--data') options.dataDir = resolve(argv[++i]);
+    else if (arg === '--world') options.worldPath = resolve(argv[++i]);
     else {
       console.error(`Unbekannte Option: ${arg}`);
       process.exit(2);
@@ -121,6 +124,13 @@ function main(): void {
     copied += 1;
   }
   console.log(`  Stammdaten:     ${copied} CSV-Dateien nach ${dataOut}`);
+
+  // Startwelt mitliefern (Konzept 14.2). Eine neue Karriere beginnt bei
+  // Saison 1, nicht bei 20 - sie braucht die gebootstrappte Welt, nicht die
+  // fertig gerechnete. Mit rund 0,35 MB faellt sie neben apex.db nicht auf.
+  const worldOut = resolve(dirname(options.outPath), 'world_data.db');
+  copyFileSync(options.worldPath, worldOut);
+  console.log(`  Startwelt:      ${worldOut}`);
 
   console.log(`  Groesse:        ${before} MB -> ${megabytes(options.outPath)} MB`);
   console.log(`\nFertig: ${options.outPath}`);

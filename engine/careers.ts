@@ -14,7 +14,7 @@ import type { Database } from './savegame.js';
 import { createRng, gaussian, seedFrom } from './rng.js';
 import { loadPayoutRules, payoutFor } from './finance.js';
 import { facilityValues, loadFacilityTypes, loadLevels } from './facilities.js';
-import { playerTeam, withoutPlayer } from './player.js';
+import { scopeTeams } from './player.js';
 
 /**
  * Anteil der Ausschuettung, den ein Team in seine beiden Stammfahrer steckt.
@@ -500,7 +500,10 @@ export function generateNewgens(db: Database, season: number, targetPool = 450):
  * Superlizenz seiner Liga erfuellt - Abwerbung aus laufenden Vertraegen gibt
  * es nicht (getroffene Entscheidung).
  */
-export function runMarket(db: Database, season: number): CareerSummary {
+export function runMarket(db: Database, season: number,
+  /** Nur dieses Team rechnen - der Weg der Voreinstellung im Karrieremodus. */
+  onlyTeam?: number,
+): CareerSummary {
   const worldSeed = (db.prepare('SELECT world_seed FROM game_state WHERE id = 1').get() as {
     world_seed: number;
   }).world_seed;
@@ -512,12 +515,13 @@ export function runMarket(db: Database, season: number): CareerSummary {
     >[]).map((row) => [row.tier, row.min_superlicence_points]),
   );
   // Die Cockpits des Spielerteams besetzt der Spieler (Konzept 14.2).
-  const teams = withoutPlayer(
+  const teams = scopeTeams(
     db.prepare('SELECT team_id, tier FROM team_seasons WHERE season = ?').all(season) as {
       team_id: number;
       tier: number;
     }[],
-    playerTeam(db),
+    db,
+    onlyTeam,
   );
 
   type StateRow = Record<string, number | string | null>;

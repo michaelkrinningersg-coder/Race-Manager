@@ -2,6 +2,7 @@ import './style.css';
 import type { Database } from 'sql.js';
 import { openWorld, type LoadProgress } from './data/db';
 import { leagues, worldInfo, type League, type WorldInfo } from './data/queries';
+import { renderCareer } from './views/career';
 import { renderConcept } from './views/concept';
 import { renderDriver } from './views/driver';
 import { renderEditor } from './views/editor';
@@ -37,6 +38,7 @@ type Route =
   | { view: 'race'; tier: number; round: number; leg: number }
   | { view: 'records' }
   | { view: 'editor'; file: string }
+  | { view: 'career' }
   | { view: 'hall' }
   | { view: 'concept' };
 
@@ -71,6 +73,7 @@ function parseRoute(parts: string[]): Route {
       return { view: 'race', tier, round, leg: Number.isInteger(leg) ? leg : 1 };
     }
   }
+  if (head === 'karriere') return { view: 'career' };
   if (head === 'editor') return { view: 'editor', file: a ?? '' };
   if (head === 'rekorde') return { view: 'records' };
   if (head === 'ruhmeshalle') return { view: 'hall' };
@@ -102,6 +105,8 @@ function renderSidebar(context: Context, route: Route): string {
       <a class="nav-item nav-item--wide${route.view === 'pyramid' ? ' is-active' : ''}"
          href="${withSeason('#/', context.season)}">Pyramide</a>
       ${items}
+      <a class="nav-item nav-item--wide${route.view === 'career' ? ' is-active' : ''}"
+         href="${withSeason('#/karriere', context.season)}">Karriere</a>
       <a class="nav-item nav-item--wide${route.view === 'records' ? ' is-active' : ''}"
          href="${withSeason('#/rekorde', context.season)}">Rekorde</a>
       <a class="nav-item nav-item--wide${route.view === 'hall' ? ' is-active' : ''}"
@@ -151,6 +156,8 @@ function renderMain(context: Context, route: Route): string {
         route.leg,
         context.info,
       );
+    case 'career':
+      return renderCareer(context.db);
     case 'editor':
       return renderEditor(route.file);
     case 'records':

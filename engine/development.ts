@@ -18,7 +18,7 @@ import { createRng, gaussian, seedFrom } from './rng.js';
 import { loadStaffValues } from './staff.js';
 import { facilityValues, loadFacilityTypes, loadLevels } from './facilities.js';
 import { atrPenalties } from './costcap.js';
-import { playerTeam, withoutPlayer } from './player.js';
+import { scopeTeams } from './player.js';
 
 /**
  * Ein Team ganz ohne Fortschrittsbremse gewinnt hoechstens diesen Anteil des
@@ -75,6 +75,8 @@ export function developParts(
   db: Database,
   fromSeason: number,
   toSeason: number,
+  /** Nur dieses Team rechnen - der Weg der Voreinstellung im Karrieremodus. */
+  onlyTeam?: number,
 ): DevelopmentSummary {
   const worldSeed = (db.prepare('SELECT world_seed FROM game_state WHERE id = 1').get() as {
     world_seed: number;
@@ -113,9 +115,10 @@ export function developParts(
   // Das Spielerteam entwickelt nicht die KI (Konzept 14.2): Es faellt aus der
   // Liste, die die Entwicklungsschleife unten abarbeitet. Sein Auto bleibt
   // damit stehen, bis der Spieler seine Ressourcen verteilt hat.
-  const developing = withoutPlayer(
+  const developing = scopeTeams(
     previous as unknown as { team_id: number }[],
-    playerTeam(db),
+    db,
+    onlyTeam,
   ) as unknown as Record<string, number | string>[];
 
   const target = new Map(

@@ -37,3 +37,26 @@ export function setPlayerTeam(db: Database, teamId: number | null): void {
 export function withoutPlayer<T extends { team_id: number }>(rows: T[], player: number | null): T[] {
   return player === null ? rows : rows.filter((row) => row.team_id !== player);
 }
+
+/**
+ * Waehlt aus, fuer welche Teams eine KI-Routine laeuft.
+ *
+ * Zwei Betriebsarten, und die zweite ist der Kniff des Karrieremodus:
+ *
+ *  - ohne `onlyTeam`: alle ausser dem Spieler - der Normalfall einer Saison.
+ *  - mit `onlyTeam`: genau dieses eine Team.
+ *
+ * Die zweite Art gibt es, damit die Voreinstellung des Spielers nicht
+ * nachgebaut werden muss. Wer nichts entscheidet, bekommt exakt das, was die
+ * KI fuer ihn getan haette - dieselbe Funktion, nur auf ein Team eingegrenzt.
+ * Eine zweite Fassung der Entwicklungsformel waere sonst unvermeidlich gewesen,
+ * und zwei Fassungen laufen immer auseinander.
+ */
+export function scopeTeams<T extends { team_id: number }>(
+  rows: T[],
+  db: Database,
+  onlyTeam?: number,
+): T[] {
+  if (onlyTeam !== undefined) return rows.filter((row) => row.team_id === onlyTeam);
+  return withoutPlayer(rows, playerTeam(db));
+}

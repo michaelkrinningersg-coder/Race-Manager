@@ -1432,3 +1432,115 @@ code {
 .editor-row--bad {
   box-shadow: inset 3px 0 0 var(--relegation);
 }
+
+/* ---------- Karriere ---------- */
+
+.career-tier {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  margin-bottom: 0.5rem;
+  background: rgba(255, 255, 255, 0.015);
+}
+
+.career-tier > summary {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.6rem 0.8rem;
+  cursor: pointer;
+  font-weight: 600;
+  list-style: none;
+}
+
+.career-tier > summary::-webkit-details-marker { display: none; }
+
+.career-teams {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 0.4rem;
+  padding: 0 0.8rem 0.8rem;
+}
+
+.career-team {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-areas: 'chip name' 'chip meta';
+  gap: 0 0.5rem;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.02);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  min-width: 0;
+}
+
+.career-team:hover {
+  border-color: rgba(255, 90, 31, 0.55);
+  background: rgba(255, 90, 31, 0.08);
+}
+
+.career-team .chip { grid-area: chip; align-self: center; }
+.career-team__name { grid-area: name; font-weight: 600; min-width: 0; }
+.career-team__meta { grid-area: meta; font-size: 0.74rem; color: var(--muted); }
+
+.career-resume,
+.career-import {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  padding: 0.65rem 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  margin-bottom: 0.7rem;
+  font-size: 0.88rem;
+}
+
+.career-actions { display: flex; gap: 0.4rem; }
+
+.career-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 1rem 0;
+}
+
+.career-busy {
+  font-size: 0.8rem;
+  color: var(--accent);
+}
+
+.career-areas {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 0.4rem;
+  margin: 0.6rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Wer entschieden hat, ist die Aussage - deshalb die Farbe am eigenen Bereich
+   und nicht am uebernommenen. */
+.career-area {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  padding: 0.5rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.career-area.is-own {
+  border-color: rgba(52, 209, 127, 0.4);
+  background: rgba(52, 209, 127, 0.08);
+}
+
+.career-area__name { font-weight: 600; font-size: 0.9rem; }
+.career-area__who { font-size: 0.74rem; color: var(--muted); }

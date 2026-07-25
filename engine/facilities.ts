@@ -14,7 +14,7 @@
  */
 
 import type { Database } from './savegame.js';
-import { playerTeam, withoutPlayer } from './player.js';
+import { scopeTeams } from './player.js';
 
 export interface Facilities {
   windtunnel: number;
@@ -353,7 +353,10 @@ export interface FacilitySummary {
  * Team ueber Nacht in die Fixkostenfalle stellen wuerden, aus der es nie
  * wieder herausfindet.
  */
-export function planInvestments(db: Database, season: number): FacilitySummary {
+export function planInvestments(db: Database, season: number,
+  /** Nur dieses Team rechnen - der Weg der Voreinstellung im Karrieremodus. */
+  onlyTeam?: number,
+): FacilitySummary {
   const types = loadFacilityTypes(db);
   const byKey = new Map(types.map((type) => [type.key, type]));
   const minimums = loadFacilityMinimums(db);
@@ -411,7 +414,7 @@ export function planInvestments(db: Database, season: number): FacilitySummary {
   // Ueber den Ausbau des Spielerteams entscheidet der Spieler (Konzept 14.2).
   // forceSales weiter unten gilt weiterhin fuer alle: Ein Zwangsverkauf ist
   // keine Entscheidung, sondern die Folge einer leeren Kasse.
-  const building = withoutPlayer(teams, playerTeam(db));
+  const building = scopeTeams(teams, db, onlyTeam);
 
   const setLevel = db.prepare(
     'UPDATE team_facilities SET level = ? WHERE team_id = ? AND season = ? AND facility_key = ?',

@@ -81,7 +81,17 @@ CREATE TABLE game_state (
   world_seed     INTEGER NOT NULL,
   -- Team des Spielers (Konzept 14.2). NULL heisst: keine Karriere, die Welt
   -- laeuft vollstaendig unter KI - so entsteht die Auslieferwelt.
-  player_team_id INTEGER REFERENCES teams(team_id)
+  player_team_id INTEGER REFERENCES teams(team_id),
+  -- Vertrauen des Vorstands 0-100 (Konzept 14.2). Unter 20 ist Schluss.
+  board_confidence INTEGER NOT NULL DEFAULT 60
+);
+
+-- Welche der fuenf Bereiche der Spieler je Saison selbst entschieden hat.
+-- Was fehlt, holt der Karrieremodus mit der KI nach.
+CREATE TABLE player_decisions (
+  season INTEGER NOT NULL,
+  area   TEXT    NOT NULL,
+  PRIMARY KEY (season, area)
 );
 
 CREATE TABLE lap_records (
@@ -340,7 +350,12 @@ export function initSavegame(db: Database, worldSeed: number): Database {
   db.pragma('foreign_keys = ON');
   db.exec(RUNTIME_DDL);
   db.prepare(
-    'INSERT INTO game_state (id, current_season, current_week, world_seed) VALUES (1, 1, 1, ?)',
+    // current_season = 0 heisst: noch keine Saison abgeschlossen. Der Wert
+    // stand bis v0.20.0 auf 1, obwohl Saison 1 noch nicht gefahren war - die
+    // CLI las ihn nie, sie zaehlt selbst. Der Karrieremodus liest ihn, und
+    // rechnete daraus Saison 2: Er bereitete eine Saison vor, deren Vorjahr es
+    // nicht gab, und blieb stehen.
+    'INSERT INTO game_state (id, current_season, current_week, world_seed) VALUES (1, 0, 1, ?)',
   ).run(worldSeed);
   return db;
 }
