@@ -7,7 +7,14 @@
  * Saisons auffaellt. Deshalb harter Abbruch, keine Warnung.
  */
 
-import { AERO_PART_KEYS, CORE_ATTRIBUTES, PART_KEYS } from './schema.js';
+import {
+  AERO_PART_KEYS,
+  CORE_ATTRIBUTES,
+  DRIVER_WEIGHT_KEYS,
+  PART_KEYS,
+  PART_WEIGHT_KEYS,
+  TRACK_ARCHETYPES,
+} from './schema.js';
 import type { LoadedTable, Row } from './load.js';
 import { error, warning, type Finding } from './report.js';
 
@@ -620,6 +627,103 @@ function checkDrivers(context: ValidationContext, findings: Finding[]): void {
   }
 }
 
+/**
+ * Gewichtsprofile: je Zeile muessen die neun Bauteil- und die sechs
+ * Fahrergewichte jeweils auf 1.0 summieren, je Strecke bzw. Archetyp die drei
+ * sector_share. Ohne diese Pruefung verschieben sich Rundenzeiten
+ * systematisch, ohne dass eine einzelne Zahl falsch aussieht.
+ */
+function checkWeightProfiles(context: ValidationContext, findings: Finding[]): void {
+  const archetypes = rowsOf(context, 'track_archetype_weights.csv');
+  const overrides = rowsOf(context, 'track_sector_weights.csv');
+  const trackIds = new Set(rowsOf(context, 'tracks.csv').map((row) => num(row, 'track_id')));
+
+  const sumOf = (row: Row, keys: readonly string[]): number =>
+    keys.reduce((total, name) => total + num(row, name), 0);
+
+  for (const [file, rows] of [
+    ['track_archetype_weights.csv', archetypes],
+    ['track_sector_weights.csv', overrides],
+  ] as const) {
+    for (const row of rows) {
+      const parts = sumOf(row, PART_WEIGHT_KEYS);
+      if (Math.abs(parts - 1) > 1e-6) {
+        findings.push(
+          error(file, `Summe der Bauteilgewichte ist ${parts.toFixed(4)}, erwartet ist 1.0`, row.line),
+        );
+      }
+      const drivers = sumOf(row, DRIVER_WEIGHT_KEYS);
+      if (Math.abs(drivers - 1) > 1e-6) {
+        findings.push(
+          error(file, `Summe der Fahrergewichte ist ${drivers.toFixed(4)}, erwartet ist 1.0`, row.line),
+        );
+      }
+    }
+  }
+
+  // Jeder Archetyp braucht alle drei Sektoren, sonst faellt eine Strecke
+  // beim Aufloesen ins Leere.
+  const perArchetype = new Map<string, Row[]>();
+  for (const row of archetypes) {
+    const key = String(row.values.archetype);
+    perArchetype.set(key, [...(perArchetype.get(key) ?? []), row]);
+  }
+  for (const key of TRACK_ARCHETYPES) {
+    const rows = perArchetype.get(key) ?? [];
+    if (rows.length !== 3) {
+      findings.push(
+        error('track_archetype_weights.csv', `Archetyp '${key}' hat ${rows.length} Sektoren, erwartet sind 3`),
+      );
+      continue;
+    }
+    const share = rows.reduce((total, row) => total + num(row, 'sector_share'), 0);
+    if (Math.abs(share - 1) > 1e-6) {
+      findings.push(
+        error(
+          'track_archetype_weights.csv',
+          `Archetyp '${key}': Summe sector_share ist ${share.toFixed(4)}, erwartet ist 1.0`,
+        ),
+      );
+    }
+  }
+
+  // Eine Strecke mit Abweichungen muss alle drei Sektoren setzen - sonst
+  // mischten sich Archetyp- und Streckenanteile und die Summe stimmte nicht mehr.
+  const perTrack = new Map<number, Row[]>();
+  for (const row of overrides) {
+    const id = num(row, 'track_id');
+    if (!trackIds.has(id)) {
+      findings.push(
+        error('track_sector_weights.csv', `track_id ${id} existiert nicht in tracks.csv`, row.line),
+      );
+      continue;
+    }
+    perTrack.set(id, [...(perTrack.get(id) ?? []), row]);
+  }
+  for (const [id, rows] of perTrack) {
+    if (rows.length !== 3) {
+      findings.push(
+        error(
+          'track_sector_weights.csv',
+          `Strecke ${id} ueberschreibt ${rows.length} von 3 Sektoren - entweder alle drei oder keinen`,
+          rows[0].line,
+        ),
+      );
+      continue;
+    }
+    const share = rows.reduce((total, row) => total + num(row, 'sector_share'), 0);
+    if (Math.abs(share - 1) > 1e-6) {
+      findings.push(
+        error(
+          'track_sector_weights.csv',
+          `Strecke ${id}: Summe sector_share ist ${share.toFixed(4)}, erwartet ist 1.0`,
+          rows[0].line,
+        ),
+      );
+    }
+  }
+}
+
 function checkCalendar(context: ValidationContext, findings: Finding[]): void {
   const calendar = rowsOf(context, 'calendar.csv');
   const leagues = rowsOf(context, 'leagues.csv');
@@ -828,6 +932,7 @@ export function validateWorld(context: ValidationContext): Finding[] {
   checkPartTypes(context, findings);
   checkTeams(context, findings);
   checkEngineSuppliers(context, findings);
+  checkWeightProfiles(context, findings);
   checkCalendar(context, findings);
   checkDrivers(context, findings);
 

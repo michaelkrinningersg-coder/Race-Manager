@@ -56,12 +56,14 @@ Vier weitere Dateien sind hinzugekommen und in Abschnitt 17 spezifiziert:
 | `tracks.csv` | 30 Strecken, gemeinsamer Pool über alle zehn Ligen |
 | `engine_suppliers.csv` | Acht Motorenhersteller, je einer je Werksteam |
 | `calendar.csv` | Startkalender Saison 1, 130 Rennwochenenden |
+| `track_archetype_weights.csv` | Gewichtsprofil je Archetyp und Sektor |
+| `track_sector_weights.csv` | Abweichungen einzelner Strecken davon |
 
 Damit sind `weekend_format_id` und `engine_supplier_id` keine Vorwärtsreferenzen mehr, sondern scharf geprüfte Fremdschlüssel.
 
 ### 1.3 Was weiterhin fehlt
 
-`track_sector_weights.csv`, `tyre_compounds.csv`, `weather_profiles.csv`, `sponsors.csv`, `staff.csv`, `staff_roles.csv`, `team_facilities.csv`, `team_finances.csv`, `driver_names.csv`, `newgen_presets.csv`, `game_state.csv`.
+`tyre_compounds.csv`, `weather_profiles.csv`, `sponsors.csv`, `staff.csv`, `staff_roles.csv`, `team_facilities.csv`, `team_finances.csv`, `driver_names.csv`, `newgen_presets.csv`, `game_state.csv`.
 
 Eine einzige Vorwärtsreferenz bleibt: `barrage_track_id` in `promotion_rules.csv`. Leer bedeutet dort Zufallsauswahl aus dem Streckenpool.
 
@@ -962,3 +964,34 @@ Die Streckenfolge je Liga ist gesetzt; die Wochenverteilung ist reine Arithmetik
 | Läufe je Tier ≠ `race_count` | Fehler (im Teilbestandsmodus Warnung) |
 | Kundenteams mit mehr Tuning-Spielraum als das Werksteam | Warnung |
 | Kalenderwoche außerhalb 8–46 | Warnung |
+
+### 17.6 Gewichtsprofile: `track_archetype_weights.csv` und `track_sector_weights.csv`
+
+Konzept 10 sieht die Gewichte je `(track_id, sektor)` vor. Bei 30 Strecken, 3 Sektoren und 16 Gewichten wären das **1.440 handgepflegte Balancing-Zahlen** – zum größten Teil geraten und praktisch nicht zu pflegen. Umgesetzt ist deshalb ein zweistufiges Modell:
+
+* **`track_archetype_weights.csv`** trägt das Profil je Archetyp und Sektor. 7 × 3 = **21 Zeilen**. Jede Strecke bezieht ihr Profil hierüber ihren `archetype`.
+* **`track_sector_weights.csv`** enthält nur **Abweichungen einzelner Strecken**. Aktuell 12 Zeilen für vier Kurse, die sich von ihrem Archetyp merklich unterscheiden.
+
+Ihren individuellen Charakter behalten alle Strecken ohnehin über Länge, Rundenzahl, Überholschwierigkeit, Abrieb, Höhenunterschied, Boxenzeitverlust und Safety-Car-Rate – das Gewichtsprofil ist nur einer von acht Hebeln.
+
+**Eine Überschreibung ersetzt vollständig**, sie addiert keine Deltas. Beim Lesen einer Zeile ist damit immer das ganze Profil sichtbar, und es gibt keinen Zustand, in dem sich Archetyp- und Streckenanteile zu etwas anderem als 1.0 summieren.
+
+#### Spalten
+
+| Spalte | Bedeutung |
+| :--- | :--- |
+| `archetype` bzw. `track_id` + `sector` | Primärschlüssel, Sektor 1–3 |
+| `sector_share` | Anteil des Sektors an der Rundenzeit. Über die drei Sektoren Summe 1.0 |
+| `w_chassis` … `w_brakes` | Gewicht der neun Bauteilgruppen, je Zeile Summe 1.0 |
+| `w_pace`, `w_braking`, `w_cornering`, `w_car_control`, `w_tyre_management`, `w_consistency` | Gewicht der sechs rundenzeitrelevanten Fahrerwerte, je Zeile Summe 1.0 |
+| `note` | Nur in der Streckendatei: warum diese Strecke abweicht |
+
+`qualifying`, `overtaking` und `defending` fehlen bewusst – sie wirken auf Session- und Zweikampflogik, nicht auf die Sektorzeit.
+
+#### Die View `track_sector_profile`
+
+Der Bootstrapper legt eine View an, die den Vorrang auflöst: Streckenzeile gewinnt, sonst Archetyp. Sie liefert für jede Strecke genau drei Zeilen samt einer Spalte `source` (`archetype` oder `override`), sodass kein Aufrufer die Vorrangregel selbst nachbilden muss.
+
+**Validierung:** Bauteilgewichte je Zeile Summe 1.0 · Fahrergewichte je Zeile Summe 1.0 · jeder Archetyp mit allen drei Sektoren · `sector_share` je Archetyp und je überschreibender Strecke Summe 1.0 · eine Strecke überschreibt **alle drei** Sektoren oder keinen · `track_id` existiert.
+
+Diese Summenregeln sind der Grund, warum die Prüfung hart ist: Eine Gewichtssumme von 1,1 sieht in keiner einzelnen Zahl falsch aus, verschiebt aber alle Rundenzeiten dieser Strecke systematisch.

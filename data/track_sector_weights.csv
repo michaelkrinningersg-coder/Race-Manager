@@ -1,0 +1,22 @@
+# HANDGEPFLEGT - Abweichungen einzelner Strecken vom Archetypprofil.
+# Bewusst duenn besetzt: Wer hier keine Zeile hat, erbt das Profil seines
+# archetype aus track_archetype_weights.csv. Eine Zeile ersetzt das
+# Archetypprofil fuer genau diesen Sektor vollstaendig - keine Deltas, damit
+# beim Lesen einer Zeile immer das ganze Profil sichtbar ist.
+#
+# Spalten und Summenregeln identisch zu track_archetype_weights.csv.
+# Wenn eine Strecke ueberhaupt Abweichungen hat, muessen alle drei Sektoren
+# gesetzt sein - sonst summierten sich die sector_share nicht mehr auf 1.0.
+track_id,sector,sector_share,w_chassis,w_front_wing,w_rear_wing,w_floor,w_powertrain,w_ers,w_gearbox,w_suspension,w_brakes,w_pace,w_braking,w_cornering,w_car_control,w_tyre_management,w_consistency,note
+300001,1,0.42,0.04,0.04,0.10,0.07,0.34,0.15,0.20,0.03,0.03,0.52,0.08,0.09,0.06,0.09,0.16,"Lombardia: laengste Vollgaspassage im Kalender, Sektor 1 dominiert die Runde"
+300001,2,0.30,0.05,0.09,0.03,0.08,0.19,0.08,0.14,0.11,0.23,0.26,0.30,0.14,0.10,0.08,0.12,"Zwei harte Schikanen hintereinander - reine Bremszone"
+300001,3,0.28,0.07,0.13,0.14,0.22,0.16,0.06,0.05,0.13,0.04,0.34,0.10,0.28,0.10,0.08,0.10,"Parabolica-Charakter: eine lange Rechte, in der der Unterboden alles traegt"
+300006,1,0.36,0.07,0.10,0.10,0.14,0.24,0.11,0.10,0.09,0.05,0.38,0.10,0.20,0.12,0.08,0.12,"Ardennes: Eau Rouge und die lange Steigung danach - Leistung entscheidet"
+300006,2,0.34,0.09,0.14,0.09,0.16,0.14,0.08,0.08,0.16,0.06,0.24,0.12,0.28,0.16,0.08,0.12,"Der Waldsektor: schnelle Bogenkurven ohne Auslauf"
+300006,3,0.30,0.09,0.12,0.08,0.13,0.15,0.09,0.10,0.13,0.11,0.26,0.20,0.22,0.14,0.08,0.10,"Bus Stop und Zielgerade - der einzige echte Bremspunkt der Runde"
+300009,1,0.31,0.12,0.19,0.02,0.10,0.04,0.07,0.06,0.22,0.18,0.14,0.20,0.20,0.28,0.05,0.13,"Vieux Port: Mauern ab der ersten Kurve, Fahrzeugbeherrschung schlaegt alles"
+300009,2,0.35,0.14,0.20,0.02,0.08,0.03,0.07,0.05,0.25,0.16,0.10,0.20,0.20,0.33,0.05,0.12,"Tunnel und Schwimmbad: der engste Sektor des ganzen Kalenders"
+300009,3,0.34,0.15,0.17,0.02,0.08,0.04,0.07,0.05,0.26,0.16,0.11,0.18,0.19,0.32,0.05,0.15,"Rascasse und Anthony Noghes - hier endet jede zweite Quali-Runde an der Mauer"
+300018,1,0.33,0.07,0.13,0.08,0.17,0.13,0.05,0.06,0.21,0.10,0.22,0.14,0.20,0.12,0.22,0.10,"Anatolia: langgezogene Anfahrt, die Reifen sind hier noch intakt"
+300018,2,0.36,0.07,0.16,0.05,0.21,0.08,0.02,0.03,0.27,0.11,0.12,0.14,0.20,0.12,0.34,0.08,"Die Kurve mit vier Scheitelpunkten. Wer hier zu frueh am Gas ist, wechselt eine Runde frueher"
+300018,3,0.31,0.08,0.14,0.08,0.18,0.12,0.03,0.04,0.22,0.11,0.18,0.14,0.20,0.12,0.26,0.10,"Abschliessende Rechts-links-Kombination auf bereits abgebauten Reifen"

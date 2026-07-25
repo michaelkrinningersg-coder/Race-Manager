@@ -1,0 +1,33 @@
+# HANDGEPFLEGT - Gewichtsprofil je Streckenarchetyp und Sektor (Konzept 10).
+# 7 Archetypen x 3 Sektoren = 21 Zeilen. Jede Strecke bezieht ihr Profil hierueber
+# ihren archetype aus tracks.csv; einzelne Strecken koennen es in
+# track_sector_weights.csv ueberschreiben.
+#
+# sector_share: Anteil des Sektors an der Rundenzeit, je Archetyp Summe 1.0.
+# w_<bauteilgruppe>: Gewicht der neun Bauteilgruppen, je Zeile Summe 1.0.
+# w_<fahrerattribut>: Gewicht der sechs rundenzeitrelevanten Fahrerwerte,
+#   je Zeile Summe 1.0. qualifying, overtaking und defending wirken nicht auf
+#   die Sektorzeit, sondern auf Session- und Zweikampflogik - sie stehen
+#   deshalb bewusst nicht hier.
+archetype,sector,sector_share,w_chassis,w_front_wing,w_rear_wing,w_floor,w_powertrain,w_ers,w_gearbox,w_suspension,w_brakes,w_pace,w_braking,w_cornering,w_car_control,w_tyre_management,w_consistency
+altitude,1,0.35,0.03,0.08,0.04,0.10,0.26,0.16,0.14,0.07,0.12,0.34,0.16,0.16,0.10,0.10,0.14
+altitude,2,0.32,0.04,0.09,0.02,0.07,0.24,0.15,0.13,0.10,0.16,0.28,0.20,0.18,0.11,0.09,0.14
+altitude,3,0.33,0.02,0.09,0.04,0.13,0.25,0.16,0.12,0.08,0.11,0.30,0.17,0.19,0.10,0.10,0.14
+balanced,1,0.34,0.08,0.12,0.11,0.13,0.16,0.09,0.11,0.10,0.10,0.28,0.16,0.20,0.12,0.10,0.14
+balanced,2,0.33,0.09,0.13,0.07,0.12,0.12,0.08,0.11,0.14,0.14,0.22,0.20,0.22,0.13,0.09,0.14
+balanced,3,0.33,0.09,0.14,0.12,0.15,0.12,0.08,0.06,0.13,0.11,0.24,0.16,0.23,0.13,0.10,0.14
+bumpy_street,1,0.33,0.18,0.12,0.03,0.10,0.05,0.06,0.08,0.24,0.14,0.16,0.18,0.18,0.32,0.06,0.10
+bumpy_street,2,0.34,0.20,0.11,0.03,0.09,0.04,0.06,0.08,0.26,0.13,0.12,0.18,0.18,0.36,0.06,0.10
+bumpy_street,3,0.33,0.19,0.12,0.03,0.09,0.05,0.06,0.08,0.25,0.13,0.14,0.17,0.18,0.34,0.06,0.11
+downforce_street,1,0.32,0.10,0.20,0.04,0.12,0.05,0.08,0.07,0.16,0.18,0.18,0.22,0.22,0.18,0.06,0.14
+downforce_street,2,0.34,0.12,0.22,0.04,0.10,0.04,0.08,0.06,0.18,0.16,0.14,0.22,0.24,0.20,0.06,0.14
+downforce_street,3,0.34,0.14,0.18,0.03,0.10,0.05,0.08,0.06,0.20,0.16,0.14,0.20,0.22,0.22,0.06,0.16
+highspeed,1,0.38,0.05,0.06,0.12,0.08,0.30,0.14,0.18,0.04,0.03,0.45,0.10,0.12,0.08,0.10,0.15
+highspeed,2,0.30,0.05,0.10,0.04,0.09,0.18,0.08,0.14,0.12,0.20,0.28,0.26,0.16,0.10,0.08,0.12
+highspeed,3,0.32,0.08,0.15,0.16,0.20,0.14,0.06,0.05,0.12,0.04,0.32,0.12,0.26,0.12,0.08,0.10
+stop_and_go,1,0.33,0.06,0.08,0.02,0.04,0.14,0.16,0.18,0.10,0.22,0.20,0.32,0.16,0.12,0.08,0.12
+stop_and_go,2,0.34,0.06,0.09,0.01,0.03,0.11,0.17,0.16,0.13,0.24,0.16,0.34,0.16,0.13,0.09,0.12
+stop_and_go,3,0.33,0.07,0.10,0.02,0.04,0.13,0.15,0.17,0.12,0.20,0.18,0.30,0.17,0.13,0.10,0.12
+tyre_killer,1,0.34,0.07,0.14,0.08,0.18,0.12,0.04,0.05,0.22,0.10,0.20,0.14,0.20,0.12,0.24,0.10
+tyre_killer,2,0.33,0.08,0.15,0.06,0.19,0.10,0.03,0.04,0.24,0.11,0.16,0.16,0.20,0.12,0.26,0.10
+tyre_killer,3,0.33,0.08,0.14,0.08,0.18,0.11,0.03,0.04,0.23,0.11,0.18,0.14,0.20,0.12,0.26,0.10

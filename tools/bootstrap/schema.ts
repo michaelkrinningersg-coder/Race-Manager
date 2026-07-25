@@ -121,6 +121,32 @@ const capColumns: ColumnSpec[] = PART_KEYS.map((key) => ({
   max: 1000,
 }));
 
+/**
+ * Rundenzeitrelevante Fahrerwerte. qualifying, overtaking und defending
+ * fehlen bewusst - sie wirken auf Session- und Zweikampflogik, nicht auf
+ * die Sektorzeit.
+ */
+export const SECTOR_DRIVER_KEYS = [
+  'pace',
+  'braking',
+  'cornering',
+  'car_control',
+  'tyre_management',
+  'consistency',
+] as const;
+
+/** Gewichtsspalten eines Sektorprofils: 9 Bauteilgruppen, 6 Fahrerwerte. */
+export const PART_WEIGHT_KEYS = PART_KEYS.map((key) => `w_${key}`);
+export const DRIVER_WEIGHT_KEYS = SECTOR_DRIVER_KEYS.map((key) => `w_${key}`);
+
+const weightColumns: ColumnSpec[] = [...PART_WEIGHT_KEYS, ...DRIVER_WEIGHT_KEYS].map((name) => ({
+  name,
+  type: 'real' as const,
+  required: true,
+  min: 0,
+  max: 1,
+}));
+
 export const TABLES: TableSpec[] = [
   {
     file: 'points_systems.csv',
@@ -201,6 +227,30 @@ export const TABLES: TableSpec[] = [
       { name: 'downforce_level', type: 'real', required: true, min: 0, max: 1 },
       { name: 'first_used_year', type: 'int', required: true, min: 1900, max: 2100 },
       { name: 'flavour', type: 'text', required: true },
+    ],
+  },
+  {
+    file: 'track_archetype_weights.csv',
+    table: 'track_archetype_weights',
+    primaryKey: ['archetype', 'sector'],
+    expectedRows: 21,
+    columns: [
+      { name: 'archetype', type: 'text', required: true, values: TRACK_ARCHETYPES },
+      { name: 'sector', type: 'int', required: true, min: 1, max: 3 },
+      { name: 'sector_share', type: 'real', required: true, min: 0, max: 1 },
+      ...weightColumns,
+    ],
+  },
+  {
+    file: 'track_sector_weights.csv',
+    table: 'track_sector_weights',
+    primaryKey: ['track_id', 'sector'],
+    columns: [
+      { name: 'track_id', type: 'int', required: true, min: 300001 },
+      { name: 'sector', type: 'int', required: true, min: 1, max: 3 },
+      { name: 'sector_share', type: 'real', required: true, min: 0, max: 1 },
+      ...weightColumns,
+      { name: 'note', type: 'text' },
     ],
   },
   {

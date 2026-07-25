@@ -233,6 +233,77 @@ CREATE TABLE calendar (
 );
 
 CREATE UNIQUE INDEX idx_calendar_week ON calendar(season, tier, week);
+CREATE TABLE track_archetype_weights (
+  archetype    TEXT    NOT NULL,
+  sector       INTEGER NOT NULL CHECK (sector BETWEEN 1 AND 3),
+  sector_share REAL    NOT NULL,
+  w_chassis            REAL    NOT NULL,
+  w_front_wing         REAL    NOT NULL,
+  w_rear_wing          REAL    NOT NULL,
+  w_floor              REAL    NOT NULL,
+  w_powertrain         REAL    NOT NULL,
+  w_ers                REAL    NOT NULL,
+  w_gearbox            REAL    NOT NULL,
+  w_suspension         REAL    NOT NULL,
+  w_brakes             REAL    NOT NULL,
+  w_pace               REAL    NOT NULL,
+  w_braking            REAL    NOT NULL,
+  w_cornering          REAL    NOT NULL,
+  w_car_control        REAL    NOT NULL,
+  w_tyre_management    REAL    NOT NULL,
+  w_consistency        REAL    NOT NULL,
+  PRIMARY KEY (archetype, sector)
+);
+
+CREATE TABLE track_sector_weights (
+  track_id     INTEGER NOT NULL REFERENCES tracks(track_id),
+  sector       INTEGER NOT NULL CHECK (sector BETWEEN 1 AND 3),
+  sector_share REAL    NOT NULL,
+  w_chassis            REAL    NOT NULL,
+  w_front_wing         REAL    NOT NULL,
+  w_rear_wing          REAL    NOT NULL,
+  w_floor              REAL    NOT NULL,
+  w_powertrain         REAL    NOT NULL,
+  w_ers                REAL    NOT NULL,
+  w_gearbox            REAL    NOT NULL,
+  w_suspension         REAL    NOT NULL,
+  w_brakes             REAL    NOT NULL,
+  w_pace               REAL    NOT NULL,
+  w_braking            REAL    NOT NULL,
+  w_cornering          REAL    NOT NULL,
+  w_car_control        REAL    NOT NULL,
+  w_tyre_management    REAL    NOT NULL,
+  w_consistency        REAL    NOT NULL,
+  note         TEXT,
+  PRIMARY KEY (track_id, sector)
+);
+
+-- Aufgeloestes Sektorprofil: die Streckenzeile gewinnt, sonst gilt der Archetyp.
+-- Jede Strecke hat hier genau drei Zeilen, ohne dass der Aufrufer den
+-- Vorrang selbst nachbilden muss.
+CREATE VIEW track_sector_profile AS
+SELECT t.track_id, a.sector,
+       COALESCE(o.sector_share, a.sector_share) AS sector_share,
+       COALESCE(o.w_chassis, a.w_chassis) AS w_chassis,
+       COALESCE(o.w_front_wing, a.w_front_wing) AS w_front_wing,
+       COALESCE(o.w_rear_wing, a.w_rear_wing) AS w_rear_wing,
+       COALESCE(o.w_floor, a.w_floor) AS w_floor,
+       COALESCE(o.w_powertrain, a.w_powertrain) AS w_powertrain,
+       COALESCE(o.w_ers, a.w_ers) AS w_ers,
+       COALESCE(o.w_gearbox, a.w_gearbox) AS w_gearbox,
+       COALESCE(o.w_suspension, a.w_suspension) AS w_suspension,
+       COALESCE(o.w_brakes, a.w_brakes) AS w_brakes,
+       COALESCE(o.w_pace, a.w_pace) AS w_pace,
+       COALESCE(o.w_braking, a.w_braking) AS w_braking,
+       COALESCE(o.w_cornering, a.w_cornering) AS w_cornering,
+       COALESCE(o.w_car_control, a.w_car_control) AS w_car_control,
+       COALESCE(o.w_tyre_management, a.w_tyre_management) AS w_tyre_management,
+       COALESCE(o.w_consistency, a.w_consistency) AS w_consistency,
+       CASE WHEN o.track_id IS NULL THEN 'archetype' ELSE 'override' END AS source
+FROM tracks t
+JOIN track_archetype_weights a ON a.archetype = t.archetype
+LEFT JOIN track_sector_weights o ON o.track_id = t.track_id AND o.sector = a.sector;
+
 CREATE INDEX idx_calendar_track ON calendar(track_id);
 CREATE INDEX idx_teams_tier   ON teams(start_tier);
 CREATE INDEX idx_drivers_team ON drivers(start_team_id);
@@ -246,6 +317,8 @@ const INSERT_ORDER = [
   'car_part_types.csv',
   'race_weekend_formats.csv',
   'tracks.csv',
+  'track_archetype_weights.csv',
+  'track_sector_weights.csv',
   'leagues.csv',
   'league_regulations.csv',
   'promotion_rules.csv',
