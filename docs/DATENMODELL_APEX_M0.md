@@ -1941,3 +1941,24 @@ Wer zwei Jahrgänge lang keine Anstellung findet, verlässt seither den Sport. D
 In Saison 20 stehen je Rolle 93 bis 122 Kräfte zur Wahl.
 
 **Was sich in der Welt geändert hat:** Abwerbungen springen von 299 auf 865 – die KI hat jetzt einen Markt und nutzt ihn. Verpflichtungen gehen leicht zurück (7 386 → 7 190), Ausfälle von 22 901 auf 22 866. Die Kalibrierung aus M5 ist an dieser Stelle nicht mehr die von damals; das ist der Preis dafür, dass Konzept 8.1 jetzt zutrifft.
+
+### 26.9 Die Vorstandsskala, gemessen und bewusst so gelassen
+
+Aus 26.5 blieb offen, dass die Skala gesetzt und nicht eingemessen war. Der Einzeltest – Vertrauen sprang nach einer Saison auf 100 – legte nahe, dass sie nicht funktioniert. Über alle 167 Teams gemessen, indem für jedes so getan wurde, als hätte der Spieler es geführt, sieht es anders aus:
+
+| Zuwachs | Bonus | Verlust | entlassen | Amtszeit | am Deckel | 20 Saisons |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| **4** | **4** | **6** | **31 %** | **6,6** | **24 %** | **116** |
+| 4 | 0 | 6 | 44 % | 6,8 | 9 % | 93 |
+| 2 | 0 | 6 | 90 % | 7,2 | 0 % | 17 |
+| 2 | 0 | 8 | 95 % | 5,4 | 0 % | 9 |
+| 2 | 0 | 8 | 100 % | 4,3 | 0 % | 0 |
+
+31 Prozent Entlassungen über zwanzig Saisons bei einer mittleren Amtszeit von 6,6 Jahren ist nicht unplausibel. **Getroffene Entscheidung: so lassen.**
+
+Zwei Befunde bleiben damit stehen und sind hier festgehalten, statt stillschweigend behoben zu werden:
+
+* **24 Prozent aller Saisons stehen am Deckel von 100.** Dort trägt die Zahl keine Information mehr – wer einmal oben ist, hat einen Puffer, den kaum etwas aufbraucht. Ursache ist der pauschale +4 für das bloße Erfüllen der Vorgabe: Er treibt jeden, der nicht patzt, unaufhaltsam nach oben. Ihn zu streichen senkt die Sättigung auf 9 Prozent und ändert sonst wenig (44 statt 31 Prozent Entlassungen, 93 statt 116 Teams über die volle Distanz).
+* **Die Skala ist unterhalb von Zuwachs 4 extrem empfindlich.** Von 4 auf 2 springen die Entlassungen von 44 auf 90 Prozent, bei 2/0/8 ohne Milde wird ausnahmslos jeder gefeuert. Zwischen diesen Stufen zu justieren wäre Feinarbeit ohne Messgrundlage – die Verteilung hat dort keine ruhige Zone.
+
+Die Verteilung des Vertrauens über alle Saisons zeigt die Schieflage deutlich: 70 Prozent aller Saisons liegen bei 70 oder darüber, nur 6 Prozent unter 30.
