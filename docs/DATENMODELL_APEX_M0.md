@@ -458,7 +458,7 @@ team_id,name,short_name,code,country,city,founded_year,start_tier,colour_primary
 10015,Silvertown Junior Team,Silvertown,SVT,GBR,Silverstone,2019,10,#005BBB,#FFFFFF,academy,9,95000,,0,0,10,"Zwei Transporter, ein Zelt, sechs Mechaniker im Nebenberuf - und die beste Talentquote der Liga."
 ```
 
-**Validierung:** genau 167 Zeilen · Zeilenzahl je `start_tier` = `team_count` aus `leagues.csv` · `name`, `short_name` und `code` global eindeutig · `history_best_tier` ≤ `start_tier` ist **nicht** gefordert (gefallene Riesen sind erwünscht), aber der Validator meldet sie als Hinweis · `founded_year` ≤ Startjahr · Farbpaar mit ausreichendem Kontrast (Warnung).
+**Validierung:** genau 167 Zeilen · Zeilenzahl je `start_tier` = `team_count` aus `leagues.csv` · `name`, `short_name` und `code` global eindeutig · `history_best_tier` ≤ `start_tier` als **Fehler** – wer in einer Liga antritt, hat sie erreicht, ein schlechterer Bestwert ist ein Widerspruch. Ein deutlich **besserer** Wert (numerisch kleiner) ist dagegen der gewollte „gefallene Riese" und kein Befund · `founded_year` ≤ Startjahr · identisches Farbpaar (Warnung).
 
 ---
 
