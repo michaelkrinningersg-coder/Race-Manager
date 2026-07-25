@@ -2,16 +2,12 @@ name: Deploy to GitHub Pages
 
 on:
   push:
-    # Der Entwicklungsbranch stellt ebenfalls live (getroffene Entscheidung).
-    # Grund: main steht bei M4, die Arbeit bis M7 liegt auf dem Branch - ohne
-    # diesen Ausloeser gaebe es die Seite erst nach einem Merge ueber drei
-    # Meilensteine.
-    #
-    # Der Preis ist benannt und bewusst getragen: Die veroeffentlichte Seite
-    # entspricht damit NICHT dem, was auf main steht, und der Tag zur Version
-    # entsteht weiterhin nur beim Merge (siehe tag.yml). Wer wissen will, was
-    # gerade online ist, liest den Branch, nicht main.
-    branches: [main, claude/mehrliga-rennmanager-konzept-04j69h]
+    # Nur main. Ein Versuch, zusaetzlich vom Entwicklungsbranch zu deployen,
+    # scheiterte an der Umgebung `github-pages`: Sie laesst Deployments nur vom
+    # Default-Branch zu, und der deploy-Job wird abgewiesen, bevor sein erster
+    # Schritt laeuft. Der build-Job dagegen laeuft auf jedem Branch durch - die
+    # Schranke sitzt am Deployment, nicht am Bau.
+    branches: [main]
   workflow_dispatch:
 
 permissions:
