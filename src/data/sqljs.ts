@@ -72,13 +72,27 @@ class SqlJsStatementAdapter implements Statement {
    * kann der wiederverwendete Cursor keine Zeilen der Vorabfrage liefern.
    */
   private run$<T>(params: unknown[], read: (statement: SqlJsStatement) => T): T {
-    const statement = (this.cached ??= this.db.prepare(this.sql));
-    statement.reset();
     const binding = bindingFor(this.sql, params);
-    if (Array.isArray(binding) ? binding.length > 0 : Object.keys(binding).length > 0) {
-      statement.bind(binding);
+    const bind = (statement: SqlJsStatement): T => {
+      statement.reset();
+      if (Array.isArray(binding) ? binding.length > 0 : Object.keys(binding).length > 0) {
+        statement.bind(binding);
+      }
+      return read(statement);
+    };
+
+    try {
+      return bind((this.cached ??= this.db.prepare(this.sql)));
+    } catch (error) {
+      // sql.js gibt vorbereitete Anweisungen frei, sobald exec() laeuft - und
+      // exec() laeuft bei jedem BEGIN, COMMIT und SAVEPOINT. Der Zwischen-
+      // speicher haelt danach eine Leiche, die beim naechsten Zugriff mit
+      // 'Statement closed' abbricht. Einmal neu vorbereiten und wiederholen;
+      // faellt es dann erneut, ist es ein echter Fehler.
+      if (!String(error).includes('Statement closed')) throw error;
+      this.cached = this.db.prepare(this.sql);
+      return bind(this.cached);
     }
-    return read(statement);
   }
 
   all(...params: unknown[]): unknown[] {
@@ -118,7 +132,7 @@ class SqlJsDatabaseAdapter implements Database {
    * bereitet in Schleifen vor - ohne diesen Zwischenspeicher entstuenden je
    * Saison zehntausende Cursor.
    */
-  private readonly statements = new Map<string, SqlJsStatementAdapter>();
+  private statements = new Map<string, SqlJsStatementAdapter>();
 
   prepare(sql: string): Statement {
     let statement = this.statements.get(sql);
@@ -131,6 +145,10 @@ class SqlJsDatabaseAdapter implements Database {
 
   exec(sql: string): void {
     this.db.exec(sql);
+    // exec() entwertet alle vorbereiteten Anweisungen. Der Zwischenspeicher
+    // wird deshalb hier geleert statt auf den Fehler zu warten - das spart je
+    // Transaktion einen Fehlwurf, und davon gibt es tausende je Saison.
+    this.statements.clear();
   }
 
   transaction<T extends (...args: never[]) => unknown>(fn: T): T {

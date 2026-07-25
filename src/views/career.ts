@@ -32,6 +32,17 @@ import { escapeHtml, formatMoney, formatNumber } from '../ui/format';
 let career: EngineDatabase | null = null;
 let busy = false;
 let notice: string | null = null;
+/**
+ * Der gespeicherte Stand wird EINMAL vorab geladen und danach nur noch gelesen.
+ *
+ * Vorher fragte ihn der Auswahlbildschirm bei jedem Neuzeichnen neu ab - und
+ * genau daran scheiterte die Ansicht: Der Klick auf ein Team zeichnete zuerst
+ * mit `busy` neu, landete mangels Spielstand im Auswahlzweig und stiess dort
+ * eine Abfrage an. Bis die zurueckkam, stand das Armaturenbrett laengst - und
+ * wurde von der spaeter eintreffenden Antwort wieder durch die Teamwahl
+ * ersetzt. Ein synchrones Neuzeichnen kann diesen Wettlauf nicht haben.
+ */
+let stored: Awaited<ReturnType<typeof storedCareer>> = undefined;
 
 interface TeamRow {
   team_id: number;
@@ -84,7 +95,7 @@ function readState(db: EngineDatabase): CareerState | null {
 }
 
 /** Auswahl aus allen 167 Teams, nach Liga gegliedert (getroffene Entscheidung). */
-function renderChooser(db: Database, stored: Awaited<ReturnType<typeof storedCareer>>): string {
+function renderChooser(db: Database): string {
   const teams = rows<TeamRow>(
     db,
     `SELECT team_id, name, short_name, colour_primary, start_tier, prestige, country, ai_archetype
@@ -266,10 +277,6 @@ function renderDashboard(state: CareerState): string {
     </section>`;
 }
 
-async function refresh(rerender: () => void): Promise<void> {
-  rerender();
-}
-
 /** Ereignisse der Karriereansicht. Wird nach jedem Neuzeichnen neu gehaengt. */
 function wire(mount: HTMLElement, rerender: () => void): void {
   const seed = 20260724;
@@ -280,7 +287,10 @@ function wire(mount: HTMLElement, rerender: () => void): void {
       rerender();
       career = await startCareer(Number(button.dataset.team), seed);
       const state = readState(career);
-      if (state) await saveCareer(career, 0, state.teamName);
+      if (state) {
+        await saveCareer(career, 0, state.teamName);
+        stored = await storedCareer();
+      }
       busy = false;
       notice = 'Karriere begonnen. Bereite die erste Saison vor.';
       rerender();
@@ -298,6 +308,7 @@ function wire(mount: HTMLElement, rerender: () => void): void {
   mount.querySelector('#career-delete')?.addEventListener('click', async () => {
     await deleteCareer();
     career = null;
+    stored = undefined;
     rerender();
   });
 
@@ -349,6 +360,7 @@ function wire(mount: HTMLElement, rerender: () => void): void {
       notice = `${verdict.message} Deine Karriere bei ${state.teamName} endet hier.`;
       await deleteCareer();
       career = null;
+      stored = undefined;
     }
     rerender();
   });
@@ -362,6 +374,7 @@ function wire(mount: HTMLElement, rerender: () => void): void {
   mount.querySelector('#career-quit')?.addEventListener('click', async () => {
     await deleteCareer();
     career = null;
+    stored = undefined;
     notice = null;
     rerender();
   });
@@ -386,21 +399,19 @@ export function renderCareer(db: Database): string {
     const mount = document.querySelector<HTMLElement>('#career-mount');
     if (!mount) return;
 
+    // Synchron und ohne Ausnahme. Was asynchron sein muss - Spielstand laden,
+    // Saison rechnen - passiert in den Ereignissen und ruft danach hierher
+    // zurueck, nie umgekehrt.
     const rerender = (): void => {
       const state = career ? readState(career) : null;
-      if (state) {
-        mount.innerHTML = renderDashboard(state);
-      } else {
-        void storedCareer().then((stored) => {
-          mount.innerHTML = renderChooser(db, stored);
-          wire(mount, rerender);
-        });
-        return;
-      }
+      mount.innerHTML = state ? renderDashboard(state) : renderChooser(db);
       wire(mount, rerender);
     };
 
-    void refresh(rerender);
+    void storedCareer().then((found) => {
+      stored = found;
+      rerender();
+    });
   });
 
   return '<div id="career-mount"><p class="muted">Karriere wird geladen …</p></div>';
