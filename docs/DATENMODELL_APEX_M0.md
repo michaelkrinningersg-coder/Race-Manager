@@ -1912,3 +1912,32 @@ IndexedDB statt localStorage – ein Spielstand ist eine SQLite-Datei von mehrer
 * **Kein Live-Cockpit** (Konzept 11.3). Die Karriere endet an der Saisongrenze; im Rennen entscheidet der Spieler nichts.
 * **Abgeworben werden** – der zweite Karriereweg aus 14.2 – fehlt, ebenso Reputation und das Gründen eines eigenen Teams.
 * Die Karriere rechnet in der Light-Sim. Der Rundenverlauf, den die Tick-Sim erzeugt, steht dem Spieler nicht zur Verfügung.
+
+### 26.8 Nachtrag: der Personalmarkt war keiner
+
+Der Befund aus 26.7 war schärfer als dort beschrieben. `runStaffMarket` sucht sehr wohl zuerst im Pool der Vertragslosen (`freeAgents.get(...)`) – **es füllte ihn nur niemand**. Der Notfallweg legte den Neuzugang direkt beim suchenden Team an, `team_id` gesetzt. Es gab keinen Markt, den die KI hätte leerräumen können; es gab von vornherein keinen.
+
+Zwei Folgen, und die zweite wiegt schwerer:
+
+* Der Spieler konnte niemanden verpflichten – seine Maske zeigte dauerhaft „niemand frei".
+* **Personalqualität war für die KI nie knapp.** Wer suchte, bekam. Der Markt aus Konzept 8.1 existierte als Regel, nicht als Wirklichkeit.
+
+Gebaut nach dem Muster von `generateNewgens`: `generateStaffNewcomers` legt je Saison einen Jahrgang vertragsloser Kräfte an, gestreut über alle zehn Ligabänder, **vor** dem Markt. Der Notfallweg bleibt, damit kein Team unbesetzt bleibt.
+
+**Der erste Anlauf erzeugte ein Lager statt eines Marktes.** Ohne Verfall wächst der Pool ungebremst:
+
+| Saison | Vertragslose |
+| ---: | ---: |
+| 2 | 9,1 % |
+| 10 | 44,5 % |
+| 20 | **60,1 %** |
+
+Wer zwei Jahrgänge lang keine Anstellung findet, verlässt seither den Sport. Damit läuft der Pool gegen einen Grenzwert:
+
+| Saison | 2 | 5 | 10 | 20 |
+| :--- | ---: | ---: | ---: | ---: |
+| Vertragslose | 9,1 % | 24,1 % | 34,8 % | **36,7 %** |
+
+In Saison 20 stehen je Rolle 93 bis 122 Kräfte zur Wahl.
+
+**Was sich in der Welt geändert hat:** Abwerbungen springen von 299 auf 865 – die KI hat jetzt einen Markt und nutzt ihn. Verpflichtungen gehen leicht zurück (7 386 → 7 190), Ausfälle von 22 901 auf 22 866. Die Kalibrierung aus M5 ist an dieser Stelle nicht mehr die von damals; das ist der Preis dafür, dass Konzept 8.1 jetzt zutrifft.
