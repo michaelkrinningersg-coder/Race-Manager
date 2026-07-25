@@ -565,3 +565,54 @@ export function forceSales(db: Database, season: number): FacilitySummary {
   run();
   return summary;
 }
+
+export interface BuildResult {
+  ok: boolean;
+  reason?: string;
+  cost?: number;
+}
+
+/**
+ * Ausbau einer Anlage durch den Spieler (Konzept 14.2).
+ *
+ * Prueft dieselben Schranken wie planInvestments, aber ohne dessen Wunschliste:
+ * Was gebaut wird, entscheidet der Spieler, ob es geht, entscheidet die Kasse.
+ * Der Kostendeckel wird bewusst NICHT geprueft - er ist eine Nachschau am
+ * Saisonende (checkCostCaps), keine Sperre beim Bauen. Wer ihn reisst, bekommt
+ * die Strafe im Folgejahr, und das ist die Entscheidung, um die es geht.
+ */
+export function buildFacility(
+  db: Database,
+  season: number,
+  teamId: number,
+  key: string,
+): BuildResult {
+  const type = loadFacilityTypes(db).find((entry) => entry.key === key);
+  if (!type) return { ok: false, reason: 'Unbekannte Anlage.' };
+
+  const current = (db
+    .prepare('SELECT level FROM team_facilities WHERE team_id = ? AND season = ? AND facility_key = ?')
+    .get(teamId, season, key) as { level: number } | undefined)?.level;
+  if (current === undefined) return { ok: false, reason: 'Kein Bestand fuer diese Saison.' };
+  if (current >= MAX_FACILITY_LEVEL) return { ok: false, reason: 'Hoechste Stufe erreicht.' };
+
+  const next = current + 1;
+  const cost = buildCostFor(type, next);
+  const balance = (db
+    .prepare('SELECT closing FROM team_finances WHERE team_id = ? AND season = ? ')
+    .get(teamId, season - 1) as { closing: number } | undefined)?.closing ?? 0;
+
+  if (cost > balance) {
+    return { ok: false, reason: 'Die Kasse gibt den Ausbau nicht her.', cost };
+  }
+
+  db.prepare(
+    'UPDATE team_facilities SET level = ? WHERE team_id = ? AND season = ? AND facility_key = ?',
+  ).run(next, teamId, season, key);
+  db.prepare(
+    `INSERT INTO team_facility_moves (team_id, season, facility_key, from_level, to_level, amount, reason)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+  ).run(teamId, season, key, current, next, cost, 'built');
+
+  return { ok: true, cost };
+}

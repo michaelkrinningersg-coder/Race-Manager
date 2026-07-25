@@ -10,7 +10,12 @@ import {
   storedCareer,
 } from '../data/savegame';
 import type { EngineDatabase } from '../data/sqljs';
-import { beginSeason, endSeason, judgeSeason, decidedAreas, AREA_LABEL, DECISION_AREAS } from '../../engine/career';
+import {
+  beginSeason, endSeason, judgeSeason, decidedAreas, markDecided,
+  setDevelopmentFocus, developmentFocus, AREA_LABEL, DECISION_AREAS,
+} from '../../engine/career';
+import { buildFacility, buildCostFor, loadFacilityTypes, MAX_FACILITY_LEVEL } from '../../engine/facilities';
+import { PART_KEYS, PART_LABEL } from '../data/queries';
 import { playerTeam } from '../../engine/player';
 import { escapeHtml, formatMoney, formatNumber } from '../ui/format';
 
@@ -230,6 +235,8 @@ function renderDashboard(state: CareerState): string {
        </div>`
     : '<p class="muted small">Noch keine abgeschlossene Saison.</p>';
 
+  const decisions = state.prepared ? renderDecisions(state) : '';
+
   return `
     <section class="panel">
       <header class="panel__head team-head" style="--team-color:${escapeHtml(state.colour)}">
@@ -271,10 +278,88 @@ function renderDashboard(state: CareerState): string {
         ohne Entwicklung da, während 166 andere sich weiterentwickeln.
       </p>
       <ul class="career-areas">${areas}</ul>
+      ${decisions}
 
       <h2>Bilanz</h2>
       ${history}
     </section>`;
+}
+
+/**
+ * Die beiden Masken mit dem laengsten Hebel (Konzept 17).
+ *
+ * Erst nach der Vorbereitung sichtbar: Vorher gibt es weder einen
+ * Anlagenbestand der laufenden Saison noch eine Bilanz, gegen die sich ein
+ * Ausbau pruefen liesse.
+ */
+function renderDecisions(state: CareerState): string {
+  const db = career;
+  if (!db || state.season < 2) {
+    return `<p class="muted small">
+              Entscheidungen gibt es ab der zweiten Saison – das erste Auto und der erste
+              Anlagenbestand werden aus Prestige und Ligadeckel abgeleitet.
+            </p>`;
+  }
+
+  const focus = developmentFocus(db as unknown as never, state.season) ?? {};
+  const sliders = PART_KEYS.map((key) => {
+    const value = focus[key] ?? 1;
+    return `<label class="focus-row">
+              <span class="focus-row__name">${escapeHtml(PART_LABEL[key] ?? key)}</span>
+              <input class="focus-slider" type="range" min="0.6" max="1.4" step="0.05"
+                     data-part="${key}" value="${value}" />
+              <span class="focus-row__value" data-for="${key}">${value.toFixed(2)}</span>
+            </label>`;
+  }).join('');
+
+  const types = loadFacilityTypes(db as unknown as never);
+  const levels = new Map(
+    (db.prepare('SELECT facility_key, level FROM team_facilities WHERE team_id = ? AND season = ?')
+      .all(state.teamId, state.season) as { facility_key: string; level: number }[])
+      .map((r) => [r.facility_key, r.level]),
+  );
+  const balance = (db
+    .prepare('SELECT closing FROM team_finances WHERE team_id = ? AND season = ?')
+    .get(state.teamId, state.season - 1) as { closing: number } | undefined)?.closing ?? 0;
+
+  const facilities = types
+    .map((type) => {
+      const level = levels.get(type.key) ?? 0;
+      const top = level >= MAX_FACILITY_LEVEL;
+      const cost = top ? 0 : buildCostFor(type, level + 1);
+      const affordable = !top && cost <= balance;
+      return `<div class="build-row">
+                <span class="build-row__name">${escapeHtml(type.name)}</span>
+                <span class="build-row__level">Stufe ${level} von ${MAX_FACILITY_LEVEL}</span>
+                <span class="build-row__cost">${top ? '—' : formatMoney(cost)}</span>
+                <button class="editor-button build-button" data-facility="${escapeHtml(type.key)}"
+                        ${top || !affordable ? 'disabled' : ''}>
+                  ${top ? 'ausgebaut' : affordable ? 'Ausbauen' : 'zu teuer'}
+                </button>
+              </div>`;
+    })
+    .join('');
+
+  return `
+    <h2>Entwicklung</h2>
+    <p class="muted small">
+      Der Schwerpunkt verteilt die Entwicklungsarbeit über die neun Bauteilgruppen. 1,00 ist
+      neutral; was darüber liegt, wird bevorzugt entwickelt. Die Gesamtmenge bestimmt er nicht –
+      die hängt an Einnahmen, Personal und Anlagen. Ohne eigene Vorgabe nimmt die KI den
+      Schwerpunkt deines Team-Archetyps.
+    </p>
+    <div class="focus-grid">${sliders}</div>
+    <div class="career-bar">
+      <button class="editor-button" id="focus-save">Schwerpunkt übernehmen</button>
+      <button class="editor-button editor-button--ghost" id="focus-reset">Der KI überlassen</button>
+    </div>
+
+    <h2>Anlagen</h2>
+    <p class="muted small">
+      Kasse: ${formatMoney(balance)}. Der Kostendeckel wird hier bewusst nicht geprüft – er ist
+      eine Nachschau am Saisonende, keine Sperre. Wer ihn reißt, bekommt die Strafe im Folgejahr.
+    </p>
+    <div class="build-grid">${facilities}</div>`;
 }
 
 /** Ereignisse der Karriereansicht. Wird nach jedem Neuzeichnen neu gehaengt. */
@@ -363,6 +448,61 @@ function wire(mount: HTMLElement, rerender: () => void): void {
       stored = undefined;
     }
     rerender();
+  });
+
+  mount.querySelectorAll<HTMLInputElement>('.focus-slider').forEach((slider) => {
+    slider.addEventListener('input', () => {
+      const out = mount.querySelector(`[data-for="${slider.dataset.part}"]`);
+      if (out) out.textContent = Number(slider.value).toFixed(2);
+    });
+  });
+
+  mount.querySelector('#focus-save')?.addEventListener('click', async () => {
+    if (!career) return;
+    const state = readState(career);
+    if (!state) return;
+    const focus: Record<string, number> = {};
+    mount.querySelectorAll<HTMLInputElement>('.focus-slider').forEach((slider) => {
+      focus[slider.dataset.part as string] = Number(slider.value);
+    });
+    setDevelopmentFocus(career as unknown as never, state.season, focus);
+    await saveCareer(career, state.season - 1, state.teamName);
+    notice = 'Schwerpunkt übernommen. Er gilt für die Entwicklung dieser Saison.';
+    rerender();
+  });
+
+  mount.querySelector('#focus-reset')?.addEventListener('click', async () => {
+    if (!career) return;
+    const state = readState(career);
+    if (!state) return;
+    career.prepare('DELETE FROM player_focus WHERE season = ?').run(state.season);
+    career.prepare('DELETE FROM player_decisions WHERE season = ? AND area = ?')
+      .run(state.season, 'development');
+    await saveCareer(career, state.season - 1, state.teamName);
+    notice = 'Der Schwerpunkt kommt wieder von der KI.';
+    rerender();
+  });
+
+  mount.querySelectorAll<HTMLButtonElement>('.build-button').forEach((button) => {
+    button.addEventListener('click', async () => {
+      if (!career) return;
+      const state = readState(career);
+      if (!state) return;
+      const result = buildFacility(
+        career as unknown as never,
+        state.season,
+        state.teamId,
+        button.dataset.facility as string,
+      );
+      if (result.ok) {
+        markDecided(career as unknown as never, state.season, 'facilities');
+        notice = `Ausbau beauftragt für ${formatMoney(result.cost ?? 0)}.`;
+        await saveCareer(career, state.season - 1, state.teamName);
+      } else {
+        notice = result.reason ?? 'Ausbau nicht möglich.';
+      }
+      rerender();
+    });
   });
 
   mount.querySelector('#career-export')?.addEventListener('click', () => {

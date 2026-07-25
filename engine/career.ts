@@ -63,6 +63,36 @@ CREATE TABLE IF NOT EXISTS player_decisions (
 );
 `;
 
+/**
+ * Schwerpunkt des Spielers je Bauteilgruppe.
+ *
+ * Im Spielstand und nicht im Browser: Er gilt fuer eine Saison und gehoert
+ * damit zur Karriere, nicht zur Sitzung.
+ */
+export function developmentFocus(
+  db: Database,
+  season: number,
+): Record<string, number> | undefined {
+  const rows = db
+    .prepare('SELECT part_key, weight FROM player_focus WHERE season = ?')
+    .all(season) as { part_key: string; weight: number }[];
+  if (!rows.length) return undefined;
+  return Object.fromEntries(rows.map((row) => [row.part_key, row.weight]));
+}
+
+export function setDevelopmentFocus(
+  db: Database,
+  season: number,
+  focus: Record<string, number>,
+): void {
+  db.prepare('DELETE FROM player_focus WHERE season = ?').run(season);
+  const insert = db.prepare(
+    'INSERT INTO player_focus (season, part_key, weight) VALUES (?, ?, ?)',
+  );
+  for (const [key, weight] of Object.entries(focus)) insert.run(season, key, weight);
+  markDecided(db, season, 'development');
+}
+
 export function decidedAreas(db: Database, season: number): Set<DecisionArea> {
   const rows = db
     .prepare('SELECT area FROM player_decisions WHERE season = ?')
@@ -113,7 +143,10 @@ export function endSeason(
       report.sponsorsSigned += assignSponsors(db, season, player).signed;
     }
     if (season > 1) {
-      if (!decided.has('development')) developParts(db, season - 1, season, player);
+      // Entwicklung laeuft IMMER - der Schwerpunkt entscheidet nur, wohin.
+      // Ohne diesen Aufruf staende das Auto des Spielers still, waehrend 166
+      // andere zulegen.
+      developParts(db, season - 1, season, player, developmentFocus(db, season));
       if (!decided.has('facilities')) {
         const built = planInvestments(db, season, player);
         report.upgrades += built.upgrades;

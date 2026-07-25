@@ -77,6 +77,12 @@ export function developParts(
   toSeason: number,
   /** Nur dieses Team rechnen - der Weg der Voreinstellung im Karrieremodus. */
   onlyTeam?: number,
+  /**
+   * Schwerpunkt des Spielers je Bauteilgruppe (Konzept 14.2). Ersetzt den
+   * Archetyp-Schwerpunkt der KI - dieselbe Stellschraube, nur von Hand
+   * gesetzt. 1.0 ist neutral, darueber wird bevorzugt entwickelt.
+   */
+  focusOverride?: Partial<Record<string, number>>,
 ): DevelopmentSummary {
   const worldSeed = (db.prepare('SELECT world_seed FROM game_state WHERE id = 1').get() as {
     world_seed: number;
@@ -220,7 +226,7 @@ export function developParts(
       const feedbackQuality = ((feedback.get(teamId) ?? 60) * (staff?.feedback ?? 55)) / 100;
       const feedbackTerm =
         (0.9 + 0.25 * (feedbackQuality / 100)) * (0.9 + 0.2 * (facility.feedback / 100));
-      const focus = ARCHETYPE_FOCUS[row.ai_archetype as string] ?? {};
+      const focus = focusOverride ?? ARCHETYPE_FOCUS[row.ai_archetype as string] ?? {};
 
       // Homologationshilfe fuer den Aufsteiger (Konzept 6.5). Absteiger
       // behalten ihre Werte unveraendert, wie dort beschrieben.

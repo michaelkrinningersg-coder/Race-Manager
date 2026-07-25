@@ -94,6 +94,15 @@ CREATE TABLE player_decisions (
   PRIMARY KEY (season, area)
 );
 
+-- Schwerpunkt des Spielers je Bauteilgruppe (Konzept 14.2). Ersetzt den
+-- Archetyp-Schwerpunkt, den die KI benutzt - dieselbe Stellschraube von Hand.
+CREATE TABLE player_focus (
+  season   INTEGER NOT NULL,
+  part_key TEXT    NOT NULL REFERENCES car_part_types(part_key),
+  weight   REAL    NOT NULL,
+  PRIMARY KEY (season, part_key)
+);
+
 CREATE TABLE lap_records (
   season      INTEGER NOT NULL,
   tier        INTEGER NOT NULL,

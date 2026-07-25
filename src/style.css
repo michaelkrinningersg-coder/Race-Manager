@@ -1544,3 +1544,64 @@ code {
 
 .career-area__name { font-weight: 600; font-size: 0.9rem; }
 .career-area__who { font-size: 0.74rem; color: var(--muted); }
+
+/* ---------- Entscheidungsmasken ---------- */
+
+.focus-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 0.35rem;
+  margin: 0.6rem 0;
+}
+
+.focus-row {
+  display: grid;
+  grid-template-columns: 8rem 1fr 3rem;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.02);
+  min-width: 0;
+}
+
+.focus-row__name { font-size: 0.84rem; min-width: 0; }
+.focus-row__value {
+  font-size: 0.82rem;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent);
+}
+.focus-slider { width: 100%; min-width: 0; accent-color: var(--accent); }
+
+.build-grid {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0.6rem 0;
+}
+
+.build-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.45rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.build-row__name { font-weight: 600; font-size: 0.88rem; min-width: 0; }
+.build-row__level,
+.build-row__cost {
+  font-size: 0.8rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.build-button { padding: 0.3rem 0.7rem; font-size: 0.8rem; }
+
+@media (max-width: 620px) {
+  .build-row { grid-template-columns: 1fr auto; }
+  .focus-row { grid-template-columns: 6.5rem 1fr 3rem; }
+}
