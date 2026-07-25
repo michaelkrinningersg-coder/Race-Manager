@@ -67,6 +67,21 @@ export const PART_KEYS = [
 /** Die drei aerodynamischen Gruppen - sie tragen den gedrosselten Deckel. */
 export const AERO_PART_KEYS = ['front_wing', 'rear_wing', 'floor'] as const;
 
+/**
+ * Die Wirkungsspalten von staff_roles.csv. Jede einzelne summiert sich ueber
+ * alle acht Rollen auf 1.0 - der Validator prueft das hart. Damit ist jeder
+ * Personalwert ein sauberer gewichteter Mittelwert auf der 0-100-Skala.
+ */
+export const STAFF_WEIGHT_COLUMNS = [
+  ...PART_KEYS.map((key) => `w_${key}`),
+  'w_reliability',
+  'w_strategy',
+  'w_pit',
+  'w_feedback',
+  'w_morale',
+  'w_newgen',
+];
+
 /** Die 17 Fahrerattribute, je 0-100. */
 export const DRIVER_ATTRIBUTES = [
   'pace',
@@ -181,6 +196,28 @@ export const TABLES: TableSpec[] = [
       { name: 'weight_reference_kg', type: 'real', required: true, min: 0 },
       { name: 'carry_over_default', type: 'real', required: true, min: 0, max: 1 },
       { name: 'supplied_by_engine', type: 'int', required: true, min: 0, max: 1 },
+    ],
+  },
+  {
+    file: 'staff_roles.csv',
+    table: 'staff_roles',
+    primaryKey: ['role_key'],
+    expectedRows: 8,
+    sortBy: ['sort_order'],
+    columns: [
+      { name: 'role_key', type: 'text', required: true, unique: true },
+      { name: 'name', type: 'text', required: true, unique: true },
+      { name: 'sort_order', type: 'int', required: true, min: 1, max: 8, unique: true },
+      { name: 'count_per_team', type: 'int', required: true, min: 1, max: 4 },
+      ...STAFF_WEIGHT_COLUMNS.map((name) => ({
+        name,
+        type: 'real' as const,
+        required: true,
+        min: 0,
+        max: 1,
+      })),
+      { name: 'salary_share', type: 'real', required: true, min: 0, max: 1 },
+      { name: 'flavour', type: 'text', required: true },
     ],
   },
   {

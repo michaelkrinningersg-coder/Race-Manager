@@ -12,6 +12,7 @@ import { simulateWeekend, type Entry, type ResultRow, type WeekendContext } from
 import { nextTier, type Movement } from './promotion.js';
 import { loadPayoutRules, parachuteFor, payoutFor } from './finance.js';
 import { simulateRace, type Compound, type RaceContext, type RaceEntry } from './racesim.js';
+import { loadStaffValues } from './staff.js';
 
 const PART_KEYS = [
   'chassis',
@@ -161,6 +162,8 @@ export function runSeason(db: Database, season: number, tickTier = 0): SeasonSum
     ]),
   );
   const compounds = loadCompounds(db);
+  // Strategen- und Crewqualitaet kommen jetzt aus dem Personalbestand.
+  const staffValues = loadStaffValues(db, season);
 
   const insertLap = db.prepare(
     `INSERT INTO lap_records (season, tier, round, leg, lap, driver_id, position, lap_time_ms, gap_to_leader_ms, compound, tyre_wear, fuel_kg, event)
@@ -231,14 +234,15 @@ export function runSeason(db: Database, season: number, tickTier = 0): SeasonSum
           rows = [];
 
           for (let leg = 1; leg <= format.race_count; leg += 1) {
-            const raceEntries: RaceEntry[] = roster.entries.map((entry) => ({
-              ...entry,
-              // Strategen- und Crewqualitaet bis M5 aus der Ligastufe
-              // abgeleitet - dieselbe Kruecke wie beim uebrigen Personal.
-              strategy: 68 - (tier - 1) * 4.5,
-              crew: 68 - (tier - 1) * 4.5,
-              grid: gridOf.get(entry.driverId) ?? roster.entries.length,
-            }));
+            const raceEntries: RaceEntry[] = roster.entries.map((entry) => {
+              const staff = staffValues.get(entry.teamId);
+              return {
+                ...entry,
+                strategy: staff?.strategy ?? 55,
+                crew: staff?.pit ?? 55,
+                grid: gridOf.get(entry.driverId) ?? roster.entries.length,
+              };
+            });
 
             const raceContext: RaceContext = {
               worldSeed,

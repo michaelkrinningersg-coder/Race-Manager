@@ -42,9 +42,9 @@ export interface RaceEntry {
   parts: Record<string, number>;
   attributes: Record<string, number>;
   reliability: number;
-  /** Qualitaet des Chefstrategen 0-100, bis M5 abgeleitet. */
+  /** Qualitaet des Chefstrategen 0-100, aus dem Personalbestand (Konzept 8.1). */
   strategy: number;
-  /** Boxencrew 0-100, bis M5 abgeleitet. */
+  /** Boxencrew 0-100, aus dem Personalbestand (Konzept 8.1). */
   crew: number;
   grid: number;
 }
@@ -281,8 +281,13 @@ export function simulateRace(
 
       // Boxenstopp
       if (car.plan.includes(lap) && car.stintLaps >= 2) {
+        // Die Crew wirkt auf Mittelwert UND Fehlerrate (Konzept 8.1). Nur die
+        // Streuung zu staffeln reichte nicht: Zwischen der besten und der
+        // schlechtesten Crew in Tier 1 lagen dann neun Hundertstel, weniger
+        // als das Rauschen einer einzelnen Saison.
+        const standS = 2.9 - 1.2 * (car.entry.crew / 100);
         const crewNoise = (1 - car.entry.crew / 100) * 1.6;
-        const stopS = context.pitLossS + 2.2 + Math.abs(gaussian(rng)) * crewNoise;
+        const stopS = context.pitLossS + standS + Math.abs(gaussian(rng)) * crewNoise;
         lapS += stopS;
         car.lostToPits += stopS;
         car.stops += 1;

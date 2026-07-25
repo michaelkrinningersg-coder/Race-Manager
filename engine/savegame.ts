@@ -172,6 +172,42 @@ CREATE TABLE driver_state (
   PRIMARY KEY (driver_id, season)
 );
 
+-- Personal. Anders als bei den Fahrern gibt es keine handgepflegte Vorlage:
+-- 167 Teams mal neun Stellen waeren rund 1.500 Zeilen Handarbeit. Der Bestand
+-- entsteht deshalb vollstaendig deterministisch aus dem Seed (getroffene
+-- Entscheidung), die Wirkung der Rollen steht in staff_roles.csv.
+CREATE TABLE staff (
+  staff_id   INTEGER PRIMARY KEY,
+  first_name TEXT    NOT NULL,
+  last_name  TEXT    NOT NULL,
+  country    TEXT    NOT NULL,
+  birth_year INTEGER NOT NULL,
+  role_key   TEXT    NOT NULL REFERENCES staff_roles(role_key),
+  potential  INTEGER NOT NULL
+);
+
+CREATE TABLE staff_state (
+  staff_id       INTEGER NOT NULL REFERENCES staff(staff_id),
+  season         INTEGER NOT NULL,
+  team_id        INTEGER REFERENCES teams(team_id),
+  rating         INTEGER NOT NULL,
+  loyalty        INTEGER NOT NULL,
+  contract_until INTEGER,
+  salary         INTEGER NOT NULL DEFAULT 0,
+  retired        INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (staff_id, season)
+);
+
+CREATE TABLE staff_history (
+  staff_id INTEGER NOT NULL REFERENCES staff(staff_id),
+  season   INTEGER NOT NULL,
+  event    TEXT    NOT NULL,
+  tier     INTEGER,
+  team_id  INTEGER REFERENCES teams(team_id),
+  detail   TEXT,
+  PRIMARY KEY (staff_id, season, event)
+);
+
 CREATE TABLE driver_history (
   driver_id   INTEGER NOT NULL REFERENCES drivers(driver_id),
   season      INTEGER NOT NULL,
@@ -195,6 +231,7 @@ CREATE INDEX idx_results_league ON race_results(season, tier);
 CREATE INDEX idx_results_driver ON race_results(driver_id, season);
 CREATE INDEX idx_team_seasons_tier ON team_seasons(season, tier);
 CREATE INDEX idx_driver_state_season ON driver_state(season, team_id);
+CREATE INDEX idx_staff_state_season ON staff_state(season, team_id);
 
 -- Newgens wachsen in dieselbe Tabelle hinein wie die handgepflegten Fahrer.
 -- Die Marke trennt beide: Die Potenzialverteilung der Startfahrer bleibt so

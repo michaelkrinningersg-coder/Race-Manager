@@ -185,6 +185,30 @@ CREATE TABLE car_part_types (
   supplied_by_engine  INTEGER NOT NULL DEFAULT 0
 );
 
+CREATE TABLE staff_roles (
+  role_key       TEXT    PRIMARY KEY,
+  name           TEXT    NOT NULL,
+  sort_order     INTEGER NOT NULL UNIQUE,
+  count_per_team INTEGER NOT NULL,
+  w_chassis      REAL    NOT NULL,
+  w_front_wing   REAL    NOT NULL,
+  w_rear_wing    REAL    NOT NULL,
+  w_floor        REAL    NOT NULL,
+  w_powertrain   REAL    NOT NULL,
+  w_ers          REAL    NOT NULL,
+  w_gearbox      REAL    NOT NULL,
+  w_suspension   REAL    NOT NULL,
+  w_brakes       REAL    NOT NULL,
+  w_reliability  REAL    NOT NULL,
+  w_strategy     REAL    NOT NULL,
+  w_pit          REAL    NOT NULL,
+  w_feedback     REAL    NOT NULL,
+  w_morale       REAL    NOT NULL,
+  w_newgen       REAL    NOT NULL,
+  salary_share   REAL    NOT NULL,
+  flavour        TEXT    NOT NULL
+);
+
 CREATE TABLE teams (
   team_id            INTEGER PRIMARY KEY,
   name               TEXT    NOT NULL UNIQUE,
@@ -343,6 +367,7 @@ CREATE UNIQUE INDEX idx_driver_seat ON drivers(start_team_id, start_seat)
 const INSERT_ORDER = [
   'points_systems.csv',
   'car_part_types.csv',
+  'staff_roles.csv',
   'race_weekend_formats.csv',
   'tyre_compounds.csv',
   'tracks.csv',

@@ -15,6 +15,7 @@
 
 import type { Database } from './savegame.js';
 import { createRng, gaussian, seedFrom } from './rng.js';
+import { loadStaffValues } from './staff.js';
 
 /**
  * Ein Team ganz ohne Fortschrittsbremse gewinnt hoechstens diesen Anteil des
@@ -113,6 +114,10 @@ export function developParts(
     }[]).map((row) => [row.team_id, row.tier]),
   );
 
+  // Personalwerte der Vorsaison: Ueber den Winter entwickeln die Leute, die im
+  // vergangenen Jahr im Amt waren.
+  const staffValues = loadStaffValues(db, fromSeason);
+
   // Fahrer-Feedback des Teams: Mittel der beiden Stammfahrer der Vorsaison -
   // entwickelt wird mit den Rueckmeldungen der Fahrer, die das Auto kannten.
   const feedback = new Map(
@@ -160,18 +165,21 @@ export function developParts(
       const budget = Math.min(row.payout as number, oldRegulation.cost_cap);
       const resourceTerm = Math.pow(Math.max(0, budget) / oldRegulation.cost_cap, 0.7);
 
-      // Personalwert bis M5 abgeleitet - allein aus der Ligastufe.
+      // Personalwert je Bauteilgruppe (Konzept 8.1). Bis M5 war das eine reine
+      // Ligafunktion und damit fuer jedes Team einer Liga identisch - es gab
+      // innerhalb einer Liga schlicht keinen personellen Unterschied. Jetzt
+      // entscheidet, wen ein Team tatsaechlich beschaeftigt.
       //
       // Bewusst OHNE Prestige: Das ist nur ein Startwert fuer Saison 1. Waere
       // es hier drin, bliebe die Rangfolge einer Liga fuer immer eingefroren -
       // gemessen wuchs ein Aufsteiger dann um 24 Punkte, waehrend seine neue
       // Liga um 50 zulegte, und rutschte von Platz 2 auf Platz 13 durch.
-      // Unterschiede innerhalb einer Liga entstehen jetzt aus Geld (Platz der
-      // Vorsaison) und ATR (ebenfalls Platz, aber gegenlaeufig).
-      const staff = 68 - (oldTier - 1) * 4.5;
-      const staffTerm = 0.4 + 0.6 * (staff / 100);
+      const staff = staffValues.get(teamId);
 
-      const feedbackTerm = 0.9 + 0.25 * ((feedback.get(teamId) ?? 60) / 100);
+      // Der Renningenieur verwertet, was der Fahrer meldet: Ein schwacher
+      // Ingenieur macht auch aus gutem Feedback wenig (Konzept 8.1).
+      const feedbackQuality = ((feedback.get(teamId) ?? 60) * (staff?.feedback ?? 55)) / 100;
+      const feedbackTerm = 0.9 + 0.25 * (feedbackQuality / 100);
       const focus = ARCHETYPE_FOCUS[row.ai_archetype as string] ?? {};
 
       // Homologationshilfe fuer den Aufsteiger (Konzept 6.5). Absteiger
@@ -247,6 +255,8 @@ export function developParts(
         // hin - gewichtet mit der Handschrift des Archetyps.
         const allocation = (0.5 + headroom) * (focus[type.part_key] ?? 1);
         const noise = Math.max(0.85, NOISE_MEAN + gaussian(rng) * NOISE_SD);
+        // Personal ist Multiplikator, nicht Ersatz (Konzept 6.3).
+        const staffTerm = 0.4 + 0.6 * ((staff?.[type.part_key as never] ?? 55) / 100);
 
         const delta =
           cap *
@@ -271,7 +281,12 @@ export function developParts(
           performance,
           // Reife steigt mit den gefahrenen Kilometern: die Zuverlaessigkeit
           // naehert sich langsam 95 an.
-          reliability: Math.round(existing.reliability + (95 - existing.reliability) * 0.12),
+          // Standfestigkeit waechst mit den gefahrenen Kilometern - wie schnell,
+          // entscheidet der Antriebschef.
+          reliability: Math.round(
+            existing.reliability +
+              (95 - existing.reliability) * 0.12 * (0.5 + ((staff?.reliability ?? 55) / 100)),
+          ),
           spec_version: existing.spec_version + 1,
           source: 'developed',
         });

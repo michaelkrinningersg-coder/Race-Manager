@@ -13,6 +13,7 @@ import {
   DRIVER_WEIGHT_KEYS,
   PART_KEYS,
   PART_WEIGHT_KEYS,
+  STAFF_WEIGHT_COLUMNS,
   TRACK_ARCHETYPES,
 } from './schema.js';
 import type { LoadedTable, Row } from './load.js';
@@ -454,6 +455,65 @@ function checkPartTypes(context: ValidationContext, findings: Finding[]): void {
       warning(
         'car_part_types.csv',
         `carry_over_default der drei Aero-Gruppen weicht ab (${[...carryOver].join(', ')}) - Konzept 5.3 behandelt sie einheitlich`,
+      ),
+    );
+  }
+}
+
+/**
+ * staff_roles.csv: die Normierung der Wirkungsspalten.
+ *
+ * Jede Spalte summiert sich ueber alle acht Rollen auf genau 1.0. Nur dann ist
+ * der Personalwert einer Wirkung ein gewichteter Mittelwert auf derselben
+ * 0-100-Skala wie die Einzelwerte. Eine Summe von 1.1 saehe in keiner einzelnen
+ * Zahl falsch aus, verschoebe aber jede Entwicklung im Spiel - deshalb Fehler,
+ * keine Warnung, wie bei den Gewichtsprofilen der Strecken.
+ */
+function checkStaffRoles(context: ValidationContext, findings: Finding[]): void {
+  const rows = rowsOf(context, 'staff_roles.csv');
+  if (rows.length === 0) return;
+
+  for (const column of STAFF_WEIGHT_COLUMNS) {
+    const sum = rows.reduce((total, row) => total + num(row, column), 0);
+    if (Math.abs(sum - 1) > 1e-6) {
+      findings.push(
+        error('staff_roles.csv', `Summe ${column} ist ${sum.toFixed(4)}, erwartet ist genau 1.0`),
+      );
+    }
+  }
+
+  // Das Gehaltsbudget wird ueber die tatsaechlich besetzten Stellen verteilt,
+  // nicht ueber die Rollen - der Renningenieur zaehlt doppelt.
+  const salarySum = rows.reduce(
+    (total, row) => total + num(row, 'salary_share') * num(row, 'count_per_team'),
+    0,
+  );
+  if (Math.abs(salarySum - 1) > 1e-6) {
+    findings.push(
+      error(
+        'staff_roles.csv',
+        `Summe salary_share x count_per_team ist ${salarySum.toFixed(4)}, erwartet ist genau 1.0`,
+      ),
+    );
+  }
+
+  // Eine Rolle ohne jede Wirkung waere ein Gehalt ohne Gegenwert. Der
+  // Nachwuchsleiter ist ausgenommen: Seine Wirkung haengt am Scouting, das
+  // bewusst spaeter kommt.
+  for (const row of rows) {
+    const key = String(row.values.role_key);
+    const total = STAFF_WEIGHT_COLUMNS.reduce((sum, column) => sum + num(row, column), 0);
+    if (total <= 0) {
+      findings.push(error('staff_roles.csv', `Rolle ${key} hat auf nichts eine Wirkung`));
+    }
+  }
+
+  const engineers = rows.find((row) => row.values.role_key === 'race_engineer');
+  if (engineers && num(engineers, 'count_per_team') !== 2) {
+    findings.push(
+      warning(
+        'staff_roles.csv',
+        `race_engineer hat count_per_team ${num(engineers, 'count_per_team')} - Konzept 8.1 sieht einen je Auto vor, also 2`,
       ),
     );
   }
@@ -1044,6 +1104,7 @@ export function validateWorld(context: ValidationContext): Finding[] {
   checkTyres(context, findings);
   checkDriverNames(context, findings);
   checkPartTypes(context, findings);
+  checkStaffRoles(context, findings);
   checkTeams(context, findings);
   checkEngineSuppliers(context, findings);
   checkWeightProfiles(context, findings);

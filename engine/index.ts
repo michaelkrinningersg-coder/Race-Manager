@@ -26,6 +26,7 @@ import {
   runMarket,
   seedDriverState,
 } from './careers.js';
+import { ageStaff, retireStaff, runStaffMarket, seedStaff } from './staff.js';
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -138,6 +139,8 @@ function main(): void {
     let signings = 0;
     let unfilled = 0;
     let overBudget = 0;
+    let poached = 0;
+    let hired = 0;
 
     for (let season = 1; season <= options.seasons; season += 1) {
       prepareSeason(db, season);
@@ -146,8 +149,15 @@ function main(): void {
       if (season === 1) {
         seedCarParts(db, season);
         seedDriverState(db);
+        seedStaff(db);
       } else {
+        // Entwicklung zuerst: Sie rechnet mit dem Personal der Vorsaison, das
+        // bis hierher unangetastet in der Datenbank steht.
         developParts(db, season - 1, season);
+        ageStaff(db, season - 1, season);
+        const staffMarket = runStaffMarket(db, season);
+        poached += staffMarket.poached;
+        hired += staffMarket.hired;
         // Fahrerjahr: Altern und Entwicklung, dann Nachwuchs auffuellen, dann
         // die freien Cockpits besetzen. Die Reihenfolge ist zwingend - der
         // Markt kann nur vergeben, wer zu diesem Zeitpunkt schon existiert.
@@ -166,6 +176,7 @@ function main(): void {
       // dieser Saison trotzdem verdient - und sie zaehlen fuer die Statistik.
       awardSuperlicence(db, season);
       retired += retireDrivers(db, season);
+      retireStaff(db, season);
       const movements = resolveMovements(db, season);
 
       totalWeekends += summary.weekends;
@@ -192,6 +203,8 @@ function main(): void {
     console.log(`  Cockpitwechsel:         ${signings}`);
     console.log(`  Unbesetzte Cockpits:    ${unfilled}`);
     console.log(`  Ueber Budget besetzt:   ${overBudget}`);
+    console.log(`  Personal verpflichtet:  ${hired}`);
+    console.log(`  davon abgeworben:       ${poached}`);
     console.log(`  Rechenzeit:             ${ms.toFixed(0)} ms`);
 
     if (!options.quiet) {
