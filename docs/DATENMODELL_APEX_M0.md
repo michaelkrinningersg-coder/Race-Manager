@@ -1481,3 +1481,29 @@ In Plätzen: Das untere Drittel der Tier-1-Fahrer (`wet_skill` 69–78) verliert
 Die Korrektur verändert **kein einziges Trockenergebnis**: In den Ligen 2 bis 10, die als Light-Sim laufen, sind 0 von 5.008 Positionen der Saison 20 abgewichen. Die Wertung selbst liest weiter nur die sechs Sektorwerte aus `scoring.ts`.
 
 **Lehre für die Liste:** Jeder neue Wert, den eine Formel liest, muss in `DRIVER_KEYS` nachgezogen werden. Ein Rückfallwert macht den fehlenden Eintrag unsichtbar – die Sim rechnet weiter, nur eben mit einer Konstanten.
+
+### 22.8 Nachtrag: die Suche nach weiteren Verkabelungsfehlern
+
+Der `wet_skill`-Fund war Anlass für eine systematische Prüfung: Welche Werte stehen in den Daten und kommen im Code nie an? Zwei Prüfmuster tragen dabei.
+
+**Erstens**, jede CSV-Spalte gegen ihre Verbrauchsstellen. Das Ergebnis ist wenig aussagekräftig, weil viele Spalten dynamisch gelesen werden – `w_${part_key}` findet keine Textsuche. Wer diese Liste auswertet, muss die Template-Zugriffe von Hand ausschließen.
+
+**Zweitens**, und das ist das schärfere: **jeder Zugriff mit Rückfallwert** (`attributes.X ?? 60`) gegen die Liste dessen, was überhaupt geladen wird. Genau dort versteckt sich der Fehler, denn der Rückfallwert lässt die Rechnung weiterlaufen.
+
+Das förderte einen zweiten Fall derselben Art zutage:
+
+**`overtaking` und `defending` fehlten ebenfalls in `DRIVER_KEYS`.** Beide werden nur an einer Stelle gelesen – im Zweikampf der Tick-Sim:
+
+```
+const skill = ((attributes.overtaking ?? 60) - (attributes.defending ?? 60)) / 100;
+```
+
+Beide fielen auf 60 zurück, die Differenz war damit **immer exakt null**. Wer wen überholt, entschied allein die Streckentücke. Beide sind jetzt nachgezogen.
+
+**Der Effekt ist allerdings nicht nachgewiesen.** Über zehn rundenweise gefahrene Saisons liegt die Korrelation zwischen `overtaking` und dem Positionsgewinn gegenüber dem Start bei r = 0,06, und die Erfolgsquote im Zweikampf ist über die `overtaking`-Bänder flach (37,1 % / 37,6 % / 34,5 %).
+
+Das ist kein Beleg dafür, dass die Mechanik nicht wirkt – es ist ein **stumpfes Messinstrument**. Die Formel arbeitet mit der *Differenz* zum Vordermann, die Messung kennt nur den Absolutwert des Angreifers, und `lap_records` speichert nicht, gegen wen der Zweikampf lief. Solange der Gegner nicht mitgeschrieben wird, lässt sich die Frage nicht beantworten.
+
+Was dagegen feststeht: Vorher konnte die Mechanik gar nicht wirken, jetzt kann sie es. Ob sie es spürbar tut, bleibt **offen**.
+
+Nicht betroffen sind die Personalwerte (`strategy`, `pit`, `feedback`, `reliability` – ihre Wirkung ist in 19.4 und 19.5 gemessen) und die Anlagenwerte, die über `facility[part_key]` dynamisch gelesen werden. Ohne Leser bleiben allein `w_newgen`, `w_sponsor` und `w_fitness` – alle drei sind in 20.7 und 21.8 bereits als offen vermerkt.

@@ -58,6 +58,11 @@ const DRIVER_KEYS = [
   'tyre_management',
   'consistency',
   'wet_skill',
+  // Zweikampf in der Tick-Sim. Fehlten beide bis v0.16.1 und fielen auf 60
+  // zurueck - die Differenz war damit immer exakt null, und wer wen ueberholt,
+  // entschied allein die Streckentuecke.
+  'overtaking',
+  'defending',
 ];
 
 export interface SeasonSummary {
