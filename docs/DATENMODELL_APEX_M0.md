@@ -1277,7 +1277,7 @@ Der Befund aus 18.10 und 19.6 – *netto steigt kein Team zwei Ligen* – ist da
 
 ### 20.7 Was offen bleibt
 
-* **Die Fixkostenfalle schnappt nicht zu** – siehe 20.8. Der Kern von Konzept 8.2 findet praktisch nicht statt: Nur 10 % der Abstiege führen binnen fünf Saisons zu einem Zwangsverkauf, binnen zwei Saisons so gut wie keiner. Die Falle ist gebaut, aber niemand läuft hinein.
+* **Die Fixkostenfalle schnappt nicht zu** – untersucht in 20.8 und 20.9. Der Kern von Konzept 8.2 findet praktisch nicht statt: Nur 10 % der Abstiege führen binnen fünf Saisons zu einem Zwangsverkauf, binnen zwei Saisons so gut wie keiner. Die Falle ist gebaut, aber niemand läuft hinein.
 * **Teams kaufen billig statt richtig.** Gebaut werden vor allem CFD (306) und Simulator (225), kaum Windkanal (51) und Fertigung (55) – obwohl genau die beiden lizenzrelevant sind. Die Überschussprüfung blockiert die teuren Anlagen, und die Wunschliste fällt auf die billigen durch. Infrastruktur ist damit schwächer Aufstiegshebel, als sie sein könnte.
 * **Marketing und Medizin werden nie gebaut** – 0 Ausbauten in 20 Saisons. Erwartbar, solange sie keine Wirkung haben, aber es heißt: Die beiden existieren bisher nur als Typzeile, nicht als Bestand.
 * **`w_newgen` bleibt ohne Abnehmer**, zusammen mit `staff_roles.w_newgen`. Beide warten auf dasselbe Scouting.
@@ -1301,3 +1301,31 @@ Der Grund steht in der vorletzten Spalte. Ein Absteiger verdient im ersten Jahr 
 Vor allem aber: **73 % der Absteiger sind binnen einer Saison wieder oben.** Sie bleiben gar nicht lange genug unten, als dass laufende Fixkosten sie aufzehren könnten – und es ist genau die behaltene Infrastruktur, die sie eine Liga tiefer sofort dominieren lässt. Die Falle setzt einen längeren Aufenthalt voraus, den es im Modell nicht gibt.
 
 Wer sie scharf stellen will, muss deshalb an einer der beiden Stellen ansetzen – an den mitfallenden Betriebskosten oder am Drehtür-Effekt an der Ligagrenze –, nicht am Fallschirm. Der bleibt bei den 60 %/30 % aus Konzept 4.3.
+
+### 20.9 Die Falle setzt einen Absturz voraus, den es nicht gibt
+
+Nach 20.8 blieben zwei Ansatzpunkte: die beim Abstieg mitfallenden Betriebskosten und der Drehtür-Effekt. Der zweite ist von Konzept 6.5 ausdrücklich gedeckt – „der Absteiger ist im ersten Jahr unten regelmäßig Titelfavorit ('Fallschirm-Favorit') – ein bewusst gewollter, aus dem Fußball bekannter Effekt" –, und zwei Gegenmaßnahmen auf der Autoseite sind ausweislich der Codekommentare schon erprobt und verworfen. Also blieb die Kostenseite.
+
+Umgesetzt ist deshalb ein **nachlaufendes Betriebsniveau**: `expenses` hängt nicht mehr direkt am Deckel der aktuellen Liga, sondern an `cost_basis`, die je Saison nur um `COST_BASIS_DECAY` fällt, bis sie den neuen Deckel erreicht. Nach oben wirkt die Bremse nicht.
+
+Gemessen über vier Abklingraten – und das Ergebnis kehrt die Erwartung um:
+
+| Abklingrate | Falle ≤ 5 S | sofort zurück | Aufstiege | Spannweite ≥ 2 | unbewegt |
+| :--- | ---: | ---: | ---: | ---: | ---: |
+| ohne | 10 % | 73 % | 285 | 25 | 41 |
+| **0,50** (gesetzt) | 9 % | 73 % | 291 | 25 | 41 |
+| 0,65 | **7 %** | 73 % | 275 | **15** | 44 |
+| 0,80 | 7 % | 75 % | 257 | 15 | 46 |
+| 1,00 (nie abrüsten) | **20 %** | 79 % | **198** | 15 | 49 |
+
+Bei 0,65 **sinkt** der Anteil der Abstiege mit Zwangsverkauf, statt zu steigen. Der Grund ist mechanisch: Höhere Betriebskosten verhindern, dass überhaupt gebaut wird – und was nie gebaut wurde, kann auch nicht zwangsverkauft werden. Erst 1,00 lässt die Falle wirklich zuschnappen, kostet aber ein Drittel der Aufstiege und lässt die Pyramide erstarren.
+
+**Der eigentliche Grund liegt tiefer und ist mit diesem Regler nicht erreichbar.** Konzept 8.2 beschreibt die Falle so: „Wer auf Tier-2-Niveau ausbaut und dann in Tier 5 abstürzt, muss verkaufen." Diesen Absturz gibt es im Modell nicht:
+
+* Von **232 Abstiegen folgte kein einziger** auf einen zweiten – niemand fällt zwei Ligen hintereinander.
+* Nur 15 von 167 Teams sind über zwanzig Saisons überhaupt je zwei Ligen tief gefallen.
+* 73 % der Absteiger sind binnen einer Saison wieder oben.
+
+Die Falle ist nicht falsch gebaut, ihr fehlt der Anwendungsfall. Sie scharf zu stellen hieße, die Dynamik der Pyramide selbst zu ändern – und die liefert derzeit die besten Mobilitätswerte des Projekts.
+
+**`COST_BASIS_DECAY` steht deshalb auf 0,50 und ist damit heute fast folgenlos** (beim Abstieg von Tier 1 nach Tier 2 liegt die Basis im ersten Jahr bei 72,5 statt 70 Mio, im zweiten schon am neuen Deckel; 123 von 3.340 Bilanzzeilen sind überhaupt erhöht). Die Größe bleibt als eigener Bilanzposten stehen, damit M6 die Gehälter und Sponsoren daran andocken kann, ohne die Bilanz erneut umzubauen – getroffene Entscheidung.
