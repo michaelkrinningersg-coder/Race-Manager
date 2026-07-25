@@ -8,6 +8,47 @@
 
 import type { Database } from './savegame.js';
 
+/**
+ * Wie schnell sich das Betriebsniveau eines Teams an eine neue Liga anpasst.
+ *
+ * `expenses` hing bis hierher unmittelbar am Deckel der aktuellen Liga und fiel
+ * beim Abstieg sofort mit. Die Basis folgt der neuen Liga jetzt verzoegert: Sie
+ * faellt je Saison auf diesen Anteil, bis sie den neuen Deckel erreicht. Nach
+ * OBEN wirkt die Bremse nicht - wer aufsteigt, arbeitet sofort auf dem neuen
+ * Niveau.
+ *
+ * ACHTUNG, damit ist die Fixkostenfalle NICHT geschaerft. Der Wert 0.50 ist
+ * bewusst so gewaehlt, dass die Mechanik heute praktisch folgenlos bleibt: Beim
+ * Abstieg von Tier 1 nach Tier 2 liegt die Basis im ersten Jahr bei 72,5 statt
+ * 70 Mio und ist im zweiten schon am neuen Deckel.
+ *
+ * Warum nicht schaerfer? Gemessen ueber vier Abklingraten kehrt sich die
+ * Wirkung um. Bei 0.65 SINKT der Anteil der Abstiege mit Zwangsverkauf von 10
+ * auf 7 %, waehrend die Teams mit Ligaspannweite >= 2 von 25 auf 15 fallen -
+ * hoehere Betriebskosten verhindern, dass ueberhaupt gebaut wird, und was nie
+ * gebaut wurde, kann auch nicht zwangsverkauft werden. Erst 1.00 (nie
+ * abruesten) laesst die Falle zuschnappen (20 %), kostet aber ein Drittel der
+ * Aufstiege: 198 statt 285.
+ *
+ * Der eigentliche Grund liegt tiefer und ist mit diesem Regler nicht
+ * erreichbar: Konzept 8.2 setzt einen Mehrliga-Absturz voraus, und den gibt es
+ * nicht. Von 232 Abstiegen folgte KEIN EINZIGER auf einen zweiten.
+ *
+ * Die Groesse bleibt trotzdem stehen - als Bilanzposten, an dem M6 mit
+ * Gehaeltern und Sponsoren andockt, ohne die Bilanz dann erneut umzubauen
+ * (getroffene Entscheidung).
+ */
+export const COST_BASIS_DECAY = 0.5;
+
+/**
+ * Betriebsniveau einer Saison: der Deckel der aktuellen Liga, aber hoechstens
+ * so schnell fallend, wie COST_BASIS_DECAY es zulaesst.
+ */
+export function costBasisFor(currentCap: number, previousBasis: number | undefined): number {
+  if (previousBasis === undefined) return currentCap;
+  return Math.max(currentCap, Math.round(COST_BASIS_DECAY * previousBasis));
+}
+
 export interface PayoutRule {
   tier: number;
   tvFixed: number;

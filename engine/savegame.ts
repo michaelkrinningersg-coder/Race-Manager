@@ -122,6 +122,7 @@ CREATE TABLE team_finances (
   payout        INTEGER NOT NULL DEFAULT 0,
   parachute     INTEGER NOT NULL DEFAULT 0,
   expenses      INTEGER NOT NULL DEFAULT 0,
+  cost_basis    INTEGER NOT NULL DEFAULT 0,
   facility_cost INTEGER NOT NULL DEFAULT 0,
   investment    INTEGER NOT NULL DEFAULT 0,
   asset_sales   INTEGER NOT NULL DEFAULT 0,

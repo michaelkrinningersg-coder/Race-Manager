@@ -10,7 +10,7 @@ import type { Database } from './savegame.js';
 import { loadTrackProfiles } from './scoring.js';
 import { simulateWeekend, type Entry, type ResultRow, type WeekendContext } from './lightsim.js';
 import { nextTier, type Movement } from './promotion.js';
-import { loadPayoutRules, parachuteFor, payoutFor } from './finance.js';
+import { costBasisFor, loadPayoutRules, parachuteFor, payoutFor } from './finance.js';
 import { simulateRace, type Compound, type RaceContext, type RaceEntry } from './racesim.js';
 import { loadStaffValues } from './staff.js';
 import { loadFacilityTypes, loadLevels, upkeepTotal } from './facilities.js';
@@ -501,11 +501,18 @@ export function applyFinances(db: Database, season: number): void {
   const history = new Map<string, number>();
   for (const row of historyRows) history.set(`${row.team_id}|${row.season}`, row.tier);
 
+  // Betriebsniveau der Vorsaison - Grundlage der nachlaufenden Kostenbasis.
+  const previousBasis = new Map(
+    (db.prepare('SELECT team_id, cost_basis FROM team_finances WHERE season = ?').all(
+      season - 1,
+    ) as Record<string, number>[]).map((row) => [row.team_id, row.cost_basis]),
+  );
+
   const insert = db.prepare(
     `INSERT INTO team_finances
-       (team_id, season, tier, opening, payout, parachute, expenses, facility_cost, investment, closing)
+       (team_id, season, tier, opening, payout, parachute, expenses, cost_basis, facility_cost, investment, closing)
      VALUES
-       (@team_id, @season, @tier, @opening, @payout, @parachute, @expenses, @facility_cost, @investment, @closing)`,
+       (@team_id, @season, @tier, @opening, @payout, @parachute, @expenses, @cost_basis, @facility_cost, @investment, @closing)`,
   );
 
   const run = db.transaction(() => {
@@ -525,7 +532,16 @@ export function applyFinances(db: Database, season: number): void {
         }
       }
 
-      const expenses = Math.round(rule.expenseRatio * (costCaps.get(team.tier) ?? 0));
+      // Betrieb: nicht am Deckel der aktuellen Liga, sondern am nachlaufenden
+      // Betriebsniveau - ein Absteiger traegt seine alte Mannschaft noch mit.
+      // Mit COST_BASIS_DECAY = 0.5 ist das heute fast folgenlos; die Groesse
+      // steht als eigener Bilanzposten fuer M6 bereit. Warum sie bewusst nicht
+      // schaerfer gestellt ist, steht in finance.ts.
+      const basis = costBasisFor(
+        costCaps.get(team.tier) ?? 0,
+        previousBasis.get(team.team_id),
+      );
+      const expenses = Math.round(rule.expenseRatio * basis);
       // Fixkosten der Anlagen - absolut und unabhaengig von der Liga, in der
       // das Team gerade faehrt. Genau hier schnappt die Falle aus Konzept 8.2
       // zu: Der Deckel faellt beim Abstieg, die Rechnung nicht.
@@ -543,6 +559,7 @@ export function applyFinances(db: Database, season: number): void {
         payout,
         parachute,
         expenses,
+        cost_basis: basis,
         facility_cost: facilityCost,
         investment,
         closing: start + payout + parachute - expenses - facilityCost - investment,
