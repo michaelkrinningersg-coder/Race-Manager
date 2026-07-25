@@ -89,7 +89,7 @@ export function developParts(
   // und Ressourcenterm.
   const previous = db
     .prepare(
-      `SELECT ts.team_id, ts.tier, ts.final_rank, t.ai_archetype, t.prestige,
+      `SELECT ts.team_id, ts.tier, ts.final_rank, t.ai_archetype,
               COALESCE(f.payout, 0) AS payout
        FROM team_seasons ts
        JOIN teams t ON t.team_id = ts.team_id
@@ -114,17 +114,6 @@ export function developParts(
       )
       .all() as { team_id: number; f: number }[]).map((row) => [row.team_id, row.f]),
   );
-
-  const prestigeSpan = new Map<number, { min: number; max: number }>();
-  for (const row of previous) {
-    const tier = row.tier as number;
-    const prestige = row.prestige as number;
-    const current = prestigeSpan.get(tier);
-    prestigeSpan.set(tier, {
-      min: Math.min(current?.min ?? prestige, prestige),
-      max: Math.max(current?.max ?? prestige, prestige),
-    });
-  }
 
   const insert = db.prepare(
     `INSERT INTO car_parts (team_id, season, part_key, performance, reliability, weight_delta, maturity, spec_version, source)
@@ -161,11 +150,15 @@ export function developParts(
       const budget = Math.min(row.payout as number, oldRegulation.cost_cap);
       const resourceTerm = Math.pow(Math.max(0, budget) / oldRegulation.cost_cap, 0.7);
 
-      const span = prestigeSpan.get(oldTier);
-      const width = span ? span.max - span.min : 0;
-      const rel = width === 0 ? 1 : ((row.prestige as number) - (span?.min ?? 0)) / width;
-      // Personalwert bis M5 abgeleitet: Ligastufe plus Stellung darin.
-      const staff = 68 - (oldTier - 1) * 4.5 + 25 * rel;
+      // Personalwert bis M5 abgeleitet - allein aus der Ligastufe.
+      //
+      // Bewusst OHNE Prestige: Das ist nur ein Startwert fuer Saison 1. Waere
+      // es hier drin, bliebe die Rangfolge einer Liga fuer immer eingefroren -
+      // gemessen wuchs ein Aufsteiger dann um 24 Punkte, waehrend seine neue
+      // Liga um 50 zulegte, und rutschte von Platz 2 auf Platz 13 durch.
+      // Unterschiede innerhalb einer Liga entstehen jetzt aus Geld (Platz der
+      // Vorsaison) und ATR (ebenfalls Platz, aber gegenlaeufig).
+      const staff = 68 - (oldTier - 1) * 4.5;
       const staffTerm = 0.4 + 0.6 * (staff / 100);
 
       const feedbackTerm = 0.9 + 0.25 * ((feedback.get(teamId) ?? 60) / 100);
