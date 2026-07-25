@@ -368,11 +368,14 @@ function checkTeams(context: ValidationContext, findings: Finding[]): void {
     const tier = num(row, 'start_tier');
     perTier.set(tier, (perTier.get(tier) ?? 0) + 1);
 
+    // Wer in einer Liga antritt, hat sie erreicht - die beste je erreichte Liga
+    // kann also nie schlechter sein als die aktuelle. Umgekehrt ist ein deutlich
+    // besseres history_best_tier der gewollte 'gefallene Riese' und kein Befund.
     if (num(row, 'history_best_tier') > num(row, 'start_tier')) {
       findings.push(
-        warning(
+        error(
           'teams.csv',
-          `'${row.values.name}': history_best_tier ${num(row, 'history_best_tier')} liegt unter dem Start-Tier - gefallener Riese?`,
+          `'${row.values.name}': history_best_tier ${num(row, 'history_best_tier')} ist schlechter als das Start-Tier ${num(row, 'start_tier')} - ein Team hat seine aktuelle Liga zwangslaeufig schon erreicht`,
           row.line,
         ),
       );
