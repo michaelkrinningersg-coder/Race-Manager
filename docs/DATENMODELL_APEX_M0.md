@@ -30,6 +30,7 @@
 18. [M5: Fahrerkarrieren](#18-m5-fahrerkarrieren)
 19. [M5 Teil 2: Personal](#19-m5-teil-2-personal)
 20. [M5 Teil 3: Infrastruktur](#20-m5-teil-3-infrastruktur)
+21. [M6: Wirtschaft](#21-m6-wirtschaft)
 
 ---
 
@@ -1329,3 +1330,77 @@ Bei 0,65 **sinkt** der Anteil der Abstiege mit Zwangsverkauf, statt zu steigen. 
 Die Falle ist nicht falsch gebaut, ihr fehlt der Anwendungsfall. Sie scharf zu stellen hieße, die Dynamik der Pyramide selbst zu ändern – und die liefert derzeit die besten Mobilitätswerte des Projekts.
 
 **`COST_BASIS_DECAY` steht deshalb auf 0,50 und ist damit heute fast folgenlos** (beim Abstieg von Tier 1 nach Tier 2 liegt die Basis im ersten Jahr bei 72,5 statt 70 Mio, im zweiten schon am neuen Deckel; 123 von 3.340 Bilanzzeilen sind überhaupt erhöht). Die Größe bleibt als eigener Bilanzposten stehen, damit M6 die Gehälter und Sponsoren daran andocken kann, ohne die Bilanz erneut umzubauen – getroffene Entscheidung.
+
+---
+
+## 21. M6: Wirtschaft
+
+Konzept 9 nennt sieben Einnahmequellen und acht Ausgabenposten. Umgesetzt waren zwei Einnahmen (TV-Ausschüttung, Fallschirm) und eine Pauschale. Alles Übrige steckte in `expense_ratio` – einem einzigen Anteil des Kostendeckels, der Gehälter, Entwicklung, Logistik und Leasing gleichzeitig abbildete, ohne dass eine dieser Größen je geprüft worden wäre.
+
+### 21.1 Warum die Zahlen nicht stimmen konnten
+
+Die Gehälter standen seit M5 in `driver_state` und `staff_state`. Sie wurden gezahlt, verhandelt und für Abwerbungen herangezogen – aber nie von einem Konto abgebucht. Gemessen lagen sie bei **24 bis 30 % des Kostendeckels in jeder Liga**, während bereits 51 bis 68 % gebucht waren. Zusammen 75 bis 98 % gegen eine Ausschüttung von 60 %.
+
+Ein Wert, der nirgends abgezogen wird, kann nicht falsch sein – er kann nur unbemerkt bleiben. Genau das war der Zustand.
+
+### 21.2 `sponsors.csv` – Typdefinition, Verträge zur Laufzeit
+
+Sechzehn Sponsoren, acht für den Hauptvertrag und acht für die Nebenverträge, mit Ligafenster, Wert als Anteil des Deckels, Laufzeit und Zielvorgabe. Dasselbe Muster wie bei `staff_roles.csv` und `facility_types.csv`: Die Datei sagt, *wer am Markt ist und was er verlangt*, nicht wer ihn bekommt. Der Bestand entsteht in `team_sponsors`.
+
+Fünf Zielarten deckt die Engine ab: Platzierung, Podien, Siege, Zielankunftsquote und Verbesserung gegenüber dem Vorjahr. Podest- und Siegvorgaben skalieren mit der Kalenderlänge – drei Podien sind in einer 22-Rennen-Saison eine andere Forderung als in einer mit acht.
+
+**Zwei Zuteilungsfehler, beide gemessen und behoben.** Zunächst war ein Sponsor weltweit exklusiv: Bei 16 Definitionen und 167 Teams kamen genau **26 Verträge** zustande. Danach je Liga exklusiv: 147 – immer noch weit zu wenig, weil acht Nebensponsoren nie vier bis sechs Slots von 22 Teams füllen können. Exklusiv ist jetzt nur der Hauptvertrag und nur innerhalb einer Liga; ein Nebensponsor darf auf vielen Autos kleben, aber **nie zweimal auf demselben** – dieser Zusatz fehlte zunächst und führte zu vier identischen Logos an einem Auto.
+
+### 21.3 Das Preisgeld war um den Faktor Teamzahl daneben
+
+`prize_pool_per_race` ist der **Ligatopf**, nicht der Teamanteil. Zuerst auf 12 % des Deckels bemessen, kam bei einem Team über die ganze Saison rund **1 %** an – in der Bilanz nicht auffindbar. Bemessen ist er jetzt so, dass ein Team im Mittel 8 % seines Deckels einfährt; verteilt wird geometrisch mit Faktor 0,78, der Sieger bekommt gut ein Viertel des Topfes.
+
+### 21.4 Logistik hängt an der Strecke, nicht am Team
+
+Konzept 9.2 nennt die Logistik ausdrücklich entfernungsabhängig. Eine Matrix Team × Strecke wäre genauer und für 167 Teams nicht zu pflegen. `tracks.csv` trägt deshalb einen `logistics_factor` (1,00 europäischer Kern bis 2,50 Australien, Mittel 1,53): Das Feld ist überwiegend europäisch, ein Übersee-Rennen kostet also alle mehr.
+
+Das Motorenleasing skaliert analog: `lease_cost_customer` ist auf Tier 1 bemessen, die acht Hersteller beliefern aber bis Tier 3 hinunter – der Betrag folgt dem Deckel der eigenen Liga.
+
+### 21.5 Die Kalibrierung: `expense_ratio` ist ein Restposten
+
+Der Wert ist dreimal gefallen, jedes Mal weil ein Posten herausgelöst wurde: **0,58** deckte alles, **0,36** alles außer der Infrastruktur, **0,16** deckt nur noch Entwicklung und Fertigung.
+
+Gemessen über vier Werte bei sonst gleicher Welt:
+
+| `expense_ratio` | Aufstiege | Spannweite ≥ 2 | Meister | chronisch zahlungsunfähig |
+| ---: | ---: | ---: | ---: | ---: |
+| 0,36 | 225 | 17 | 2 | **12** |
+| 0,28 | 273 | 21 | 5 | 1 |
+| 0,22 | 287 | 18 | 7 | 0 |
+| **0,16** | **285** | **23** | **8** | **0** |
+
+Bei 0,36 blieben die Gehälter faktisch doppelt gebucht – einmal einzeln, einmal in der Pauschale. Die Folge war kein Gleichgewicht, sondern ein Dauerdefizit in den Mittelfeldligen.
+
+Bei den Gehältern selbst wurde das Verhältnis korrigiert: `STAFF_BUDGET_SHARE` von 0,22 auf **0,18**, `DRIVER_BUDGET_SHARE` von 0,12 auf **0,16**. Ein Fahrer kostete das Team vorher weniger als ein einzelner Ingenieur.
+
+### 21.6 Der Kostendeckel wirkt erst, wenn die KI ihn einplant
+
+Deckelrelevant sind Betrieb, Anlagen, Personal, Leasing, Logistik und Ausbau; Fahrergehälter erst oberhalb eines Freibetrags von 8 % des Deckels (Konzept 9.3 nennt den Freibetrag, ohne ihn zu beziffern). Überschreitung kostet Lizenzpunkte und Windkanalzeit, beides in der **Folgesaison** – wer im Dezember merkt, dass er zu viel ausgegeben hat, kann die Saison nicht mehr ändern.
+
+Der erste Lauf ergab **870 Verstöße** in zwanzig Saisons, mit Überschreitungen von über 20 % bei Spitzenteams und einer Windkanalkürzung, die damit nie mehr endete. Der Grund war nicht die Höhe des Deckels: Die KI baute Anlagen ohne jeden Bezug darauf. Mit dem Deckel als dritter Hürde in der Investitionsentscheidung fielen die Verstöße auf **243** und die Zwangsverkäufe von 108 auf 28.
+
+### 21.7 Gemessen über 20 Saisons
+
+Bilanz in Saison 20, alle Posten als Prozent des Kostendeckels:
+
+| Tier | TV | Preisgeld | Sponsoren | Betrieb | Anlagen | Gehälter | Leasing | Logistik | Saldo |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 1 | 60 | 8 | 22 | 16 | 23 | 26 | 10 | 9 | −1 |
+| 4 | 60 | 8 | 22 | 16 | 29 | 26 | 0 | 6 | +6 |
+| 7 | 60 | 16 | 15 | 16 | 33 | 25 | 0 | 7 | +12 |
+| 10 | 60 | 16 | 6 | 16 | 0 | 21 | 0 | 6 | +41 |
+
+**Kein Team ist dauerhaft zahlungsunfähig** – über zwanzig Saisons stand genau eines von 167 überhaupt je im Minus, keines fünfmal oder öfter. Damit ist die Frage aus der Planung beantwortet: Die Insolvenz aus Konzept 9.4 hat bei dieser Kalibrierung **keinen Anwendungsfall** und ist deshalb nicht gebaut. Sie hängt allerdings direkt an der Kalibrierung – bei `expense_ratio` 0,36 wären es zwölf Kandidaten gewesen.
+
+### 21.8 Was offen bleibt
+
+* **Die Ligaspannweite ist zurückgegangen.** Teams mit Spannweite ≥ 2 fallen von 25 auf 15, die Aufstiege von 291 auf 278. Die Wirtschaft macht die Welt vielfältiger und die Wege kürzer – warum, ist nicht geklärt. Der naheliegende Verdacht: Sponsoren und Preisgeld hängen beide am Vorjahresergebnis und verstärken damit den Bestand.
+* **Tier 9 und 10 schwimmen im Geld** (+29 % und +41 % Saldo). Sie haben keine Anlagen zu unterhalten, kein Leasing zu zahlen und kaum Gehälter – die Ausgabenseite ist dort schlicht leer. Bevor das ein Vorteil wird, gehört ihnen eine eigene Kostenstruktur.
+* **Der Kostendeckel ist eine Schranke, keine Entscheidung.** Die KI plant nur den Anlagenausbau dagegen; Entwicklung, Gehälter und Logistik laufen ungesteuert. „Kluges Wirtschaften" aus Konzept 9.3 ist damit erst zur Hälfte umgesetzt.
+* **Insolvenz, Fahrerverkauf und Vorstandsziele fehlen.** Ablösesummen (Konzept 9.1) und Jobwechsel des Spielers (14.2) sind nicht angefasst.
+* **`w_sponsor` wirkt weiterhin nicht.** Die Anlage Marketing zahlt laut `facility_types.csv` auf den Sponsorenwert ein – die Sponsorenvergabe liest sie noch nicht. Marketing und Medizin bleiben damit die einzigen Anlagen ohne Wirkung.

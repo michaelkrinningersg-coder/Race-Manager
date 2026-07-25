@@ -54,6 +54,7 @@ CREATE TABLE tracks (
   abrasion              REAL    NOT NULL,
   downforce_level       REAL    NOT NULL,
   first_used_year       INTEGER NOT NULL,
+  logistics_factor      REAL    NOT NULL DEFAULT 1,
   flavour               TEXT    NOT NULL
 );
 
@@ -79,12 +80,32 @@ CREATE TABLE engine_suppliers (
 );
 
 CREATE TABLE league_payouts (
-  tier            INTEGER PRIMARY KEY REFERENCES leagues(tier),
-  tv_fixed        INTEGER NOT NULL,
-  tv_variable_top INTEGER NOT NULL,
-  expense_ratio   REAL    NOT NULL,
-  parachute_pct_1 REAL    NOT NULL,
-  parachute_pct_2 REAL    NOT NULL
+  tier                INTEGER PRIMARY KEY REFERENCES leagues(tier),
+  tv_fixed            INTEGER NOT NULL,
+  tv_variable_top     INTEGER NOT NULL,
+  expense_ratio       REAL    NOT NULL,
+  parachute_pct_1     REAL    NOT NULL,
+  parachute_pct_2     REAL    NOT NULL,
+  prize_pool_per_race INTEGER NOT NULL DEFAULT 0,
+  logistics_base      INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE sponsors (
+  sponsor_key     TEXT    PRIMARY KEY,
+  name            TEXT    NOT NULL UNIQUE,
+  sort_order      INTEGER NOT NULL UNIQUE,
+  industry        TEXT    NOT NULL,
+  slot            TEXT    NOT NULL CHECK (slot IN ('title','side')),
+  tier_min        INTEGER NOT NULL,
+  tier_max        INTEGER NOT NULL,
+  value_pct       REAL    NOT NULL,
+  term_min        INTEGER NOT NULL,
+  term_max        INTEGER NOT NULL,
+  objective_type  TEXT    NOT NULL CHECK (objective_type IN ('rank','podiums','wins','finishes','improve')),
+  objective_value INTEGER NOT NULL,
+  bonus_pct       REAL    NOT NULL,
+  malus_pct       REAL    NOT NULL,
+  flavour         TEXT    NOT NULL
 );
 
 CREATE TABLE leagues (
@@ -404,6 +425,7 @@ const INSERT_ORDER = [
   'promotion_rules.csv',
   'licence_requirements.csv',
   'league_payouts.csv',
+  'sponsors.csv',
   'teams.csv',
   'engine_suppliers.csv',
   'driver_names.csv',

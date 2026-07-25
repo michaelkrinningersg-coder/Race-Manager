@@ -18,6 +18,7 @@ import {
   relativePrestige,
 } from './facilities.js';
 import { checkLicence, type LicenceRequirement } from './licence.js';
+import { licencePenalties } from './costcap.js';
 
 export type Movement =
   | 'promoted'
@@ -282,6 +283,10 @@ export function resolveMovements(db: Database, season: number): MovementSummary 
   // weiterhin an Liga und Prestige - sie ist keine Anlage.
   const facilityLevels = loadLevels(db, season);
 
+  // Lizenzpunktabzug aus einem Deckelverstoss derselben Saison (Konzept 9.3).
+  // Der Grundstock von 12 Punkten steht bis M7 fest - abgezogen wird davon.
+  const capPenalties = licencePenalties(db, season);
+
   const movement = new Map<number, Movement>();
   for (const row of standings) movement.set(row.teamId, 'stay');
 
@@ -307,7 +312,7 @@ export function resolveMovements(db: Database, season: number): MovementSummary 
           staff: derivedStaffCount(minimum, rel),
         },
         hasEngineContract: meta.engine_supplier_id !== null,
-        licencePoints: 12,
+        licencePoints: Math.max(0, 12 - (capPenalties.get(team.teamId) ?? 0)),
       },
       requirement,
       costCaps.get(targetTier) ?? 0,

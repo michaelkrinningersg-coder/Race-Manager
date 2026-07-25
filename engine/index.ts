@@ -29,6 +29,8 @@ import {
 } from './careers.js';
 import { ageStaff, retireStaff, runStaffMarket, seedStaff } from './staff.js';
 import { carryFacilities, forceSales, planInvestments, seedFacilities } from './facilities.js';
+import { assignSponsors, settleSponsors } from './sponsors.js';
+import { checkCostCaps } from './costcap.js';
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -161,9 +163,17 @@ function main(): void {
     let invested = 0;
     let sales = 0;
     let recovered = 0;
+    let sponsorsSigned = 0;
+    let sponsorsMet = 0;
+    let sponsorsMissed = 0;
+    let capBreaches = 0;
 
     for (let season = 1; season <= options.seasons; season += 1) {
       prepareSeason(db, season);
+      // Sponsorenvertraege werden vor der Saison geschlossen - der Wert haengt
+      // am Vorjahresplatz, die Zielvorgabe gilt fuer das kommende Jahr.
+      const sponsorRound = assignSponsors(db, season);
+      sponsorsSigned += sponsorRound.signed;
       // Nur die erste Saison wird aus Prestige und Deckel abgeleitet. Danach
       // traegt jedes Team sein gewachsenes Auto weiter (Konzept 6.3).
       if (season === 1) {
@@ -199,7 +209,13 @@ function main(): void {
       const tickTier = season >= options.tickFrom ? options.tickTier : 0;
       const summary = runSeason(db, season, tickTier);
       buildStandings(db, season);
+      // Zielvorgaben auswerten, bevor die Bilanz sie braucht.
+      const sponsorResult = settleSponsors(db, season);
+      sponsorsMet += sponsorResult.achieved;
+      sponsorsMissed += sponsorResult.missed;
       applyFinances(db, season);
+      // Deckelpruefung auf der fertigen Bilanz. Die Strafe wirkt im Folgejahr.
+      capBreaches += checkCostCaps(db, season).breaches;
       // Zwangsverkauf direkt nach der Bilanz und noch vor der Lizenzpruefung:
       // Wer im Minus steht, geht ohne die verkaufte Anlage in die Pruefung -
       // und faellt genau dann durch, wenn er sich aus der Not heraus unter das
@@ -246,6 +262,11 @@ function main(): void {
     console.log(
       `  Zwangsverkaeufe:        ${sales} (${(recovered / 1e6).toFixed(1)} Mio erloest)`,
     );
+    console.log(`  Sponsoren verpflichtet: ${sponsorsSigned}`);
+    console.log(
+      `  Ziele erfuellt/verfehlt:${sponsorsMet} / ${sponsorsMissed}`,
+    );
+    console.log(`  Deckelverstoesse:       ${capBreaches}`);
     console.log(`  Rechenzeit:             ${ms.toFixed(0)} ms`);
 
     if (!options.quiet) {

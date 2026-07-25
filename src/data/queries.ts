@@ -450,13 +450,75 @@ export interface FinanceRow {
   opening: number;
   payout: number;
   parachute: number;
+  prize_money: number;
+  sponsors: number;
+  pay_drivers: number;
   expenses: number;
   cost_basis: number;
   facility_cost: number;
+  driver_wages: number;
+  staff_wages: number;
+  engine_lease: number;
+  logistics: number;
   investment: number;
   asset_sales: number;
   closing: number;
 }
+
+export interface SponsorRow {
+  slot: string;
+  sponsor_key: string;
+  name: string;
+  industry: string;
+  contract_until: number;
+  base_value: number;
+  objective_type: string;
+  objective_value: number;
+  bonus: number;
+  malus: number;
+  achieved: number | null;
+  payout: number;
+  flavour: string;
+}
+
+export function teamSponsors(db: Database, season: number, teamId: number): SponsorRow[] {
+  return rows<SponsorRow>(
+    db,
+    `SELECT ts.slot, ts.sponsor_key, s.name, s.industry, ts.contract_until, ts.base_value,
+            ts.objective_type, ts.objective_value, ts.bonus, ts.malus, ts.achieved, ts.payout,
+            s.flavour
+       FROM team_sponsors ts JOIN sponsors s ON s.sponsor_key = ts.sponsor_key
+      WHERE ts.season = ? AND ts.team_id = ?
+      ORDER BY CASE WHEN ts.slot = 'title' THEN 0 ELSE 1 END, ts.slot`,
+    [season, teamId],
+  );
+}
+
+export interface CapBreach {
+  season: number;
+  capped_spend: number;
+  cost_cap: number;
+  overspend_pct: number;
+  penalty_points: number;
+  atr_cut: number;
+}
+
+export function teamCapBreaches(db: Database, teamId: number): CapBreach[] {
+  return rows<CapBreach>(
+    db,
+    `SELECT season, capped_spend, cost_cap, overspend_pct, penalty_points, atr_cut
+       FROM cap_breaches WHERE team_id = ? ORDER BY season DESC`,
+    [teamId],
+  );
+}
+
+export const OBJECTIVE_LABEL: Record<string, (value: number) => string> = {
+  rank: (v) => `Platz ${v} oder besser`,
+  podiums: (v) => `mindestens ${v} Podien`,
+  wins: (v) => `mindestens ${v} Siege`,
+  finishes: (v) => `mindestens ${v} % Zielankünfte`,
+  improve: (v) => `${v} Plätze besser als im Vorjahr`,
+};
 
 export function teamFinances(db: Database, teamId: number): FinanceRow[] {
   return rows<FinanceRow>(

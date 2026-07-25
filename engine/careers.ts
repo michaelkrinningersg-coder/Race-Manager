@@ -15,8 +15,15 @@ import { createRng, gaussian, seedFrom } from './rng.js';
 import { loadPayoutRules, payoutFor } from './finance.js';
 import { facilityValues, loadFacilityTypes, loadLevels } from './facilities.js';
 
-/** Anteil der Ausschuettung, den ein Team in seine beiden Stammfahrer steckt. */
-const DRIVER_BUDGET_SHARE = 0.12;
+/**
+ * Anteil der Ausschuettung, den ein Team in seine beiden Stammfahrer steckt.
+ *
+ * Von 0.12 auf 0.16 angehoben, als die Gehaelter mit M6 erstmals gebucht wurden:
+ * Ein Fahrer kostete das Team spuerbar weniger als ein einzelner Ingenieur, was
+ * weder zum Konzept noch zur Anschauung passt. Der Wert verschiebt zugleich den
+ * gesamten Fahrermarkt - beide Ankerpunkte des Gehaltsmodells haengen daran.
+ */
+const DRIVER_BUDGET_SHARE = 0.16;
 
 /**
  * Gehaltsmodell - die Schranke, die die Fahrerpyramide traegt.

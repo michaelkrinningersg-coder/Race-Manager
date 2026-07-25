@@ -796,6 +796,16 @@ code {
   color: #7fb0ff;
 }
 
+.tag--met {
+  background: rgba(52, 209, 127, 0.16);
+  color: var(--promotion);
+}
+
+.tag--missed {
+  background: rgba(239, 74, 74, 0.16);
+  color: var(--relegation);
+}
+
 .tag--fl {
   background: rgba(186, 104, 255, 0.18);
   color: #c79bff;

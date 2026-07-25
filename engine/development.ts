@@ -17,6 +17,7 @@ import type { Database } from './savegame.js';
 import { createRng, gaussian, seedFrom } from './rng.js';
 import { loadStaffValues } from './staff.js';
 import { facilityValues, loadFacilityTypes, loadLevels } from './facilities.js';
+import { atrPenalties } from './costcap.js';
 
 /**
  * Ein Team ganz ohne Fortschrittsbremse gewinnt hoechstens diesen Anteil des
@@ -125,6 +126,10 @@ export function developParts(
   const facilityTypes = loadFacilityTypes(db);
   const facilityLevels = loadLevels(db, fromSeason);
 
+  // Windkanalkuerzung aus einem Deckelverstoss der Vorsaison (Konzept 9.3).
+  // Sie greift genau dort an, wo das Reglement ohnehin regelt: an der ATR.
+  const atrCuts = atrPenalties(db, fromSeason);
+
   // Fahrer-Feedback des Teams: Mittel der beiden Stammfahrer der Vorsaison -
   // entwickelt wird mit den Rueckmeldungen der Fahrer, die das Auto kannten.
   const feedback = new Map(
@@ -164,7 +169,9 @@ export function developParts(
       if (!oldRegulation || !newRegulation || !payoutRule) continue;
 
       const rank = (row.final_rank as number) ?? 10;
-      const atr = atrFactor(oldRegulation.atr_base, oldRegulation.atr_step, rank);
+      const atr =
+        atrFactor(oldRegulation.atr_base, oldRegulation.atr_step, rank) *
+        (1 - (atrCuts.get(teamId) ?? 0));
 
       // Ressourcen: Was das Team letzte Saison eingenommen hat, gemessen am
       // Kostendeckel seiner Liga. Der Deckel ist die Obergrenze - wer ihn

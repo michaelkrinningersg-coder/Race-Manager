@@ -377,6 +377,18 @@ export function planInvestments(db: Database, season: number): FacilitySummary {
     ) as Record<string, number>[]).map((row) => [row.team_id, row.closing]),
   );
 
+  // Deckelrelevante Ausgaben der Vorsaison (Konzept 9.3). Ohne diese Schranke
+  // baut ein Team weiter, bis es den Deckel dauerhaft um zwanzig Prozent
+  // reisst - gemessen 870 Verstoesse in zwanzig Saisons, mit einer
+  // Windkanalkuerzung, die dann nie mehr endet. Der Deckel ist der zweite
+  // Anti-Dominanz-Regler des Konzepts; er wirkt nur, wenn die KI ihn einplant.
+  const cappedSpend = new Map(
+    (db.prepare(
+      `SELECT team_id, expenses + facility_cost + staff_wages + engine_lease + logistics AS spent
+         FROM team_finances WHERE season = ?`,
+    ).all(season - 1) as Record<string, number>[]).map((row) => [row.team_id, row.spent]),
+  );
+
   // Jahresueberschuss der Vorsaison ohne den einmaligen Ausbau: Was ein Team
   // dauerhaft uebrig hat. Die Kasse allein reicht als Pruefung nicht - eine
   // Bausumme faellt einmal an, die Fixkosten jedes Jahr danach.
@@ -447,6 +459,11 @@ export function planInvestments(db: Database, season: number): FacilitySummary {
         // Das war kein Wirtschaften, das war ein Reisswolf.
         if (balance - cost < reserve) continue;
         if ((surplus.get(team.team_id) ?? 0) - extraUpkeep < 0) continue;
+        // Dritte Huerde: Der Ausbau darf den Kostendeckel nicht sprengen. Die
+        // Bausumme faellt in dieser Saison an, die hoehere Fixkostenstufe ab
+        // der naechsten - beides zaehlt mit.
+        const capLimit = costCaps.get(team.tier) ?? 0;
+        if ((cappedSpend.get(team.team_id) ?? 0) + extraUpkeep + cost > capLimit) continue;
 
         setLevel.run(next, team.team_id, season, key);
         owned.set(key, next);

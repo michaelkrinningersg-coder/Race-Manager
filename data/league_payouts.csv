@@ -9,41 +9,53 @@
 # 0.58 und deckte auch die Hallen mit ab; seit die Anlagen als eigener Posten
 # in team_finances gebucht werden, waere das eine doppelte Buchung.
 #
-# 0.36 statt 0.58, und zwar einheitlich ueber alle zehn Ligen. Die tatsaechliche
-# Infrastrukturlast des Startbestands schwankt zwischen 0 % (Tier 9/10, die gar
-# keine Anlagen brauchen) und rund 8 % des Deckels - sie haengt daran, wo die
-# Stufen der Lizenzleiter fallen. Diese Zacken in den expense_ratio zu spiegeln
-# haette den Artefakt zur Designgroesse gemacht. Einheitlich gesenkt heisst
-# dagegen: Der Rest des Betriebs kostet in jeder Liga denselben Anteil, und der
-# Unterschied zwischen zwei Teams entsteht aus dem, was sie besitzen.
+# 0.16 - und das ist ein Restposten, keine Betriebskostenquote. Die Zahl ist
+# dreimal gefallen, jedes Mal, weil ein Posten aus der Pauschale herausgeloest
+# wurde: 0.58 deckte urspruenglich alles, 0.36 alles ausser der Infrastruktur,
+# 0.16 deckt nur noch Entwicklung und Fertigung. Gehälter, Motorenleasing und
+# Logistik stehen seit M6 einzeln in team_finances. Wer die Zahl fuer niedrig
+# haelt, muss sie zusammen mit den anderen Posten lesen - in Summe liegt die
+# Ausgabenseite bei 90 bis 105 Prozent des Deckels.
 #
-# Warum so tief. Nicht die Fixkosten waren die Bremse, sondern die Marge: Bei
-# 0.58 blieb einem Tier-5-Team rund 0,69 Mio im Jahr, waehrend eine Stufe am
-# Windkanal 0,75 Mio jaehrlich kostet. Investieren war damit rechnerisch
-# unmoeglich, und die Aufstiege fielen ueber zwanzig Saisons von 255 auf 149.
-# Gemessen ueber neun Kombinationen aus Kostenleiter und Ausgabenquote traegt
-# erst 0.36 einen Ausbau: 285 Aufstiege und 25 Teams mit Ligaspannweite >= 2,
-# gegen 255 und 23 im Stand ohne Infrastruktur.
+# Gemessen ueber vier Werte bei sonst gleicher Welt (20 Saisons):
 #
-# Die Gesamtlast liegt damit bei rund 40 % statt 58 % des Deckels. Der Preis
-# ist bekannt und bewusst in Kauf genommen: Das Tabellenende zehrt nicht mehr
-# an der Substanz, sondern haelt sich knapp ueber Wasser. Die Schere aus
-# Konzept 9.4 bleibt als Richtung erhalten, ist aber schwaecher - bis M6 die
-# Gehaelter verbucht und die Ausgabenseite wieder fuellt.
+#   ratio   Aufstiege   Spannweite>=2   Meister   chronisch zahlungsunfaehig
+#   0.36          225              17         2                           12
+#   0.28          273              21         5                            1
+#   0.22          287              18         7                            0
+#   0.16          285              23         8                            0
+#
+# Bei 0.36 blieben die Gehaelter faktisch doppelt gebucht - einmal einzeln, einmal
+# in der Pauschale. Die Folge war kein Gleichgewicht, sondern ein Dauerdefizit in
+# den Mittelfeldligen und zwoelf Teams, die ueber Jahre im Minus standen.
 #
 # Wer vorne steht, legt zu, wer hinten steht, zehrt von der Substanz. Genau die
 # Schere, die Konzept 9.4 braucht.
 #
+# prize_pool_per_race: Topf je Rennen, nach Platzierung verteilt (Konzept 9.1).
+# Anders als die Ausschuettung haengt er am Ergebnis des laufenden Rennens, nicht
+# am Vorjahr.
+#
+# Der Topf ist der LIGATOPF, nicht der Teamanteil - das war der erste Ansatz und
+# er war um den Faktor Teamzahl daneben: Bei 12 Prozent des Deckels als Ligatopf
+# blieb einem Team ueber die ganze Saison rund 1 Prozent, das Preisgeld war in
+# der Bilanz nicht auffindbar. Bemessen ist er jetzt so, dass ein Team im Mittel
+# 8 Prozent seines Deckels ueber die Saison einfaehrt.
+#
+# logistics_base: Reisekosten je Rennen bei Logistikfaktor 1.0. Der tatsaechliche
+# Betrag ist logistics_base mal tracks.logistics_factor; ueber einen mittleren
+# Kalender sind das rund 8 Prozent des Deckels.
+#
 # parachute_pct_1/2: Anteil der Ausschuettungsdifferenz zur alten Liga, den ein
 # Absteiger in der ersten bzw. zweiten Saison danach erhaelt.
-tier,tv_fixed,tv_variable_top,expense_ratio,parachute_pct_1,parachute_pct_2
-1,60000000,54000000,0.36,0.60,0.30
-2,29000000,26000000,0.36,0.60,0.30
-3,14000000,12800000,0.36,0.60,0.30
-4,7000000,6400000,0.36,0.60,0.30
-5,3700000,3400000,0.36,0.60,0.30
-6,1850000,1700000,0.36,0.60,0.30
-7,900000,840000,0.36,0.60,0.30
-8,450000,420000,0.36,0.60,0.30
-9,225000,210000,0.36,0.60,0.30
-10,107000,98000,0.36,0.60,0.30
+tier,tv_fixed,tv_variable_top,expense_ratio,parachute_pct_1,parachute_pct_2,prize_pool_per_race,logistics_base
+1,60000000,54000000,0.16,0.60,0.30,5800000,345000
+2,29000000,26000000,0.16,0.60,0.30,3730000,203000
+3,14000000,12800000,0.16,0.60,0.30,2380000,111000
+4,7000000,6400000,0.16,0.60,0.30,1550000,63500
+5,3700000,3400000,0.16,0.60,0.30,960000,39200
+6,1850000,1700000,0.16,0.60,0.30,540000,19600
+7,900000,840000,0.16,0.60,0.30,317000,11500
+8,450000,420000,0.16,0.60,0.30,176000,5800
+9,225000,210000,0.16,0.60,0.30,110000,3600
+10,107000,98000,0.16,0.60,0.30,57200,1700

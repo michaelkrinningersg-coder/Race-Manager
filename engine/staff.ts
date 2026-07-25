@@ -51,8 +51,15 @@ interface RoleSpec {
   weights: Record<string, number>;
 }
 
-/** Anteil des Kostendeckels, den ein Team fuer sein gesamtes Personal ausgibt. */
-const STAFF_BUDGET_SHARE = 0.22;
+/**
+ * Anteil des Kostendeckels, den ein Team fuer sein gesamtes Personal ausgibt.
+ *
+ * Von 0.22 auf 0.18 gesenkt, als die Gehaelter mit M6 erstmals wirklich gebucht
+ * wurden. Vorher war der Wert nie gegen eine Bilanz geprueft - er konnte es
+ * nicht sein, weil er nirgends abgezogen wurde. Gemessen kostete das
+ * neunkoepfige Personal damit das Drei- bis Fuenffache der beiden Fahrer.
+ */
+const STAFF_BUDGET_SHARE = 0.18;
 
 /** Ab wie vielen Saisons im Amt die Loyalitaet einen Wechsel spuerbar bremst. */
 const LOYALTY_FULL = 6;

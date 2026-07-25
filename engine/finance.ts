@@ -56,6 +56,8 @@ export interface PayoutRule {
   expenseRatio: number;
   parachutePct1: number;
   parachutePct2: number;
+  prizePoolPerRace: number;
+  logisticsBase: number;
 }
 
 export function loadPayoutRules(db: Database): Map<number, PayoutRule> {
@@ -70,9 +72,49 @@ export function loadPayoutRules(db: Database): Map<number, PayoutRule> {
         expenseRatio: row.expense_ratio,
         parachutePct1: row.parachute_pct_1,
         parachutePct2: row.parachute_pct_2,
+        prizePoolPerRace: row.prize_pool_per_race,
+        logisticsBase: row.logistics_base,
       },
     ]),
   );
+}
+
+/**
+ * Preisgeldverteilung je Rennen (Konzept 9.1).
+ *
+ * Geometrisch fallend: Der Sieger bekommt gut ein Viertel des Topfes, ab Platz
+ * zehn bleibt kaum noch etwas. Ein flacherer Schluessel haette die Ausschuettung
+ * nur verdoppelt, statt das einzelne Rennergebnis spuerbar zu machen.
+ */
+const PRIZE_DECAY = 0.78;
+
+export function prizeShares(field: number): number[] {
+  const raw = Array.from({ length: field }, (_, index) => Math.pow(PRIZE_DECAY, index));
+  const sum = raw.reduce((total, value) => total + value, 0);
+  return raw.map((value) => value / sum);
+}
+
+/**
+ * Logistik je Rennen (Konzept 9.2, dort ausdruecklich entfernungsabhaengig).
+ *
+ * Die Entfernung haengt an der Strecke, nicht am einzelnen Team: Das Feld ist
+ * ueberwiegend europaeisch, ein Uebersee-Rennen kostet also alle mehr. Eine
+ * Matrix Team x Strecke waere genauer und fuer 167 Teams nicht zu pflegen.
+ */
+export function logisticsCost(rule: PayoutRule, factors: number[]): number {
+  return Math.round(rule.logisticsBase * factors.reduce((sum, factor) => sum + factor, 0));
+}
+
+/**
+ * Motorenleasing eines Kundenteams.
+ *
+ * `lease_cost_customer` ist auf Tier 1 bemessen - die acht Hersteller beliefern
+ * aber bis Tier 3 hinunter. Der Betrag skaliert deshalb mit dem Deckel der
+ * eigenen Liga; ein Tier-3-Team koennte den Tier-1-Preis nie tragen.
+ */
+export function leaseCost(base: number, ownCap: number, topCap: number): number {
+  if (topCap <= 0) return 0;
+  return Math.round(base * (ownCap / topCap));
 }
 
 /** Fixanteil plus variabler Anteil nach Platzierung. Letzter bekommt nur den Fix. */

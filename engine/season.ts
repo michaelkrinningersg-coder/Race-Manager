@@ -10,7 +10,16 @@ import type { Database } from './savegame.js';
 import { loadTrackProfiles } from './scoring.js';
 import { simulateWeekend, type Entry, type ResultRow, type WeekendContext } from './lightsim.js';
 import { nextTier, type Movement } from './promotion.js';
-import { costBasisFor, loadPayoutRules, parachuteFor, payoutFor } from './finance.js';
+import {
+  costBasisFor,
+  leaseCost,
+  loadPayoutRules,
+  logisticsCost,
+  parachuteFor,
+  payoutFor,
+  prizeShares,
+} from './finance.js';
+import { sponsorIncome } from './sponsors.js';
 import { simulateRace, type Compound, type RaceContext, type RaceEntry } from './racesim.js';
 import { loadStaffValues } from './staff.js';
 import { loadFacilityTypes, loadLevels, upkeepTotal } from './facilities.js';
@@ -441,14 +450,14 @@ export function prepareSeason(db: Database, season: number): void {
 }
 
 /**
- * Bucht Ausschuettung, Fallschirm, Ausgaben und Infrastruktur einer Saison.
+ * Bucht die vollstaendige Bilanz einer Saison (Konzept 9).
  *
- * Muss nach buildStandings laufen: Der variable Anteil haengt am Tabellenplatz.
+ * Muss nach buildStandings und settleSponsors laufen: Ausschuettung, Preisgeld
+ * und Sponsorenbonus haengen am Saisonergebnis.
  *
- * Die Infrastruktur steht mit drei eigenen Posten in der Bilanz: `facility_cost`
- * fuer die laufenden Fixkosten, `investment` fuer den in dieser Saison bezahlten
- * Ausbau und `asset_sales` fuer den Zwangsverkauf, den forceSales anschliessend
- * nachtraegt. Nur getrennt ist ablesbar, woran ein Team zugrunde geht.
+ * Jeder Posten steht einzeln. Das ist kein Ordnungsfimmel - erst dadurch laesst
+ * sich beantworten, WORAN ein Team zugrunde geht, statt nur DASS es das tut.
+ * Was `expenses` noch abdeckt, ist der Rest: Entwicklung und Fertigung.
  */
 export function applyFinances(db: Database, season: number): void {
   const rules = loadPayoutRules(db);
@@ -469,6 +478,91 @@ export function applyFinances(db: Database, season: number): void {
   const teamCounts = new Map(
     (db.prepare('SELECT tier, COUNT(*) n FROM team_seasons WHERE season = ? GROUP BY tier')
       .all(season) as Record<string, number>[]).map((row) => [row.tier, row.n]),
+  );
+
+  // --- Einnahmen jenseits der Ausschuettung -------------------------------
+
+  const sponsors = sponsorIncome(db, season);
+
+  // Preisgeld: je Rennen der Topf der Liga, nach Zielplatzierung verteilt.
+  const prizeMoney = new Map<number, number>();
+  const prizeRows = db
+    .prepare(
+      `SELECT tier, round, leg, team_id, position FROM race_results
+        WHERE season = ? AND position IS NOT NULL`,
+    )
+    .all(season) as { tier: number; round: number; leg: number; team_id: number; position: number }[];
+  const shareCache = new Map<number, number[]>();
+  const fieldSize = new Map<string, number>();
+  for (const row of prizeRows) {
+    const key = `${row.tier}|${row.round}|${row.leg}`;
+    fieldSize.set(key, Math.max(fieldSize.get(key) ?? 0, row.position));
+  }
+  for (const row of prizeRows) {
+    const rule = rules.get(row.tier);
+    if (!rule) continue;
+    const field = fieldSize.get(`${row.tier}|${row.round}|${row.leg}`) ?? 1;
+    let shares = shareCache.get(field);
+    if (!shares) {
+      shares = prizeShares(field);
+      shareCache.set(field, shares);
+    }
+    const amount = Math.round(rule.prizePoolPerRace * (shares[row.position - 1] ?? 0));
+    prizeMoney.set(row.team_id, (prizeMoney.get(row.team_id) ?? 0) + amount);
+  }
+
+  // Mitgift der Pay-Driver (Konzept 9.1). Steht seit M5 in driver_state und
+  // senkte bisher nur den Preis im Fahrermarkt, ohne je in der Kasse zu landen.
+  const payDrivers = new Map(
+    (db
+      .prepare(
+        `SELECT team_id, COALESCE(SUM(pay_driver_budget), 0) total FROM driver_state
+          WHERE season = ? AND role = 'race' AND retired = 0 AND team_id IS NOT NULL
+          GROUP BY team_id`,
+      )
+      .all(season) as { team_id: number; total: number }[]).map((row) => [row.team_id, row.total]),
+  );
+
+  // --- Ausgaben jenseits der Pauschale ------------------------------------
+
+  const driverWages = new Map(
+    (db
+      .prepare(
+        `SELECT team_id, COALESCE(SUM(salary), 0) total FROM driver_state
+          WHERE season = ? AND retired = 0 AND team_id IS NOT NULL GROUP BY team_id`,
+      )
+      .all(season) as { team_id: number; total: number }[]).map((row) => [row.team_id, row.total]),
+  );
+  const staffWages = new Map(
+    (db
+      .prepare(
+        `SELECT team_id, COALESCE(SUM(salary), 0) total FROM staff_state
+          WHERE season = ? AND retired = 0 AND team_id IS NOT NULL GROUP BY team_id`,
+      )
+      .all(season) as { team_id: number; total: number }[]).map((row) => [row.team_id, row.total]),
+  );
+
+  // Logistik: Summe der Streckenfaktoren des eigenen Kalenders.
+  const logisticsByTier = new Map<number, number>();
+  for (const row of db
+    .prepare(
+      `SELECT c.tier, COALESCE(SUM(t.logistics_factor), 0) total
+         FROM calendar c JOIN tracks t ON t.track_id = c.track_id
+        WHERE c.season = 1 GROUP BY c.tier`,
+    )
+    .all() as { tier: number; total: number }[]) {
+    logisticsByTier.set(row.tier, row.total);
+  }
+
+  const topCap = costCaps.get(1) ?? 0;
+  const leaseByTeam = new Map(
+    (db
+      .prepare(
+        `SELECT t.team_id, e.lease_cost_customer base
+           FROM teams t JOIN engine_suppliers e ON e.supplier_id = t.engine_supplier_id
+          WHERE t.is_works_team = 0`,
+      )
+      .all() as { team_id: number; base: number }[]).map((row) => [row.team_id, row.base]),
   );
 
   const standings = db
@@ -510,9 +604,13 @@ export function applyFinances(db: Database, season: number): void {
 
   const insert = db.prepare(
     `INSERT INTO team_finances
-       (team_id, season, tier, opening, payout, parachute, expenses, cost_basis, facility_cost, investment, closing)
+       (team_id, season, tier, opening, payout, parachute, prize_money, sponsors, pay_drivers,
+        expenses, cost_basis, facility_cost, driver_wages, staff_wages, engine_lease, logistics,
+        investment, closing)
      VALUES
-       (@team_id, @season, @tier, @opening, @payout, @parachute, @expenses, @cost_basis, @facility_cost, @investment, @closing)`,
+       (@team_id, @season, @tier, @opening, @payout, @parachute, @prize_money, @sponsors, @pay_drivers,
+        @expenses, @cost_basis, @facility_cost, @driver_wages, @staff_wages, @engine_lease, @logistics,
+        @investment, @closing)`,
   );
 
   const run = db.transaction(() => {
@@ -532,13 +630,15 @@ export function applyFinances(db: Database, season: number): void {
         }
       }
 
+      const cap = costCaps.get(team.tier) ?? 0;
+
       // Betrieb: nicht am Deckel der aktuellen Liga, sondern am nachlaufenden
       // Betriebsniveau - ein Absteiger traegt seine alte Mannschaft noch mit.
       // Mit COST_BASIS_DECAY = 0.5 ist das heute fast folgenlos; die Groesse
       // steht als eigener Bilanzposten fuer M6 bereit. Warum sie bewusst nicht
       // schaerfer gestellt ist, steht in finance.ts.
       const basis = costBasisFor(
-        costCaps.get(team.tier) ?? 0,
+        cap,
         previousBasis.get(team.team_id),
       );
       const expenses = Math.round(rule.expenseRatio * basis);
@@ -550,7 +650,19 @@ export function applyFinances(db: Database, season: number): void {
         facilityLevels.get(team.team_id) ?? new Map<string, number>(),
       );
       const investment = investments.get(team.team_id) ?? 0;
+      const prize = prizeMoney.get(team.team_id) ?? 0;
+      const sponsorMoney = sponsors.get(team.team_id) ?? 0;
+      const mitgift = payDrivers.get(team.team_id) ?? 0;
+      const wagesDrivers = driverWages.get(team.team_id) ?? 0;
+      const wagesStaff = staffWages.get(team.team_id) ?? 0;
+      const lease = leaseCost(leaseByTeam.get(team.team_id) ?? 0, cap, topCap);
+      const logistics = logisticsCost(rule, [logisticsByTier.get(team.tier) ?? 0]);
+
       const start = opening.get(team.team_id) ?? 0;
+      const income = payout + parachute + prize + sponsorMoney + mitgift;
+      const outgo =
+        expenses + facilityCost + wagesDrivers + wagesStaff + lease + logistics + investment;
+
       insert.run({
         team_id: team.team_id,
         season,
@@ -558,11 +670,18 @@ export function applyFinances(db: Database, season: number): void {
         opening: start,
         payout,
         parachute,
+        prize_money: prize,
+        sponsors: sponsorMoney,
+        pay_drivers: mitgift,
         expenses,
         cost_basis: basis,
         facility_cost: facilityCost,
+        driver_wages: wagesDrivers,
+        staff_wages: wagesStaff,
+        engine_lease: lease,
+        logistics,
         investment,
-        closing: start + payout + parachute - expenses - facilityCost - investment,
+        closing: start + income - outgo,
       });
     }
   });

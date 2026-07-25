@@ -2,7 +2,10 @@ import type { Database } from 'sql.js';
 import {
   ARCHETYPE_LABEL,
   MOVEMENT_LABEL,
+  OBJECTIVE_LABEL,
   PART_LABEL,
+  teamCapBreaches,
+  teamSponsors,
   teamDetail,
   teamFacilities,
   teamFacilityMoves,
@@ -53,6 +56,8 @@ export function renderTeam(db: Database, season: number, teamId: number): string
   const moves = teamFacilityMoves(db, teamId);
   const finances = teamFinances(db, teamId);
   const history = teamHistory(db, teamId);
+  const sponsorList = teamSponsors(db, season, teamId);
+  const breaches = teamCapBreaches(db, teamId);
 
   const finance = finances.find((entry) => entry.season === season);
 
@@ -90,7 +95,9 @@ export function renderTeam(db: Database, season: number, teamId: number): string
       ${renderRoster(roster, season)}
       ${renderStaff(staff, season)}
       ${renderFacilities(facilities, moves)}
+      ${renderSponsors(sponsorList)}
       ${renderFinance(finance, finances, season)}
+      ${renderBreaches(breaches, season)}
 
       <p><a href="${withSeason(`#/liga/${tier}`, season)}">← Zurück zur Tabelle</a></p>
     </section>`;
@@ -322,11 +329,14 @@ function renderFinance(
         <td class="num">${entry.season}</td>
         <td class="num">${entry.tier}</td>
         <td class="num">${formatSigned(entry.payout)}</td>
+        <td class="num">${formatSigned(entry.prize_money)}</td>
+        <td class="num">${formatSigned(entry.sponsors)}</td>
         <td class="num">${entry.parachute > 0 ? formatSigned(entry.parachute) : '—'}</td>
         <td class="num">${formatSigned(-entry.expenses)}</td>
+        <td class="num">${formatSigned(-(entry.driver_wages + entry.staff_wages))}</td>
         <td class="num">${formatSigned(-entry.facility_cost)}</td>
+        <td class="num">${formatSigned(-(entry.engine_lease + entry.logistics))}</td>
         <td class="num">${entry.investment > 0 ? formatSigned(-entry.investment) : '—'}</td>
-        <td class="num">${entry.asset_sales > 0 ? formatSigned(entry.asset_sales) : '—'}</td>
         <td class="num strong">${formatMoney(entry.closing)}</td>
       </tr>`,
     )
@@ -335,18 +345,122 @@ function renderFinance(
   return `
     <h2>Bilanz</h2>
     <p class="muted small">
-      Ausschüttung nach Vorjahresplatz, Fallschirm nach einem Abstieg, Betrieb als Anteil
-      des Kostendeckels, dazu die Infrastruktur mit Fixkosten, Ausbau und Zwangsverkauf.
-      Fahrer- und Personalgehälter sind hier noch <em>nicht</em> verbucht – das gehört nach M6.
+      Seit M6 vollständig: TV-Ausschüttung nach Vorjahresplatz, Preisgeld nach jedem Rennen,
+      Sponsorengelder samt Bonus und Malus, dazu auf der Ausgabenseite Betrieb (Entwicklung
+      und Fertigung), Fahrer- und Personalgehälter, Anlagenfixkosten, Motorenleasing und
+      Logistik. <em>Betrieb</em> ist der Restposten – was nicht einzeln gebucht wird.
     </p>
     <div class="table-scroll">
       <table class="table table--compact">
         <thead>
           <tr>
             <th class="num">Saison</th><th class="num">Tier</th>
-            <th class="num">Ausschüttung</th><th class="num">Fallschirm</th><th class="num">Betrieb</th>
-            <th class="num">Anlagen</th><th class="num">Ausbau</th><th class="num">Verkauf</th>
-            <th class="num">Kasse</th>
+            <th class="num">TV</th><th class="num">Preisgeld</th><th class="num">Sponsoren</th>
+            <th class="num">Fallschirm</th><th class="num">Betrieb</th><th class="num">Gehälter</th>
+            <th class="num">Anlagen</th><th class="num">Leasing + Logistik</th>
+            <th class="num">Ausbau</th><th class="num">Kasse</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
+}
+
+/**
+ * Sponsorenvertraege einer Saison (Konzept 9.1).
+ *
+ * Der Hauptvertrag steht oben, danach die Nebenvertraege. Interessant ist nicht
+ * der Betrag, sondern die Zielvorgabe daneben: Sie entscheidet, ob am Ende der
+ * Bonus oder der Malus gebucht wird.
+ */
+function renderSponsors(sponsors: ReturnType<typeof teamSponsors>): string {
+  if (!sponsors.length) return '';
+
+  const rows = sponsors
+    .map((sponsor) => {
+      const objective =
+        OBJECTIVE_LABEL[sponsor.objective_type]?.(sponsor.objective_value) ??
+        `${sponsor.objective_type} ${sponsor.objective_value}`;
+      const verdict =
+        sponsor.achieved === null
+          ? '<span class="muted">offen</span>'
+          : sponsor.achieved
+            ? '<span class="tag tag--met">erfüllt</span>'
+            : '<span class="tag tag--missed">verfehlt</span>';
+      return `
+      <tr>
+        <td>${sponsor.slot === 'title' ? '<strong>Hauptvertrag</strong>' : '<span class="muted">Nebenvertrag</span>'}</td>
+        <td>${escapeHtml(sponsor.name)} <span class="muted small">${escapeHtml(sponsor.industry)}</span></td>
+        <td class="num">${sponsor.contract_until}</td>
+        <td>${escapeHtml(objective)}</td>
+        <td>${verdict}</td>
+        <td class="num">${formatMoney(sponsor.base_value)}</td>
+        <td class="num strong">${formatMoney(sponsor.payout)}</td>
+      </tr>`;
+    })
+    .join('');
+
+  const total = sponsors.reduce((sum, sponsor) => sum + sponsor.payout, 0);
+
+  return `
+    <h2>Sponsoren</h2>
+    <p class="muted small">
+      Ein Hauptvertrag, dazu vier bis sechs Nebenverträge. Jeder trägt eine Zielvorgabe:
+      Wird sie erfüllt, kommt ein Bonus obendrauf, wird sie verfehlt, ein Malus herunter.
+      Zusammen in dieser Saison: <strong>${formatMoney(total)}</strong>.
+    </p>
+    <div class="table-scroll">
+      <table class="table table--compact">
+        <thead>
+          <tr>
+            <th>Slot</th><th>Sponsor</th><th class="num">Vertrag bis</th><th>Zielvorgabe</th>
+            <th>Ergebnis</th><th class="num">Grundwert</th><th class="num">Ausgezahlt</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
+}
+
+/**
+ * Deckelverstoesse (Konzept 9.3).
+ *
+ * Die Strafe wirkt erst im Folgejahr - wer im Dezember merkt, dass er zu viel
+ * ausgegeben hat, kann die Saison nicht mehr aendern.
+ */
+function renderBreaches(
+  breaches: ReturnType<typeof teamCapBreaches>,
+  season: number,
+): string {
+  if (!breaches.length) return '';
+
+  const rows = breaches
+    .map(
+      (breach) => `
+      <tr class="${breach.season === season ? 'is-current' : ''}">
+        <td class="num">${breach.season}</td>
+        <td class="num">${formatMoney(breach.capped_spend)}</td>
+        <td class="num muted">${formatMoney(breach.cost_cap)}</td>
+        <td class="num">${(breach.overspend_pct * 100).toFixed(1)} %</td>
+        <td class="num">−${breach.penalty_points}</td>
+        <td class="num">−${(breach.atr_cut * 100).toFixed(0)} %</td>
+      </tr>`,
+    )
+    .join('');
+
+  return `
+    <h2>Kostendeckel</h2>
+    <p class="muted small">
+      Deckelrelevant sind Betrieb, Anlagen, Personal, Leasing, Logistik und Ausbau –
+      Fahrergehälter erst oberhalb eines Freibetrags von 8 % des Deckels (Konzept 9.3).
+      Eine Überschreitung kostet Lizenzpunkte und Windkanalzeit, beides in der Folgesaison.
+    </p>
+    <div class="table-scroll">
+      <table class="table table--compact">
+        <thead>
+          <tr>
+            <th class="num">Saison</th><th class="num">Ausgaben</th><th class="num">Deckel</th>
+            <th class="num">Überschreitung</th><th class="num">Lizenzpunkte</th><th class="num">Windkanal</th>
           </tr>
         </thead>
         <tbody>${rows}</tbody>

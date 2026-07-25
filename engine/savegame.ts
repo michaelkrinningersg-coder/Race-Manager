@@ -121,9 +121,16 @@ CREATE TABLE team_finances (
   opening       INTEGER NOT NULL,
   payout        INTEGER NOT NULL DEFAULT 0,
   parachute     INTEGER NOT NULL DEFAULT 0,
+  prize_money   INTEGER NOT NULL DEFAULT 0,
+  sponsors      INTEGER NOT NULL DEFAULT 0,
+  pay_drivers   INTEGER NOT NULL DEFAULT 0,
   expenses      INTEGER NOT NULL DEFAULT 0,
   cost_basis    INTEGER NOT NULL DEFAULT 0,
   facility_cost INTEGER NOT NULL DEFAULT 0,
+  driver_wages  INTEGER NOT NULL DEFAULT 0,
+  staff_wages   INTEGER NOT NULL DEFAULT 0,
+  engine_lease  INTEGER NOT NULL DEFAULT 0,
+  logistics     INTEGER NOT NULL DEFAULT 0,
   investment    INTEGER NOT NULL DEFAULT 0,
   asset_sales   INTEGER NOT NULL DEFAULT 0,
   closing       INTEGER NOT NULL,
@@ -224,6 +231,39 @@ CREATE TABLE driver_history (
   team_id     INTEGER REFERENCES teams(team_id),
   detail      TEXT,
   PRIMARY KEY (driver_id, season, event)
+);
+
+-- Sponsorenvertraege je Team und Saison (Konzept 9.1). slot ist 'title' fuer den
+-- Hauptvertrag und 'side1'..'side6' fuer die Nebenvertraege. achieved ist NULL,
+-- solange die Saison laeuft - erst settleSponsors wertet die Zielvorgabe aus.
+CREATE TABLE team_sponsors (
+  team_id         INTEGER NOT NULL REFERENCES teams(team_id),
+  season          INTEGER NOT NULL,
+  slot            TEXT    NOT NULL,
+  sponsor_key     TEXT    NOT NULL REFERENCES sponsors(sponsor_key),
+  contract_until  INTEGER NOT NULL,
+  base_value      INTEGER NOT NULL,
+  objective_type  TEXT    NOT NULL,
+  objective_value INTEGER NOT NULL,
+  bonus           INTEGER NOT NULL DEFAULT 0,
+  malus           INTEGER NOT NULL DEFAULT 0,
+  achieved        INTEGER,
+  payout          INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (team_id, season, slot)
+);
+
+-- Ueberschreitungen des Kostendeckels (Konzept 9.3). Die Strafe wirkt in der
+-- FOLGESAISON: Lizenzpunkte weg, Windkanalzeit gekuerzt.
+CREATE TABLE cap_breaches (
+  team_id       INTEGER NOT NULL REFERENCES teams(team_id),
+  season        INTEGER NOT NULL,
+  tier          INTEGER NOT NULL,
+  capped_spend  INTEGER NOT NULL,
+  cost_cap      INTEGER NOT NULL,
+  overspend_pct REAL    NOT NULL,
+  penalty_points INTEGER NOT NULL,
+  atr_cut        REAL    NOT NULL,
+  PRIMARY KEY (team_id, season)
 );
 
 -- Anlagenbestand je Team und Saison (Konzept 8.2). Der Bestand wandert beim
