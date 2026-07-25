@@ -22,7 +22,7 @@
  */
 
 import DatabaseConstructor from 'better-sqlite3';
-import { copyFileSync, mkdirSync, statSync, unlinkSync } from 'node:fs';
+import { copyFileSync, mkdirSync, readdirSync, statSync, unlinkSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -43,17 +43,20 @@ const RUNTIME_INDEXES = [
 interface Options {
   inPath: string;
   outPath: string;
+  dataDir: string;
 }
 
 function parseArgs(argv: string[]): Options {
   const options: Options = {
     inPath: resolve(repoRoot, 'build', 'savegame.db'),
     outPath: resolve(repoRoot, 'public', 'apex.db'),
+    dataDir: resolve(repoRoot, 'data'),
   };
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
     if (arg === '--in') options.inPath = resolve(argv[++i]);
     else if (arg === '--out') options.outPath = resolve(argv[++i]);
+    else if (arg === '--data') options.dataDir = resolve(argv[++i]);
     else {
       console.error(`Unbekannte Option: ${arg}`);
       process.exit(2);
@@ -103,6 +106,21 @@ function main(): void {
   } finally {
     db.close();
   }
+
+  // Stammdaten mitliefern (Konzept 17, Editor). Der Editor bearbeitet die
+  // CSV-Dateien selbst und nicht die daraus abgeleitete Datenbank: Nur dort
+  // stehen die Gliederungskommentare, und nur dort fehlen die Newgens, die
+  // erst waehrend der Simulation entstehen. Wer in der Datenbank editierte,
+  // bekaeme 928 Fahrer angeboten, von denen 478 in keiner CSV stehen.
+  const dataOut = resolve(dirname(options.outPath), 'data');
+  mkdirSync(dataOut, { recursive: true });
+  let copied = 0;
+  for (const file of readdirSync(options.dataDir)) {
+    if (!file.endsWith('.csv')) continue;
+    copyFileSync(resolve(options.dataDir, file), resolve(dataOut, file));
+    copied += 1;
+  }
+  console.log(`  Stammdaten:     ${copied} CSV-Dateien nach ${dataOut}`);
 
   console.log(`  Groesse:        ${before} MB -> ${megabytes(options.outPath)} MB`);
   console.log(`\nFertig: ${options.outPath}`);
