@@ -39,6 +39,24 @@ export function performanceBand(tier: number): { min: number; max: number } {
   return { min, max: min + 8 };
 }
 
+/**
+ * Sollzahl der Pay Driver je Liga (Datenmodell 15.4). Zusammen 113 der 334
+ * Stammcockpits. Geprueft wird erst, wenn eine Liga vollstaendig besetzt ist -
+ * waehrend der Datenpflege waere die Abweichung sonst nur Rauschen.
+ */
+const PAY_DRIVER_TARGET = new Map<number, number>([
+  [1, 0],
+  [2, 0],
+  [3, 1],
+  [4, 4],
+  [5, 10],
+  [6, 14],
+  [7, 16],
+  [8, 20],
+  [9, 22],
+  [10, 26],
+]);
+
 function checkLeagues(context: ValidationContext, findings: Finding[]): void {
   const leagues = rowsOf(context, 'leagues.csv');
   const systems = new Set(rowsOf(context, 'points_systems.csv').map((row) => num(row, 'points_system_id')));
@@ -420,6 +438,9 @@ function checkDrivers(context: ValidationContext, findings: Finding[]): void {
 
   const seats = new Map<string, number>();
   const raceCountPerTeam = new Map<number, number>();
+  const racePerTier = new Map<number, number>();
+  const payPerTier = new Map<number, number>();
+  const coreRange = new Map<number, { min: number; max: number }>();
   let raceTotal = 0;
 
   for (const row of drivers) {
@@ -476,6 +497,10 @@ function checkDrivers(context: ValidationContext, findings: Finding[]): void {
     if (role === 'race') {
       raceTotal += 1;
       raceCountPerTeam.set(teamId, (raceCountPerTeam.get(teamId) ?? 0) + 1);
+      racePerTier.set(tier, (racePerTier.get(tier) ?? 0) + 1);
+      if (num(row, 'pay_driver_budget') > 0) {
+        payPerTier.set(tier, (payPerTier.get(tier) ?? 0) + 1);
+      }
 
       const seat = row.values.start_seat;
       if (typeof seat !== 'number') {
@@ -498,6 +523,11 @@ function checkDrivers(context: ValidationContext, findings: Finding[]): void {
 
       const band = performanceBand(tier);
       const core = CORE_ATTRIBUTES.reduce((total, name) => total + num(row, name), 0) / CORE_ATTRIBUTES.length;
+      const range = coreRange.get(tier);
+      coreRange.set(tier, {
+        min: Math.min(range?.min ?? core, core),
+        max: Math.max(range?.max ?? core, core),
+      });
       if (core < band.min || core > band.max) {
         findings.push(
           warning(
@@ -553,6 +583,45 @@ function checkDrivers(context: ValidationContext, findings: Finding[]): void {
     findings.push(
       stock(context, 'drivers.csv', `${raceTotal} Stammfahrer im Bestand, erwartet sind 334`),
     );
+  }
+
+  const fullyStaffed = new Set<number>();
+  for (const league of leagues) {
+    const tier = num(league, 'tier');
+    const seatCount = num(league, 'team_count') * num(league, 'cars_per_team');
+    // Erst bei voll besetzter Liga aussagekraeftig.
+    if ((racePerTier.get(tier) ?? 0) !== seatCount) continue;
+    fullyStaffed.add(tier);
+
+    const target = PAY_DRIVER_TARGET.get(tier);
+    const actual = payPerTier.get(tier) ?? 0;
+    if (target !== undefined && actual !== target) {
+      findings.push(
+        warning(
+          'drivers.csv',
+          `Tier ${tier}: ${actual} Pay Driver, die Verteilungsvorgabe nennt ${target} (Datenmodell 15.4)`,
+        ),
+      );
+    }
+  }
+
+  // Die Baender ueberlappen sich laut Datenmodell 15.2 um ein Viertel - der beste
+  // Fahrer einer Liga soll ueber dem schwaechsten der naechsthoeheren liegen.
+  // Ein Bestand, der die Ueberlappung nicht ausnutzt, erfuellt jedes einzelne
+  // Band und laesst den Fahrermarkt zwischen den Ligen trotzdem austrocknen.
+  for (let tier = 1; tier <= 9; tier += 1) {
+    if (!fullyStaffed.has(tier) || !fullyStaffed.has(tier + 1)) continue;
+    const upper = coreRange.get(tier);
+    const lower = coreRange.get(tier + 1);
+    if (!upper || !lower) continue;
+    if (lower.max <= upper.min) {
+      findings.push(
+        warning(
+          'drivers.csv',
+          `Ligengrenze ${tier}/${tier + 1}: bester Fahrer aus Tier ${tier + 1} (${lower.max.toFixed(2)}) liegt nicht ueber dem schwaechsten aus Tier ${tier} (${upper.min.toFixed(2)}) - die Baender ueberlappen sich auf dem Papier, der Bestand nutzt es nicht`,
+        ),
+      );
+    }
   }
 }
 
