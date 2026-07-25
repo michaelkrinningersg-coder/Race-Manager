@@ -31,6 +31,31 @@ const SCORE_TIME_FACTOR = 0.004;
 /** Streuung der Rundenzeit in Sekunden bei einem sehr konstanten Fahrer. */
 const LAP_NOISE_BASE = 0.12;
 
+/**
+ * Gewicht des Fahrers im Zweikampf (Konzept 12.3).
+ *
+ * `skill` ist die Differenz aus `overtaking` des Angreifers und `defending` des
+ * Vordermanns, geteilt durch 100 - zwischen Tier-1-Fahrern liegt sie zwischen
+ * -0.18 und +0.14. Der Streckenterm spannt dagegen von 0.62 bis 0.06.
+ *
+ * Bei 0.3 war der Fahreranteil gemessen +0,97 Prozentpunkte je rund acht Punkte
+ * Differenz - vorhanden, aber vom Streckenterm zwanzigfach ueberdeckt.
+ * Angehoben auf einen Wert, der den Fahrer spuerbar macht, ohne die Strecke zu
+ * entwerten: Ein Stadtkurs soll auch fuer einen Weltmeister ein Stadtkurs
+ * bleiben.
+ */
+const DUEL_DRIVER_WEIGHT = 0.9;
+
+/**
+ * Untergrenze der Ueberholchance. Von 0.05 auf 0.02 gesenkt: Bei 0.05 schnitt
+ * sie auf den schwersten Strecken genau den Fahreranteil ab, den sie sichtbar
+ * machen soll - bei Ueberholbarkeit 0.92 lag der Basiswert schon bei 0.064.
+ */
+const DUEL_MIN_CHANCE = 0.02;
+
+/** Obergrenze, damit ein Zweikampf nie zur Formsache wird. */
+const DUEL_MAX_CHANCE = 0.92;
+
 /** Spritverbrauch in kg je Runde und Zeitkosten je 10 kg. */
 const FUEL_PER_LAP_KG = 1.8;
 const FUEL_TIME_PER_10KG = 0.32;
@@ -314,7 +339,13 @@ export function simulateRace(
           const skill =
             ((car.entry.attributes.overtaking ?? 60) - (ahead.entry.attributes.defending ?? 60)) /
             100;
-          const chance = Math.max(0.05, (1 - context.overtakingDifficulty) * 0.8 + skill * 0.3);
+          const chance = Math.min(
+            DUEL_MAX_CHANCE,
+            Math.max(
+              DUEL_MIN_CHANCE,
+              (1 - context.overtakingDifficulty) * 0.8 + skill * DUEL_DRIVER_WEIGHT,
+            ),
+          );
           rivalId = ahead.entry.driverId;
           if (rng() > chance) {
             const stuck = Math.min(0.9, 0.25 + context.overtakingDifficulty * 0.7);

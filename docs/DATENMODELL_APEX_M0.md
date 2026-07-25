@@ -1533,3 +1533,43 @@ Zwei Beobachtungen dazu, beide offen:
 
 * **Schwächer als die Formel nahelegt.** Bei rund acht Punkten Differenz zwischen den Bändern wären nach `skill × 0,3` etwa 2,4 Prozentpunkte zu erwarten, gemessen ist es gut ein Drittel davon. Der Grund liegt vermutlich an der Untergrenze `max(0.05, …)`: Auf schwer überholbaren Strecken wird der Basiswert dagegen gedrückt und der Fahreranteil mit abgeschnitten – bei Überholbarkeit 0,92 ist der Effekt tatsächlich null.
 * **Die Strecke dominiert den Fahrer um das Zwanzigfache.** Der Streckenterm wiegt 0,8, der Fahrerterm 0,3 – und die Differenzen zwischen Tier-1-Fahrern liegen nur zwischen −18 und +14, weil dort alle gut sind. Ob das so gewollt ist, ist eine Balancing-Frage und keine Messfrage.
+
+### 22.10 Balancing des Zweikampfs
+
+Aus 22.9 blieben zwei Beobachtungen offen. Getroffene Entscheidung: **die additive Form behalten und das Fahrergewicht anheben**, statt die Formel umzubauen.
+
+Drei Zahlen sind jetzt benannte Konstanten in `racesim.ts` statt im Ausdruck vergraben:
+
+| | vorher | jetzt |
+| :--- | ---: | ---: |
+| `DUEL_DRIVER_WEIGHT` | 0,3 | **0,9** |
+| `DUEL_MIN_CHANCE` | 0,05 | **0,02** |
+| `DUEL_MAX_CHANCE` | – | 0,92 |
+
+Die Untergrenze war der zweite Teil des Problems: Bei 0,05 schnitt sie auf den schwersten Strecken genau den Fahreranteil ab, den sie sichtbar machen soll – bei Überholbarkeit 0,92 lag der Basiswert schon bei 0,064.
+
+Das Gewicht ist gemessen, nicht gesetzt. Über zehn rundenweise gefahrene Saisons bei sonst gleicher Welt:
+
+| Gewicht | Fahrereffekt | Überholquote | Positionswechsel | Strecken mit Effekt |
+| ---: | ---: | ---: | ---: | :--- |
+| 0,3 | 1,22 Pp | 37,2 % | 2,95 | 15 von 22 |
+| 0,6 | 3,46 Pp | 35,1 % | 2,88 | 21 von 22 |
+| **0,9** | **5,24 Pp** | **32,4 %** | **2,89** | **22 von 22** |
+| 1,2 | 5,88 Pp | 31,2 % | 2,92 | 21 von 22 |
+| 1,6 | 7,72 Pp | 29,0 % | 2,94 | 18 von 18 |
+
+0,9 ist der erste Wert, bei dem der Fahrer auf **jeder** Strecke messbar mitentscheidet; 1,2 kauft dafür kaum noch etwas dazu. Nach Streckentyp:
+
+| Überholbarkeit | Diff ≤ −10 | Diff > −10 | Unterschied |
+| ---: | ---: | ---: | ---: |
+| 0,22 | 53,6 % | 57,3 % | +3,7 Pp |
+| 0,44 | 32,1 % | 41,2 % | +9,1 Pp |
+| 0,52 | 26,2 % | 33,5 % | +7,3 Pp |
+| 0,82 | 4,2 % | 9,8 % | +5,5 Pp |
+| 0,92 | 1,4 % | 2,1 % | +0,7 Pp |
+
+Der Stadtkurs bleibt ein Stadtkurs: Bei Überholbarkeit 0,92 bringt auch ein deutlich besserer Angreifer nur 0,7 Prozentpunkte. Genau das war die Bedingung – den Fahrer spürbar machen, ohne die Strecke zu entwerten.
+
+**Eine Nebenwirkung, bewusst in Kauf genommen:** Die Überholquote insgesamt fällt von 37,2 auf 32,4 Prozent. Der Grund ist eine Schiefe in den Daten – die Differenz aus `overtaking` und `defending` liegt im Mittel bei −7,2, der Term zieht also im Schnitt ab. Auf das Renngeschehen schlägt das nicht durch: Die Positionswechsel gegenüber dem Start bleiben bei 2,89 je Fahrer und Rennen (vorher 2,95). Es verschiebt sich das Verhältnis von gelungenen zu abgewehrten Angriffen, nicht die Bewegung im Feld.
+
+Offen bleibt, **warum die Differenz systematisch negativ ist**. Entweder liegen die `defending`-Werte in `drivers.csv` durchgängig über den `overtaking`-Werten, oder die Paarung ist verzerrt, weil ein Zweikampf nur entsteht, wenn das schnellere Auto hinten liegt. Ungeklärt.
