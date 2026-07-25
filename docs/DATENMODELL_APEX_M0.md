@@ -1769,3 +1769,63 @@ Genau diese Karrieren sind das, was das Konzept mit „10 Ligen, jede Saison Auf
 * **284 von 861 Fahrern sind aufgenommen, also ein Drittel.** Das ist die Folge der gewählten Bedingungen und der Datenlage: In 20 Saisons werden 200 Titel vergeben, verteilt auf 146 Fahrer. Ob eine Ruhmeshalle mit einem Drittel aller Fahrer noch eine Auszeichnung ist, ist eine Balancing-Frage und keine technische – zu schärfen wäre sie über eine höhere Aufstiegsschwelle oder über mehrere Titel als Bedingung.
 * **Ein Meister mit null Siegen** ist möglich und kam vor (Tier 6, Saison 20, 137 Punkte). Das ist kein Fehler, sondern die Folge eines flachen Punktesystems – aber es ist eine Aussage über das Punktesystem, die bisher niemand getroffen hat.
 * Ein **Editor** ist der letzte offene Posten aus M7 und nicht gebaut.
+
+---
+
+## 25. M7 Feinschliff: Stammdaten-Editor
+
+Der letzte offene Posten aus M7 (Konzept 17). Velos Editor ist ein Backend-Dienst mit REST-API – APEX hat keinen Server. Daraus folgt der gesamte Zuschnitt.
+
+### 25.1 Bearbeitet werden die CSV-Dateien, nicht die Datenbank
+
+Naheliegend wäre gewesen, `apex.db` zu bearbeiten – sie ist ohnehin geladen. Zwei Gründe sprechen dagegen, und beide sind zwingend:
+
+* Die Datenbank kennt die **Gliederungskommentare** der handgepflegten Dateien nicht. `teams.csv` enthält 20 Zeilen der Form `# ---- Tier 1: APEX World Championship (11) ----`, `drivers.csv` 26. Sie sind oft die einzige Stelle, an der eine Entscheidung festgehalten ist.
+* Die Datenbank enthält **928 Fahrer statt 450**, weil die Newgens erst während der Simulation entstehen. Wer dort editierte, bekäme 478 Fahrer angeboten, die in keiner Quelldatei stehen.
+
+Das Publish-Werkzeug kopiert `data/*.csv` deshalb nach `public/data/`. Die Kopie ist Erzeugnis und steht in `.gitignore`; die Wahrheit bleibt `data/`.
+
+### 25.2 Gespeichert wird per Download
+
+Die Seite ist statisch und hat keinen Server, dem sie etwas schicken könnte. Der Weg schließt sich über das Repo: bearbeiten, herunterladen, nach `data/` legen, einchecken – der Pages-Workflow rechnet die Welt beim nächsten Push ohnehin neu.
+
+Das ist keine Notlösung, sondern die Konsequenz aus der Architektur: Wenn die CSV-Dateien die Wahrheit sind, muss eine Änderung durch das Repo, sonst ist sie keine.
+
+**Was der Editor nicht kann: die Welt neu rechnen.** Die Engine hängt an `better-sqlite3` und läuft nicht im Browser. Er prüft deshalb nur, was ohne Simulation prüfbar ist.
+
+### 25.3 Dieselben Regeln wie im Bootstrapper, nicht nachgebaute
+
+`load.ts` vereinte den Dateizugriff und die gesamte dateiinterne Prüfung – Typen, Wertebereiche, Eindeutigkeit, Primärschlüssel, Sortierung. Der reine Teil ist nach `tools/bootstrap/table.ts` gewandert, das **keinen einzigen Node-Import** hat; `load.ts` liest nur noch die Datei und ruft `buildTable(text, spec, findings)`.
+
+Damit prüft der Editor mit demselben Code wie der Bootstrapper. Die Alternative – die Regeln im Frontend nachzubauen – hätte zwei Fassungen derselben Regel ergeben, und zwei Fassungen laufen immer auseinander.
+
+### 25.4 Ein Dokumentmodell, weil Speichern sonst Dateien zerstört
+
+`parseCsv` wirft weg, was der Bootstrapper nicht braucht: Kommentare, Leerzeilen und die Information, welche Felder zitiert waren. Für einen Editor ist genau das die Substanz.
+
+Der erste Serialisierer arbeitete mit minimalem Zitat und nur dem Kommentarblock am Dateikopf. Ein Round-Trip-Test über alle Dateien – einlesen, unverändert zurückschreiben, mit dem Original vergleichen – zeigte das Ergebnis:
+
+| | Dateien |
+| :--- | ---: |
+| byte-identisch | 13 von 21 |
+| verändert, obwohl nichts bearbeitet wurde | **8 von 21** |
+
+Zwei Ursachen: Kommentare mitten in der Datei gingen verloren, und Freitextfelder, die aus Gewohnheit zitiert sind, ohne ein Komma zu enthalten, verloren ihre Anführungszeichen. Beides hätte jeden gespeicherten Diff unlesbar gemacht.
+
+Ersetzt durch ein Dokumentmodell (`parseDocument`/`serializeDocument`), das jede Zeile als Kommentar, Leerzeile, Kopfzeile oder Datenzeile behält und je Feld festhält, ob es zitiert war. Zitiert wird beim Schreiben, wo es nötig ist **oder** wo es in der Quelle schon stand. Ergebnis: **21 von 21 byte-identisch**.
+
+Der Test ist der eigentliche Ertrag dieses Abschnitts. Ohne ihn wäre ein Editor entstanden, der Dateien beschädigt, die niemand angefasst hat – und das wäre erst im Diff eines fremden Commits aufgefallen.
+
+### 25.5 Nebenbefund: `risk` fehlte in der Barrage
+
+Beim Typcheck der Werkzeuge (`npm run typecheck`, nicht `tsc --noEmit` allein) fiel auf, dass `engine/promotion.ts` ebenfalls einen `WeekendContext` baut – für das Barrage-Rennen – und dort die in Abschnitt 23 hinzugefügte Spalte `risk` fehlte.
+
+Folge: In allen 360 Barrage-Läufen war `context.risk` undefiniert, die Zwischenfallquote wurde damit `NaN`, und `rng() < NaN` ist immer falsch. **Ausgerechnet im Entscheidungsrennen um Auf- und Abstieg gab es keine Zwischenfall-Ausfälle.** Behoben.
+
+Der Befund gehört zur Klasse aus 22.8, hat aber eine dritte Ursache: kein fehlender Wert und kein veralteter, sondern eine zweite Aufrufstelle, die beim Erweitern übersehen wurde. Bemerkenswert ist, wie er gefunden wurde – nicht durch Messung, sondern weil ein Typfehler in einem Projekt lag, das der Standard-Typcheck nicht abdeckt.
+
+### 25.6 Was offen bleibt
+
+* **Nur die vier Dateien aus Konzept 17** sind bearbeitbar. Die übrigen 17 Stammdatendateien liest der Editor nicht – die Spaltendefinitionen lägen maschinenlesbar vor, aber eine generische Tabelle kennt keine Zusammenhänge, etwa dass Gewichtsspalten sich auf 1,0 summieren müssen.
+* **Dateiübergreifende Regeln laufen nicht.** `validateWorld` braucht alle Tabellen gleichzeitig; der Editor hat immer nur eine geladen. Ein Fremdschlüssel auf ein gelöschtes Team fällt damit erst beim Bootstrap auf.
+* **Zeilen anlegen und löschen** kann der Editor nicht, nur Werte ändern.
