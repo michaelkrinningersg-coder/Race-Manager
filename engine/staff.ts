@@ -587,3 +587,100 @@ export function runStaffMarket(db: Database, season: number,
   run();
   return summary;
 }
+
+/**
+ * Nachwuchsjahrgang des Personalmarkts (Konzept 8.1).
+ *
+ * WARUM DAS FEHLTE. runStaffMarket sucht zuerst im Pool der Vertragslosen und
+ * legt nur dann einen Neuzugang an, wenn niemand frei ist - dieser Neuzugang
+ * entsteht aber direkt unter Vertrag beim suchenden Team. Einen Zulauf in den
+ * Pool gab es nicht. Gemessen: in Saison 2 null vertragslose Kraefte, ueber
+ * zwanzig Saisons 825, und die stammen saemtlich aus Aufloesungen.
+ *
+ * Zwei Folgen, und die zweite wiegt schwerer als die erste:
+ *
+ *  - Der Spieler konnte niemanden verpflichten. Seine Personalmaske zeigte
+ *    dauerhaft 'niemand frei'.
+ *  - Personalqualitaet war fuer die KI nie knapp. Wer suchte, bekam - der
+ *    Markt aus Konzept 8.1 war keiner.
+ *
+ * Gebaut nach dem Muster von generateNewgens: ein Jahrgang je Saison, bevor
+ * der Markt laeuft. Der Notfallweg bleibt bestehen, damit kein Team unbesetzt
+ * bleibt, wenn der Jahrgang eine Rolle nicht abdeckt.
+ */
+export function generateStaffNewcomers(db: Database, season: number, perRole = 20): number {
+  const worldSeed = (db.prepare('SELECT world_seed FROM game_state WHERE id = 1').get() as {
+    world_seed: number;
+  }).world_seed;
+  const roles = loadRoles(db);
+  const pools = namePools(db);
+
+  const caps = new Map(
+    (db.prepare('SELECT tier, cost_cap FROM league_regulations WHERE season = 1').all() as Record<
+      string,
+      number
+    >[]).map((row) => [row.tier, row.cost_cap]),
+  );
+
+  const maxId = (db.prepare('SELECT COALESCE(MAX(staff_id), 400000) AS m FROM staff').get() as {
+    m: number;
+  }).m;
+  let nextId = maxId + 1;
+
+  const insertStaff = db.prepare(
+    `INSERT INTO staff (staff_id, first_name, last_name, country, birth_year, role_key, potential)
+     VALUES (@staff_id, @first_name, @last_name, @country, @birth_year, @role_key, @potential)`,
+  );
+  const insertState = db.prepare(
+    `INSERT INTO staff_state (staff_id, season, team_id, rating, loyalty, contract_until, salary, retired)
+     VALUES (@staff_id, @season, NULL, @rating, 0, @contract_until, @salary, 0)`,
+  );
+
+  let created = 0;
+  const run = db.transaction(() => {
+    // Wer zwei Jahrgaenge lang keine Anstellung findet, verlaesst den Sport.
+    // Ohne diese Grenze waechst der Pool ungebremst: gemessen 9 % Vertragslose
+    // in Saison 2 und 60 % in Saison 20, weil jeder Jahrgang liegen bleibt.
+    // Ein Markt, auf dem nichts verfaellt, ist kein Markt, sondern ein Lager.
+    db.prepare(
+      `UPDATE staff_state SET retired = 1
+        WHERE season = ? AND team_id IS NULL AND retired = 0 AND contract_until <= ?`,
+    ).run(season, season - 2);
+
+    for (const role of roles) {
+      for (let i = 0; i < perRole; i += 1) {
+        const rng = createRng(seedFrom(worldSeed, season, nextId, i, 47));
+        // Ueber alle zehn Ligen gestreut, damit jede Stufe etwas findet und
+        // nicht nur Tier 1 einen Markt hat.
+        const tier = 1 + Math.floor(rng() * 10);
+        const band = ratingBand(tier);
+        const rating = Math.max(10, Math.min(99, Math.round(band.min - 3 + rng() * 10)));
+        const age = 28 + Math.floor(rng() * 14);
+        const person = drawName(pools, rng);
+
+        insertStaff.run({
+          staff_id: nextId,
+          first_name: person.first,
+          last_name: person.last,
+          country: person.country,
+          birth_year: 2026 + season - age,
+          role_key: role.roleKey,
+          potential: Math.min(99, Math.round(rating + 5 + rng() * 16)),
+        });
+        insertState.run({
+          staff_id: nextId,
+          season,
+          rating,
+          // Vertragslos: contract_until ist die Saison selbst, sonst haelt der
+          // Eintrag eine Laufzeit fest, die es nicht gibt.
+          contract_until: season,
+          salary: Math.round((caps.get(tier) ?? 0) * role.salaryShare),
+        });
+        nextId += 1;
+        created += 1;
+      }
+    }
+  });
+  run();
+  return created;
+}

@@ -24,7 +24,7 @@ import {
   runMarket,
   seedDriverState,
 } from './careers.js';
-import { ageStaff, retireStaff, runStaffMarket, seedStaff } from './staff.js';
+import { ageStaff, generateStaffNewcomers, retireStaff, runStaffMarket, seedStaff } from './staff.js';
 import { carryFacilities, forceSales, planInvestments, seedFacilities } from './facilities.js';
 import { assignSponsors, settleSponsors } from './sponsors.js';
 import { checkCostCaps } from './costcap.js';
@@ -119,6 +119,9 @@ export function prepareSeasonStart(db: Database, season: number, report: SeasonR
   report.invested += built.invested;
 
   ageStaff(db, season - 1, season);
+  // Nachwuchsjahrgang VOR dem Markt - sonst gibt es keinen Pool, aus dem er
+  // sich bedienen koennte, und jedes Team ruft sich sein Personal selbst herbei.
+  generateStaffNewcomers(db, season);
   const staffMarket = runStaffMarket(db, season);
   report.poached += staffMarket.poached;
   report.hired += staffMarket.hired;
