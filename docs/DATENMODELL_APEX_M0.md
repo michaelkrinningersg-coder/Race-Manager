@@ -1277,9 +1277,27 @@ Der Befund aus 18.10 und 19.6 – *netto steigt kein Team zwei Ligen* – ist da
 
 ### 20.7 Was offen bleibt
 
-* **Die Fixkostenfalle schnappt nicht zu.** Genau **1 von 112** Zwangsverkäufen folgt einem Abstieg der letzten zwei Saisons. Der Kern von Konzept 8.2 – wer auf Tier-2-Niveau ausbaut und nach Tier 5 durchgereicht wird, muss verkaufen – findet praktisch nicht statt. Zwei Gründe liegen nahe: Der Fallschirm federt den Abstieg zu gut ab, und die neue Überschussprüfung verhindert das Überbauen von vornherein. Die Falle ist gebaut, aber niemand läuft hinein.
+* **Die Fixkostenfalle schnappt nicht zu** – siehe 20.8. Der Kern von Konzept 8.2 findet praktisch nicht statt: Nur 10 % der Abstiege führen binnen fünf Saisons zu einem Zwangsverkauf, binnen zwei Saisons so gut wie keiner. Die Falle ist gebaut, aber niemand läuft hinein.
 * **Teams kaufen billig statt richtig.** Gebaut werden vor allem CFD (306) und Simulator (225), kaum Windkanal (51) und Fertigung (55) – obwohl genau die beiden lizenzrelevant sind. Die Überschussprüfung blockiert die teuren Anlagen, und die Wunschliste fällt auf die billigen durch. Infrastruktur ist damit schwächer Aufstiegshebel, als sie sein könnte.
 * **Marketing und Medizin werden nie gebaut** – 0 Ausbauten in 20 Saisons. Erwartbar, solange sie keine Wirkung haben, aber es heißt: Die beiden existieren bisher nur als Typzeile, nicht als Bestand.
 * **`w_newgen` bleibt ohne Abnehmer**, zusammen mit `staff_roles.w_newgen`. Beide warten auf dasselbe Scouting.
 * **Gehälter werden weiterhin nicht verbucht.** Der Befund aus 19.6 steht; `expense_ratio` deckt sie pauschal mit. Mit 0,36 ist die Ausgabenseite jetzt allerdings dünner als zuvor – M6 hat entsprechend mehr aufzufüllen.
 * **Die Belegschaftsstärke wird weiter abgeleitet.** Sie ist keine Anlage und bleibt außerhalb von `team_facilities`; mit 207 von 289 Verweigerungen ist sie inzwischen der mit Abstand häufigste Ablehnungsgrund.
+
+### 20.8 Warum die Fixkostenfalle nicht zuschnappt – der Fallschirm ist es nicht
+
+Die naheliegende Erklärung war, dass die Fallschirmzahlung den Abstieg zu weich abfedert. Gemessen über drei Stufen (Konzept 4.3 sieht 60 %/30 % vor):
+
+| `parachute_pct_1/2` | Falle binnen 2 S | binnen 5 S | sofort zurück | Überschuss Jahr 1 | Aufstiege | Spannweite ≥ 2 |
+| :--- | ---: | ---: | ---: | ---: | ---: | ---: |
+| **0,60 / 0,30** (Konzept) | 0 % | **10 %** | 73 % | +10,48 Mio | 285 | 25 |
+| 0,30 / 0,15 | 0 % | 8 % | 75 % | +6,23 Mio | 263 | 14 |
+| 0,00 / 0,00 | 3 % | 8 % | 70 % | +2,52 Mio | 233 | 18 |
+
+**Ohne jeden Fallschirm schnappt die Falle nicht häufiger zu, sondern seltener** – und die Mobilität bricht ein: 233 statt 285 Aufstiege. Die Hypothese ist damit widerlegt.
+
+Der Grund steht in der vorletzten Spalte. Ein Absteiger verdient im ersten Jahr unten **auch ohne Fallschirm noch Geld** (+2,52 Mio), weil `expenses` als `expense_ratio × cost_cap` an der *aktuellen* Liga hängen: Beim Abstieg von Tier 1 nach Tier 2 fällt die Ausschüttung um 45 Mio, der Betrieb aber um 27 Mio, und die Anlagen kosten nur rund 11 Mio weiter. Der Abstieg ist finanziell schlicht kein Absturz.
+
+Vor allem aber: **73 % der Absteiger sind binnen einer Saison wieder oben.** Sie bleiben gar nicht lange genug unten, als dass laufende Fixkosten sie aufzehren könnten – und es ist genau die behaltene Infrastruktur, die sie eine Liga tiefer sofort dominieren lässt. Die Falle setzt einen längeren Aufenthalt voraus, den es im Modell nicht gibt.
+
+Wer sie scharf stellen will, muss deshalb an einer der beiden Stellen ansetzen – an den mitfallenden Betriebskosten oder am Drehtür-Effekt an der Ligagrenze –, nicht am Fallschirm. Der bleibt bei den 60 %/30 % aus Konzept 4.3.
