@@ -16,6 +16,10 @@ import {
 } from '../../engine/career';
 import { buildFacility, buildCostFor, loadFacilityTypes, MAX_FACILITY_LEVEL } from '../../engine/facilities';
 import { PART_KEYS, PART_LABEL } from '../data/queries';
+import {
+  ownStaff, freeStaff, hireStaff, ownDrivers, freeDrivers, signDriver,
+  ownSponsors, sponsorOffers, signSponsor,
+} from '../../engine/playerMarket';
 import { playerTeam } from '../../engine/player';
 import { escapeHtml, formatMoney, formatNumber } from '../ui/format';
 
@@ -359,7 +363,138 @@ function renderDecisions(state: CareerState): string {
       Kasse: ${formatMoney(balance)}. Der Kostendeckel wird hier bewusst nicht geprüft – er ist
       eine Nachschau am Saisonende, keine Sperre. Wer ihn reißt, bekommt die Strafe im Folgejahr.
     </p>
-    <div class="build-grid">${facilities}</div>`;
+    <div class="build-grid">${facilities}</div>
+
+    <h2>Personal</h2>
+    ${renderStaff(state)}
+
+    <h2>Fahrer</h2>
+    ${renderDrivers(state)}
+
+    <h2>Sponsoren</h2>
+    ${renderSponsors(state)}`;
+}
+
+/**
+ * Personal (Konzept 8.1).
+ *
+ * Nur Vertragslose sind zu haben. Abwerbung kann die KI, der Spieler nicht:
+ * Sie braucht eine Abloesesumme, und die ist in Konzept 9.1 beschrieben, aber
+ * nicht gebaut - lieber eine ehrliche Luecke als eine erfundene Zahl.
+ */
+function renderStaff(state: CareerState): string {
+  const db = career;
+  if (!db) return '';
+  const own = ownStaff(db as unknown as never, state.season, state.teamId);
+  const rows = own
+    .map((member) => {
+      const free = freeStaff(db as unknown as never, state.season, member.role_key);
+      const best = free[0];
+      return `<div class="build-row">
+                <span class="build-row__name">${escapeHtml(member.name)}
+                  <span class="muted small">${escapeHtml(member.role_key)}</span></span>
+                <span class="build-row__level">Wert ${member.rating}</span>
+                <span class="build-row__cost">${formatMoney(member.salary)}</span>
+                ${
+                  best
+                    ? `<button class="editor-button hire-button" data-staff="${best.staff_id}">
+                         ${escapeHtml(best.name)} (${best.rating}) für ${formatMoney(best.salary)}
+                       </button>`
+                    : '<span class="muted small">niemand frei</span>'
+                }
+              </div>`;
+    })
+    .join('');
+  return rows
+    ? `<p class="muted small">
+         Je Rolle die beste vertragslose Alternative. Wer unter Vertrag steht, ist nicht zu
+         holen – Ablösesummen sind im Konzept beschrieben, aber nicht gebaut.
+       </p>
+       <div class="build-grid">${rows}</div>`
+    : '<p class="muted small">Noch kein Personal unter Vertrag.</p>';
+}
+
+/** Cockpits und vertragslose Fahrer (Konzept 7). */
+function renderDrivers(state: CareerState): string {
+  const db = career;
+  if (!db) return '';
+  const own = ownDrivers(db as unknown as never, state.season, state.teamId);
+  const free = freeDrivers(db as unknown as never, state.season).slice(0, 8);
+
+  const seats = own
+    .map(
+      (driver) => `<div class="build-row">
+        <span class="build-row__name">Cockpit ${driver.seat}: ${escapeHtml(driver.name)}</span>
+        <span class="build-row__level">Tempo ${driver.pace} · Konstanz ${driver.consistency}</span>
+        <span class="build-row__cost">${formatMoney(driver.salary)}</span>
+        <span></span>
+      </div>`,
+    )
+    .join('');
+
+  const offers = free
+    .map(
+      (driver) => `<div class="build-row">
+        <span class="build-row__name">${escapeHtml(driver.name)}</span>
+        <span class="build-row__level">Tempo ${driver.pace} · Potenzial ${driver.potential}</span>
+        <span class="build-row__cost">${formatMoney(driver.salary)}</span>
+        <span class="career-actions">
+          ${own
+            .map(
+              (seat) =>
+                `<button class="editor-button sign-button" data-driver="${driver.driver_id}"
+                         data-seat="${seat.seat}">auf ${seat.seat}</button>`,
+            )
+            .join('')}
+        </span>
+      </div>`,
+    )
+    .join('');
+
+  return `<div class="build-grid">${seats}</div>
+          <p class="muted small">Vertragslose Fahrer – der bisherige Fahrer wird dabei frei.</p>
+          <div class="build-grid">${offers || '<p class="muted small">Kein Fahrer frei.</p>'}</div>`;
+}
+
+/** Sponsoren (Konzept 9.1). */
+function renderSponsors(state: CareerState): string {
+  const db = career;
+  if (!db) return '';
+  const own = ownSponsors(db as unknown as never, state.season, state.teamId);
+  const offers = sponsorOffers(db as unknown as never, state.season, state.teamId).slice(0, 10);
+
+  const running = own
+    .map(
+      (contract) => `<div class="build-row">
+        <span class="build-row__name">${escapeHtml(String(contract.name))}
+          <span class="muted small">${escapeHtml(String(contract.slot))}</span></span>
+        <span class="build-row__level">bis Saison ${contract.contract_until}</span>
+        <span class="build-row__cost">${formatMoney(Number(contract.base_value))}</span>
+        <span></span>
+      </div>`,
+    )
+    .join('');
+
+  const open = offers
+    .map(
+      (offer) => `<div class="build-row">
+        <span class="build-row__name">${escapeHtml(offer.name)}
+          <span class="muted small">${escapeHtml(offer.slot)} · ${escapeHtml(offer.industry)}</span></span>
+        <span class="build-row__level">${escapeHtml(offer.objective_type)} ${offer.objective_value}</span>
+        <span class="build-row__cost">${(offer.value_pct * 100).toFixed(1)} % vom Deckel</span>
+        <button class="editor-button sponsor-button" data-sponsor="${escapeHtml(offer.sponsor_key)}">
+          Abschließen
+        </button>
+      </div>`,
+    )
+    .join('');
+
+  return `<div class="build-grid">${running || '<p class="muted small">Kein Vertrag.</p>'}</div>
+          <p class="muted small">
+            Angebote deiner Liga. Der Titelsponsor ist je Liga nur einmal zu haben; der Wert
+            hängt am Ligadeckel, die Zielvorgabe an sponsors.csv.
+          </p>
+          <div class="build-grid">${open || '<p class="muted small">Keine Angebote.</p>'}</div>`;
 }
 
 /** Ereignisse der Karriereansicht. Wird nach jedem Neuzeichnen neu gehaengt. */
@@ -503,6 +638,51 @@ function wire(mount: HTMLElement, rerender: () => void): void {
       }
       rerender();
     });
+  });
+
+  const act = async (
+    area: 'staff' | 'drivers' | 'sponsors',
+    run: (db: EngineDatabase, state: CareerState) => { ok: boolean; reason?: string },
+    done: string,
+  ): Promise<void> => {
+    if (!career) return;
+    const state = readState(career);
+    if (!state) return;
+    const result = run(career, state);
+    if (result.ok) {
+      markDecided(career as unknown as never, state.season, area);
+      await saveCareer(career, state.season - 1, state.teamName);
+      notice = done;
+    } else {
+      notice = result.reason ?? 'Nicht möglich.';
+    }
+    rerender();
+  };
+
+  mount.querySelectorAll<HTMLButtonElement>('.hire-button').forEach((button) => {
+    button.addEventListener('click', () =>
+      act('staff', (db, state) =>
+        hireStaff(db as unknown as never, state.season, state.teamId, Number(button.dataset.staff)),
+        'Verpflichtet.'),
+    );
+  });
+
+  mount.querySelectorAll<HTMLButtonElement>('.sign-button').forEach((button) => {
+    button.addEventListener('click', () =>
+      act('drivers', (db, state) =>
+        signDriver(db as unknown as never, state.season, state.teamId,
+          Number(button.dataset.driver), Number(button.dataset.seat)),
+        'Fahrer verpflichtet.'),
+    );
+  });
+
+  mount.querySelectorAll<HTMLButtonElement>('.sponsor-button').forEach((button) => {
+    button.addEventListener('click', () =>
+      act('sponsors', (db, state) =>
+        signSponsor(db as unknown as never, state.season, state.teamId,
+          String(button.dataset.sponsor)),
+        'Sponsorenvertrag geschlossen.'),
+    );
   });
 
   mount.querySelector('#career-export')?.addEventListener('click', () => {
