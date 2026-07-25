@@ -343,6 +343,30 @@ function checkLicences(context: ValidationContext, findings: Finding[]): void {
   // Kopplung der beiden waere eine Annahme ohne Grundlage.
 }
 
+function checkDriverNames(context: ValidationContext, findings: Finding[]): void {
+  for (const row of rowsOf(context, 'driver_names.csv')) {
+    for (const field of ['first_names', 'last_names']) {
+      const names = String(row.values[field] ?? '')
+        .split('|')
+        .filter((name) => name.trim() !== '');
+      if (names.length < 6) {
+        findings.push(
+          warning(
+            'driver_names.csv',
+            `'${String(row.values.country)}': nur ${names.length} Eintraege in ${field} - zu wenig fuer glaubwuerdige Newgens ueber viele Saisons`,
+            row.line,
+          ),
+        );
+      }
+      if (new Set(names).size !== names.length) {
+        findings.push(
+          error('driver_names.csv', `'${String(row.values.country)}': ${field} enthaelt Doppelungen`, row.line),
+        );
+      }
+    }
+  }
+}
+
 function checkTyres(context: ValidationContext, findings: Finding[]): void {
   const dry = rowsOf(context, 'tyre_compounds.csv').filter((row) => num(row, 'wet_only') === 0);
   if (dry.length === 0) {
@@ -1018,6 +1042,7 @@ export function validateWorld(context: ValidationContext): Finding[] {
   checkLicences(context, findings);
   checkPayouts(context, findings);
   checkTyres(context, findings);
+  checkDriverNames(context, findings);
   checkPartTypes(context, findings);
   checkTeams(context, findings);
   checkEngineSuppliers(context, findings);

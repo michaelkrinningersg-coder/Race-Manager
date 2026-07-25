@@ -47,14 +47,16 @@ interface Roster {
 }
 
 function loadRosters(db: Database, season: number): Map<number, Roster> {
+  // Ab M5 kommen die Fahrer aus driver_state, nicht mehr aus drivers: Nur dort
+  // steht, wer in *dieser* Saison fuer wen faehrt.
   const drivers = db
     .prepare(
-      `SELECT d.driver_id, d.start_team_id AS team_id, ts.tier AS tier,
-              ${DRIVER_KEYS.map((key) => `d.${key}`).join(', ')}
-       FROM drivers d
-       JOIN team_seasons ts ON ts.team_id = d.start_team_id AND ts.season = ?
-       WHERE d.start_role = 'race'
-       ORDER BY ts.tier, d.start_team_id, d.start_seat`,
+      `SELECT ds.driver_id, ds.team_id AS team_id, ts.tier AS tier,
+              ${DRIVER_KEYS.map((key) => `ds.${key}`).join(', ')}
+       FROM driver_state ds
+       JOIN team_seasons ts ON ts.team_id = ds.team_id AND ts.season = ds.season
+       WHERE ds.season = ? AND ds.role = 'race' AND ds.retired = 0
+       ORDER BY ts.tier, ds.team_id, ds.seat`,
     )
     .all(season) as Record<string, number>[];
 

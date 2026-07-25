@@ -105,14 +105,16 @@ export function developParts(
     }[]).map((row) => [row.team_id, row.tier]),
   );
 
-  // Fahrer-Feedback des Teams: Mittel der beiden Stammfahrer.
+  // Fahrer-Feedback des Teams: Mittel der beiden Stammfahrer der Vorsaison -
+  // entwickelt wird mit den Rueckmeldungen der Fahrer, die das Auto kannten.
   const feedback = new Map(
     (db
       .prepare(
-        `SELECT start_team_id AS team_id, AVG(feedback) AS f FROM drivers
-         WHERE start_role = 'race' GROUP BY start_team_id`,
+        `SELECT team_id, AVG(feedback) AS f FROM driver_state
+         WHERE season = ? AND role = 'race' AND retired = 0 AND team_id IS NOT NULL
+         GROUP BY team_id`,
       )
-      .all() as { team_id: number; f: number }[]).map((row) => [row.team_id, row.f]),
+      .all(fromSeason) as { team_id: number; f: number }[]).map((row) => [row.team_id, row.f]),
   );
 
   const insert = db.prepare(

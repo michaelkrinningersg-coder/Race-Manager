@@ -1,0 +1,38 @@
+# HANDGEPFLEGT - Namenspools je Nation fuer Newgen-Fahrer (Konzept 15.1).
+#
+# Aus Vor- und Nachnamenpool entsteht ein Newgen deterministisch aus dem Seed.
+# weight steuert, wie haeufig eine Nation Nachwuchs stellt - grob nach der
+# Verbreitung des Motorsports, nicht nach Einwohnerzahl.
+#
+# Listen sind pipe-getrennt, wie required_roles in licence_requirements.csv.
+country,weight,first_names,last_names
+ARG,3,Facundo|Valentina|Joaquin|Mateo|Lucia|Bruno|Camila|Tomas,Reyes|Moreno|Ferreyra|Salgado|Quiroga|Ibarra|Nunez|Peralta
+AUS,5,Jack|Zara|Cooper|Hamish|Ruby|Lachlan|Ivy|Angus,Merribourne|Kingsley|Wattleby|Hendry|Bramwell|Corrigan|Ashby|Deakin
+AUT,4,Klaus|Lena|Stefan|Theresa|Matthias|Anja|Lukas|Elisa,Hollenbach|Aichinger|Donauer|Grillmeier|Steirer|Grubinger|Reindl|Moser
+BEL,4,Lucas|Noor|Thomas|Chloe|Wout|Margot|Xavier|Lore,Bruyere|Vandenberghe|Walonne|Lambotte|Vandecasteele|Ardenne|Claessens|Peeters
+BRA,6,Rafael|Camila|Thiago|Vitor|Larissa|Bruno|Chayanne|Gabriela,Cordeiro|Duarte|Bandeira|Ribeiro|Salgueiro|Marcondes|Vasques|Teixeira
+CAN,4,Trevor|Elise|Owen|Sadie|Etienne|Brielle|Nathan|Maple,Mackenzie|Beaulieu|Ridgemont|Lachance|Cormier|Thibault|Ridgeley|Forsythe
+CHE,3,Luca|Nadia|Andrin|Yannick|Sarina|Reto|Fabienne|Silvan,Steiner|Zbinden|Furrer|Amrein|Baumgartner|Zurbriggen|Hufschmid|Kaelin
+CZE,4,Tomas|Petra|Jakub|Tereza|Radek|Klara|Ondrej|Marketa,Novak|Mala|Havlik|Blahova|Bohumil|Dvorakova|Vltavsky|Slavik
+DEU,9,Nikolas|Ines|Sebastian|Ronja|Moritz|Svea|Til|Marlene|Jonas|Korbinian,Reuter|Falkenrath|Grothe|Kirchweger|Lehmann|Brandtner|Hanselmann|Osterloh|Rheinberg|Marquardt
+DNK,4,Kasper|Freja|Jonas|Sofie|Mikkel|Frida|Emil|Astrid,Holm|Nygaard|Winther|Vestergaard|Halvorsen|Holmgaard|Bornholm|Lindgren
+ESP,7,Alvaro|Nuria|Sergio|Marta|Pau|Aitana|Iker|Rocio|Pablo|Nerea,Ruiz|Sagrera|Ballester|Iglesias|Vilanova|Bosch|Etxebarria|Estevez|Delgado|Otero
+FIN,6,Aleksi|Iiris|Onni|Vaino|Eetu|Venla|Mikko|Aino,Virtanen|Aurora|Lehtinen|Rantala|Karjalainen|Mustonen|Rautio|Peltola
+FRA,8,Julien|Elodie|Thibault|Lucie|Mathis|Manon|Hugo|Clemence|Erwan|Maelle,Vasseur|Marchand|Rocher|Bonnard|Perrault|Cadiot|Delacroix|Aubertin|Guivarch|Faucher
+GBR,12,James|Grace|Oliver|Isla|Callum|Poppy|Ewan|Millie|Alfie|Erin|Toby|Freya,Ravenhill|Hartwell|Roydon|Wintersby|Threadgold|Ashdown|Falconer|Renshaw|Fluxton|Pemberly|Blakemoor|Kentmere
+GRC,3,Nikos|Danai|Yiannis|Eleni|Stelios|Anastasia|Kostas|Ioanna,Aegeanos|Kalliri|Helleniki|Stavrou|Peloponnisos|Papadaki|Vlachos|Sideris
+HRV,3,Ivan|Lea|Luka|Maja|Marko|Petra|Josip|Ana,Peric|Kovacevic|Adriatic|Horvat|Babic|Juric|Vukovic|Matic
+HUN,3,Zoltan|Reka|Bence|Panna|Gabor|Dorka|Levente|Zsofia,Pannon|Balogh|Dunai|Vargane|Szabo|Kovacs|Toth|Nemeth
+IRL,5,Finn|Saoirse|Rory|Aoife|Cian|Niamh|Declan|Sinead,Halloran|Donnelly|Kavanagh|Northwood|Brennan|Mullane|Galwin|Fitzgibbon
+ITA,11,Matteo|Andrea|Gianni|Bruno|Enzo|Ginevra|Cesare|Chiara|Luca|Nicoletta|Fabio|Rosa,Ferrante|Bellini|Passerini|Ferrigno|Piemonte|Sartori|Bandini|Ponti|Savoia|Baldini|Molisano|Tirreni
+JPN,8,Sota|Haruto|Ren|Sora|Riku|Ayaka|Kaito|Mei|Yuki|Nanami,Kirishima|Ishizaka|Nakamura|Yagami|Okuda|Mizuhara|Toyoda|Tachibana|Harada|Kuroda
+KOR,3,Ji-ho|Min-jun|Eun-woo|Seo-yeon|Do-yun|Ha-eun|Jun-seo|Yu-jin,Seong|Baek|Ryu|Kang|Moon|Shin|Jeong|Hwang
+MEX,4,Diego|Renata|Santiago|Ximena|Emilio|Regina|Emiliano|Valeria,Guerrero|Herrera|Solis|Vargas|Rojas|Canul|Quispe|Zamorano
+NLD,7,Sven|Daan|Bram|Fenna|Joost|Suze|Stijn|Noor|Sem|Fleur,de Groot|Terhorst|Kuipers|Broekhuis|Vermeulen|Boomsma|Delfshaven|Friesema|Janssen|Limburgs
+NOR,4,Eirik|Sigrid|Sindre|Ingrid|Nils|Ingeborg|Lars|Solveig,Sandvik|Aasen|Skagen|Bakken|Haugstad|Lund|Nordkapp|Bjornstad
+POL,6,Piotr|Zofia|Marek|Ola|Bartosz|Julia|Kamil|Zuzanna|Filip|Igor,Zielinski|Kowalczyk|Lewandowska|Wisniewski|Sobczak|Nowicka|Marek|Dabrowska|Silesian|Wislicki
+PRT,4,Diogo|Beatriz|Rui|Tomas|Ines|Nuno|Duarte|Mariana,Salazar|Vasconcelos|Figueiredo|Pinheiro|Tagino|Coutinho|Alentejano|Lusitano
+SWE,6,Lars|Nils|Maja|Alva|Anders|Elin|Tuva|Oskar|Alma|Emil,Bergstrom|Ekstrom|Lindqvist|Sundqvist|Fahlgren|Norlander|Karlsson|Kalmarsson|Bergstrand|Holmberg
+TUR,4,Kerem|Deniz|Emre|Ceyda|Baran|Elif|Zeynep|Mert,Aydin|Ozkan|Bosphor|Yildiz|Trakyali|Korkmaz|Aksoy|Ankarali
+USA,7,Wyatt|Blake|Zoe|Mason|Riley|Preston|Devon|Skylar|Harper|Marlow,Colefield|Sutherland|Marchetti|Delacroix|Amaranth|Vaneck|Quansah|Vecton|Voss|Ashby
+ZAF,3,Noah|Sipho|Dean|Thabo|Lerato|Kefilwe|Tebogo|Naledi,Pretorius|Mahlangu|Kruger|Ndlovu|Mokoena|Dube|Radebe|Khumalo

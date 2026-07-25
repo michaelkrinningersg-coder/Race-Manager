@@ -243,6 +243,13 @@ CREATE TABLE drivers (
   pay_driver_budget     INTEGER NOT NULL DEFAULT 0
 );
 
+CREATE TABLE driver_names (
+  country     TEXT    PRIMARY KEY,
+  weight      INTEGER NOT NULL,
+  first_names TEXT    NOT NULL,
+  last_names  TEXT    NOT NULL
+);
+
 CREATE TABLE calendar (
   season    INTEGER NOT NULL,
   tier      INTEGER NOT NULL REFERENCES leagues(tier),
@@ -348,6 +355,7 @@ const INSERT_ORDER = [
   'league_payouts.csv',
   'teams.csv',
   'engine_suppliers.csv',
+  'driver_names.csv',
   'calendar.csv',
   'drivers.csv',
 ];

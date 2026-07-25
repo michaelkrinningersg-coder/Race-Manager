@@ -133,6 +133,55 @@ CREATE TABLE barrage_results (
   PRIMARY KEY (season, boundary_tier, team_id)
 );
 
+-- Fahrerzustand je Saison. drivers haelt nur noch die Identitaet und den
+-- Startzustand; alles, was sich ueber die Karriere aendert, steht hier
+-- (Konzept 7). Ohne diese Trennung koennte ein Fahrer nie das Team wechseln.
+CREATE TABLE driver_state (
+  driver_id           INTEGER NOT NULL REFERENCES drivers(driver_id),
+  season              INTEGER NOT NULL,
+  team_id             INTEGER REFERENCES teams(team_id),
+  role                TEXT    NOT NULL CHECK (role IN ('race','reserve','junior','free_agent','retired')),
+  seat                INTEGER,
+  contract_until      INTEGER,
+  salary              INTEGER NOT NULL DEFAULT 0,
+  pay_driver_budget   INTEGER NOT NULL DEFAULT 0,
+  morale              INTEGER NOT NULL,
+  superlicence_points INTEGER NOT NULL DEFAULT 0,
+  retired             INTEGER NOT NULL DEFAULT 0,
+  pace                INTEGER NOT NULL,
+  qualifying          INTEGER NOT NULL,
+  braking             INTEGER NOT NULL,
+  cornering           INTEGER NOT NULL,
+  car_control         INTEGER NOT NULL,
+  overtaking          INTEGER NOT NULL,
+  defending           INTEGER NOT NULL,
+  starts              INTEGER NOT NULL,
+  racecraft_traffic   INTEGER NOT NULL,
+  consistency         INTEGER NOT NULL,
+  pressure            INTEGER NOT NULL,
+  aggression          INTEGER NOT NULL,
+  feedback            INTEGER NOT NULL,
+  tyre_management     INTEGER NOT NULL,
+  fuel_saving         INTEGER NOT NULL,
+  fitness             INTEGER NOT NULL,
+  wet_skill           INTEGER NOT NULL,
+  potential           INTEGER NOT NULL,
+  ego                 INTEGER NOT NULL,
+  adaptability        INTEGER NOT NULL,
+  marketability       INTEGER NOT NULL,
+  PRIMARY KEY (driver_id, season)
+);
+
+CREATE TABLE driver_history (
+  driver_id   INTEGER NOT NULL REFERENCES drivers(driver_id),
+  season      INTEGER NOT NULL,
+  event       TEXT    NOT NULL,
+  tier        INTEGER,
+  team_id     INTEGER REFERENCES teams(team_id),
+  detail      TEXT,
+  PRIMARY KEY (driver_id, season, event)
+);
+
 CREATE TABLE licence_denials (
   season    INTEGER NOT NULL,
   team_id   INTEGER NOT NULL REFERENCES teams(team_id),
@@ -145,6 +194,12 @@ CREATE TABLE licence_denials (
 CREATE INDEX idx_results_league ON race_results(season, tier);
 CREATE INDEX idx_results_driver ON race_results(driver_id, season);
 CREATE INDEX idx_team_seasons_tier ON team_seasons(season, tier);
+CREATE INDEX idx_driver_state_season ON driver_state(season, team_id);
+
+-- Newgens wachsen in dieselbe Tabelle hinein wie die handgepflegten Fahrer.
+-- Die Marke trennt beide: Die Potenzialverteilung der Startfahrer bleibt so
+-- dauerhaft als Referenz erhalten, aus der neue Jahrgaenge gezogen werden.
+ALTER TABLE drivers ADD COLUMN is_newgen INTEGER NOT NULL DEFAULT 0;
 `;
 
 export function createSavegame(worldPath: string, savePath: string, worldSeed: number): Database {

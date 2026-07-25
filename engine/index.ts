@@ -18,6 +18,14 @@ import { seedCarParts } from './car.js';
 import { applyFinances, buildStandings, prepareSeason, runSeason } from './season.js';
 import { resolveMovements } from './promotion.js';
 import { developParts } from './development.js';
+import {
+  ageAndDevelop,
+  awardSuperlicence,
+  generateNewgens,
+  retireDrivers,
+  runMarket,
+  seedDriverState,
+} from './careers.js';
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -125,17 +133,37 @@ function main(): void {
     let totalWeekends = 0;
     let totalResults = 0;
     let totalDnfs = 0;
+    let retired = 0;
+    let newgens = 0;
+    let signings = 0;
+    let unfilled = 0;
 
     for (let season = 1; season <= options.seasons; season += 1) {
       prepareSeason(db, season);
       // Nur die erste Saison wird aus Prestige und Deckel abgeleitet. Danach
       // traegt jedes Team sein gewachsenes Auto weiter (Konzept 6.3).
-      if (season === 1) seedCarParts(db, season);
-      else developParts(db, season - 1, season);
+      if (season === 1) {
+        seedCarParts(db, season);
+        seedDriverState(db);
+      } else {
+        developParts(db, season - 1, season);
+        // Fahrerjahr: Altern und Entwicklung, dann Nachwuchs auffuellen, dann
+        // die freien Cockpits besetzen. Die Reihenfolge ist zwingend - der
+        // Markt kann nur vergeben, wer zu diesem Zeitpunkt schon existiert.
+        ageAndDevelop(db, season - 1, season);
+        newgens += generateNewgens(db, season);
+        const market = runMarket(db, season);
+        signings += market.signings;
+        unfilled += market.unfilled;
+      }
 
       const summary = runSeason(db, season, options.tickTier);
       buildStandings(db, season);
       applyFinances(db, season);
+      // Superlizenzpunkte vor den Ruecktritten: Wer aufhoert, hat sie sich in
+      // dieser Saison trotzdem verdient - und sie zaehlen fuer die Statistik.
+      awardSuperlicence(db, season);
+      retired += retireDrivers(db, season);
       const movements = resolveMovements(db, season);
 
       totalWeekends += summary.weekends;
@@ -157,6 +185,10 @@ function main(): void {
     console.log(
       `  Ausfaelle:              ${totalDnfs} (${((100 * totalDnfs) / totalResults).toFixed(1)} %)`,
     );
+    console.log(`  Ruecktritte:            ${retired}`);
+    console.log(`  Newgens:                ${newgens}`);
+    console.log(`  Cockpitwechsel:         ${signings}`);
+    console.log(`  Unbesetzte Cockpits:    ${unfilled}`);
     console.log(`  Rechenzeit:             ${ms.toFixed(0)} ms`);
 
     if (!options.quiet) {

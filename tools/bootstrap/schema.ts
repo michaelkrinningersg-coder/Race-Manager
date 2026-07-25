@@ -426,6 +426,17 @@ export const TABLES: TableSpec[] = [
     ],
   },
   {
+    file: 'driver_names.csv',
+    table: 'driver_names',
+    primaryKey: ['country'],
+    columns: [
+      { name: 'country', type: 'text', required: true, pattern: ISO3, unique: true },
+      { name: 'weight', type: 'int', required: true, min: 1, max: 20 },
+      { name: 'first_names', type: 'text', required: true },
+      { name: 'last_names', type: 'text', required: true },
+    ],
+  },
+  {
     file: 'calendar.csv',
     table: 'calendar',
     primaryKey: ['season', 'tier', 'round'],

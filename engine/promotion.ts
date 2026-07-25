@@ -76,10 +76,10 @@ function entriesFor(
 
   const drivers = db
     .prepare(
-      `SELECT driver_id, ${DRIVER_KEYS.join(', ')} FROM drivers
-       WHERE start_team_id = ? AND start_role = 'race' ORDER BY start_seat`,
+      `SELECT driver_id, ${DRIVER_KEYS.join(', ')} FROM driver_state
+       WHERE season = ? AND team_id = ? AND role = 'race' AND retired = 0 ORDER BY seat`,
     )
-    .all(teamId) as Record<string, number>[];
+    .all(season, teamId) as Record<string, number>[];
 
   return drivers.map((row) => ({
     driverId: row.driver_id,
