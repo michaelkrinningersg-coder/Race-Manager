@@ -14,23 +14,9 @@
 import { existsSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createSavegame } from './savegame.js';
-import { seedCarParts } from './car.js';
-import { applyFinances, buildStandings, prepareSeason, runSeason } from './season.js';
-import { resolveMovements } from './promotion.js';
-import { developParts } from './development.js';
-import {
-  ageAndDevelop,
-  awardSuperlicence,
-  generateNewgens,
-  retireDrivers,
-  runMarket,
-  seedDriverState,
-} from './careers.js';
-import { ageStaff, retireStaff, runStaffMarket, seedStaff } from './staff.js';
-import { carryFacilities, forceSales, planInvestments, seedFacilities } from './facilities.js';
-import { assignSponsors, settleSponsors } from './sponsors.js';
-import { checkCostCaps } from './costcap.js';
+import { createSavegame } from './savegame.node.js';
+import type { Database } from './db.js';
+import { advanceSeason, emptyReport } from './loop.js';
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -77,7 +63,7 @@ function parseArgs(argv: string[]): Options {
   return options;
 }
 
-function printLeagueTable(db: ReturnType<typeof createSavegame>, tier: number, season: number): void {
+function printLeagueTable(db: Database, tier: number, season: number): void {
   const league = db.prepare('SELECT name, short_name FROM leagues WHERE tier = ?').get(tier) as {
     name: string;
     short_name: string;
@@ -149,124 +135,46 @@ function main(): void {
 
   try {
     const started = process.hrtime.bigint();
-    let totalWeekends = 0;
-    let totalResults = 0;
-    let totalDnfs = 0;
-    let retired = 0;
-    let newgens = 0;
-    let signings = 0;
-    let unfilled = 0;
-    let overBudget = 0;
-    let poached = 0;
-    let hired = 0;
-    let upgrades = 0;
-    let invested = 0;
-    let sales = 0;
-    let recovered = 0;
-    let sponsorsSigned = 0;
-    let sponsorsMet = 0;
-    let sponsorsMissed = 0;
-    let capBreaches = 0;
+    const total = emptyReport(0);
 
     for (let season = 1; season <= options.seasons; season += 1) {
-      prepareSeason(db, season);
-      // Sponsorenvertraege werden vor der Saison geschlossen - der Wert haengt
-      // am Vorjahresplatz, die Zielvorgabe gilt fuer das kommende Jahr.
-      const sponsorRound = assignSponsors(db, season);
-      sponsorsSigned += sponsorRound.signed;
-      // Nur die erste Saison wird aus Prestige und Deckel abgeleitet. Danach
-      // traegt jedes Team sein gewachsenes Auto weiter (Konzept 6.3).
-      if (season === 1) {
-        seedCarParts(db, season);
-        seedDriverState(db);
-        seedStaff(db);
-        seedFacilities(db, season);
-      } else {
-        // Entwicklung zuerst: Sie rechnet mit dem Personal UND den Anlagen der
-        // Vorsaison, die bis hierher unangetastet in der Datenbank stehen.
-        developParts(db, season - 1, season);
-        // Erst danach wandert der Anlagenbestand weiter und wird ausgebaut -
-        // eine neue Halle wirkt fruehestens auf die Entwicklung des Folgejahrs.
-        carryFacilities(db, season - 1, season);
-        const built = planInvestments(db, season);
-        upgrades += built.upgrades;
-        invested += built.invested;
-        ageStaff(db, season - 1, season);
-        const staffMarket = runStaffMarket(db, season);
-        poached += staffMarket.poached;
-        hired += staffMarket.hired;
-        // Fahrerjahr: Altern und Entwicklung, dann Nachwuchs auffuellen, dann
-        // die freien Cockpits besetzen. Die Reihenfolge ist zwingend - der
-        // Markt kann nur vergeben, wer zu diesem Zeitpunkt schon existiert.
-        ageAndDevelop(db, season - 1, season);
-        newgens += generateNewgens(db, season);
-        const market = runMarket(db, season);
-        signings += market.signings;
-        unfilled += market.unfilled;
-        overBudget += market.overBudget;
+      const tickTier = season >= options.tickFrom ? options.tickTier : 0;
+      const report = advanceSeason(db, season, tickTier);
+      for (const key of Object.keys(total) as (keyof typeof total)[]) {
+        if (key !== 'season') total[key] += report[key];
       }
 
-      const tickTier = season >= options.tickFrom ? options.tickTier : 0;
-      const summary = runSeason(db, season, tickTier);
-      buildStandings(db, season);
-      // Zielvorgaben auswerten, bevor die Bilanz sie braucht.
-      const sponsorResult = settleSponsors(db, season);
-      sponsorsMet += sponsorResult.achieved;
-      sponsorsMissed += sponsorResult.missed;
-      applyFinances(db, season);
-      // Deckelpruefung auf der fertigen Bilanz. Die Strafe wirkt im Folgejahr.
-      capBreaches += checkCostCaps(db, season).breaches;
-      // Zwangsverkauf direkt nach der Bilanz und noch vor der Lizenzpruefung:
-      // Wer im Minus steht, geht ohne die verkaufte Anlage in die Pruefung -
-      // und faellt genau dann durch, wenn er sich aus der Not heraus unter das
-      // Ligaminimum verkauft hat (Konzept 9.4).
-      const sold = forceSales(db, season);
-      sales += sold.sales;
-      recovered += sold.recovered;
-      // Superlizenzpunkte vor den Ruecktritten: Wer aufhoert, hat sie sich in
-      // dieser Saison trotzdem verdient - und sie zaehlen fuer die Statistik.
-      awardSuperlicence(db, season);
-      retired += retireDrivers(db, season);
-      retireStaff(db, season);
-      const movements = resolveMovements(db, season);
-
-      totalWeekends += summary.weekends;
-      totalResults += summary.results;
-      totalDnfs += summary.dnfs;
-
       console.log(
-        `\n  Saison ${season}: ${summary.weekends} Wochenenden, ${movements.promoted} Aufstiege, ` +
-          `${movements.relegated} Abstiege, ${movements.barrages} Barragen, ` +
-          `${movements.licenceDenied} Lizenz verweigert, ${movements.licenceLoss} Lizenzverlust`,
+        `\n  Saison ${season}: ${report.weekends} Wochenenden, ${report.promoted} Aufstiege, ` +
+          `${report.relegated} Abstiege, ${report.barrages} Barragen, ` +
+          `${report.licenceDenied} Lizenz verweigert, ${report.licenceLoss} Lizenzverlust`,
       );
-
-      db.prepare('UPDATE game_state SET current_season = ? WHERE id = 1').run(season);
     }
 
     const ms = Number(process.hrtime.bigint() - started) / 1e6;
-    console.log(`\n  Rennwochenenden gesamt: ${totalWeekends}`);
-    console.log(`  Einzelergebnisse:       ${totalResults}`);
+    console.log(`\n  Rennwochenenden gesamt: ${total.weekends}`);
+    console.log(`  Einzelergebnisse:       ${total.results}`);
     console.log(
-      `  Ausfaelle:              ${totalDnfs} (${((100 * totalDnfs) / totalResults).toFixed(1)} %)`,
+      `  Ausfaelle:              ${total.dnfs} (${((100 * total.dnfs) / total.results).toFixed(1)} %)`,
     );
-    console.log(`  Ruecktritte:            ${retired}`);
-    console.log(`  Newgens:                ${newgens}`);
-    console.log(`  Cockpitwechsel:         ${signings}`);
-    console.log(`  Unbesetzte Cockpits:    ${unfilled}`);
-    console.log(`  Ueber Budget besetzt:   ${overBudget}`);
-    console.log(`  Personal verpflichtet:  ${hired}`);
-    console.log(`  davon abgeworben:       ${poached}`);
+    console.log(`  Ruecktritte:            ${total.retired}`);
+    console.log(`  Newgens:                ${total.newgens}`);
+    console.log(`  Cockpitwechsel:         ${total.signings}`);
+    console.log(`  Unbesetzte Cockpits:    ${total.unfilled}`);
+    console.log(`  Ueber Budget besetzt:   ${total.overBudget}`);
+    console.log(`  Personal verpflichtet:  ${total.hired}`);
+    console.log(`  davon abgeworben:       ${total.poached}`);
     console.log(
-      `  Anlagen ausgebaut:      ${upgrades} (${(invested / 1e6).toFixed(1)} Mio investiert)`,
+      `  Anlagen ausgebaut:      ${total.upgrades} (${(total.invested / 1e6).toFixed(1)} Mio investiert)`,
     );
     console.log(
-      `  Zwangsverkaeufe:        ${sales} (${(recovered / 1e6).toFixed(1)} Mio erloest)`,
+      `  Zwangsverkaeufe:        ${total.sales} (${(total.recovered / 1e6).toFixed(1)} Mio erloest)`,
     );
-    console.log(`  Sponsoren verpflichtet: ${sponsorsSigned}`);
+    console.log(`  Sponsoren verpflichtet: ${total.sponsorsSigned}`);
     console.log(
-      `  Ziele erfuellt/verfehlt:${sponsorsMet} / ${sponsorsMissed}`,
+      `  Ziele erfuellt/verfehlt:${total.sponsorsMet} / ${total.sponsorsMissed}`,
     );
-    console.log(`  Deckelverstoesse:       ${capBreaches}`);
+    console.log(`  Deckelverstoesse:       ${total.capBreaches}`);
     console.log(`  Rechenzeit:             ${ms.toFixed(0)} ms`);
 
     if (!options.quiet) {

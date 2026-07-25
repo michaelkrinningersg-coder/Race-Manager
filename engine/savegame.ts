@@ -6,14 +6,12 @@
  * die Kopie schreibt die Simulation.
  */
 
-import DatabaseConstructor from 'better-sqlite3';
-import { copyFileSync, mkdirSync, unlinkSync } from 'node:fs';
-import { dirname } from 'node:path';
+import type { Database } from './db.js';
 
-export type Database = DatabaseConstructor.Database;
+export type { Database, Statement } from './db.js';
 
 /** Tabellen, die erst zur Laufzeit entstehen. */
-const RUNTIME_DDL = `
+export const RUNTIME_DDL = `
 CREATE TABLE car_parts (
   team_id      INTEGER NOT NULL REFERENCES teams(team_id),
   season       INTEGER NOT NULL,
@@ -327,16 +325,15 @@ CREATE INDEX idx_staff_state_season ON staff_state(season, team_id);
 ALTER TABLE drivers ADD COLUMN is_newgen INTEGER NOT NULL DEFAULT 0;
 `;
 
-export function createSavegame(worldPath: string, savePath: string, worldSeed: number): Database {
-  mkdirSync(dirname(savePath), { recursive: true });
-  try {
-    unlinkSync(savePath);
-  } catch {
-    // Existierte nicht - Normalfall beim ersten Lauf.
-  }
-  copyFileSync(worldPath, savePath);
-
-  const db = new DatabaseConstructor(savePath);
+/**
+ * Macht aus einer geoeffneten Kopie der world_data.db ein Savegame.
+ *
+ * Bewusst ohne Dateizugriff: Wie die Kopie zustande kommt, unterscheidet sich
+ * zwischen Node (Datei kopieren) und Browser (Bytes laden). Was danach
+ * passiert, ist in beiden Faellen dasselbe - und stand vorher nur im
+ * Node-Pfad.
+ */
+export function initSavegame(db: Database, worldSeed: number): Database {
   db.pragma('foreign_keys = ON');
   db.exec(RUNTIME_DDL);
   db.prepare(
