@@ -76,7 +76,7 @@ Daraus folgt eine Regel, die den ganzen Aufbau prägt: **CSVs enthalten Startzus
 | Prozentwerte | Als Dezimalbruch `0.25`, nicht als `25` – außer die Spalte trägt das Suffix `_pct` |
 | Bezeichner | Spaltennamen, Enum-Werte und Schlüssel englisch in `snake_case` |
 | Freitext | Deutsch (`name`, `flavour`) – es ist Spielinhalt, kein Bezeichner |
-| Sortierung | Aufsteigend nach Primärschlüssel. **Verbindlich**, damit Diffs in den handgepflegten 617 Zeilen lesbar bleiben |
+| Sortierung | Aufsteigend nach Primärschlüssel, damit Diffs in den handgepflegten 617 Zeilen lesbar bleiben. Ausnahme: Wo eine fachliche Reihenfolge existiert, gilt die – `car_part_types.csv` folgt `sort_order` (Konzept 6.1), nicht dem Alphabet der Schlüssel. Verstöße sind Warnungen, keine Fehler |
 | Farben | Hex mit Raute, sechsstellig, Großbuchstaben: `#E10600` |
 | Länder | ISO-3166-1 alpha-3 (`DEU`, `GBR`, `JPN`) |
 
@@ -523,7 +523,7 @@ driver_id,first_name,last_name,country,birth_year,pace,qualifying,consistency,ty
 
 * Je Team mit `start_role = race` **genau `cars_per_team` Fahrer**, jeder `start_seat` je Team genau einmal – die Prüfung, die garantiert, dass keine Liga mit unbesetzten Startplätzen anfängt.
 * Summe aller `race`-Fahrer = 334.
-* `potential` ≥ höchster Attributwert (ein Fahrer kann sein Potenzial nicht bereits überschritten haben) – **Warnung**, kein Fehler, denn Spätentwickler mit erreichtem Potenzial sind legitim.
+* `potential` ≥ höchster **Kernwert** (`pace`, `qualifying`, `braking`, `cornering`) – **Warnung**, kein Fehler. Bewusst nur die Kernwerte: `feedback`, `tyre_management` und die Racecraft-Werte wachsen laut Konzept 7.2 mit der Erfahrung weiter, während `pace` und `qualifying` längst erodieren. Ein Routinier mit `feedback` 81 und `potential` 71 ist kein Datenfehler, sondern genau das erwartete Profil.
 * `superlicence_points` erfüllt `min_superlicence_points` der Liga des `start_team_id`.
 * Alter zum Startjahr zwischen 16 und 45.
 * `pay_driver_budget > 0` nur bei `salary = 0` (ein Fahrer bringt Geld mit *oder* bekommt welches, nicht beides).
@@ -731,7 +731,23 @@ Alle Schritte laufen **vollständig durch**, bevor abgebrochen wird: Der Report 
 
 ### 14.4 Determinismus
 
-Der Bootstrapper enthält **keinen Zufall**. Gleiche CSVs erzeugen eine byteweise identische `world_data.db`. Das macht den Datenbestand diffbar und Balancing-Änderungen nachvollziehbar – und ist der eigentliche Gewinn der Entscheidung für Handpflege gegenüber prozeduraler Erzeugung.
+Der Bootstrapper enthält **keinen Zufall**. Gleiche CSVs erzeugen eine byteweise identische `world_data.db` – nachgewiesen über den SHA-256 zweier Läufe. Das macht den Datenbestand diffbar und Balancing-Änderungen nachvollziehbar – und ist der eigentliche Gewinn der Entscheidung für Handpflege gegenüber prozeduraler Erzeugung.
+
+### 14.5 Aufruf
+
+Der Bootstrapper liegt im Race-Manager-Repo unter `tools/bootstrap/` und läuft über npm:
+
+| Befehl | Wirkung |
+| :--- | :--- |
+| `npm run bootstrap` | Prüft und schreibt `build/world_data.db` |
+| `npm run bootstrap -- --partial` | Bestandslücken (fehlende Teams/Fahrer) zählen als Warnung statt Fehler |
+| `npm run bootstrap -- --check` | Prüft nur, schreibt nichts |
+| `npm run bootstrap:check` | Kurzform für `--check --partial` |
+| `--data <pfad>` / `--out <pfad>` | Abweichende Quell- bzw. Zielpfade |
+
+`--partial` ist der Modus für die Zeit, in der die 167 Teams und 450 Fahrer entstehen: Alle inhaltlichen Regeln greifen weiter scharf, nur die Vollständigkeit des Bestandes wird gestundet. Ohne das Flag ist ein unvollständiger Bestand ein Fehler – so soll es sein, sobald die Datenpflege abgeschlossen ist.
+
+`build/` ist nicht versioniert. Die Datenbank ist reines Erzeugnis; versioniert wird ausschließlich `data/*.csv`.
 
 ---
 

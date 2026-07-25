@@ -1,0 +1,11 @@
+# HANDGEPFLEGT - Zielbestand 167 Teams, Stand: 4 als Saatbestand.
+# team_id kodiert das START-Tier als Lesehilfe (1001 = Tier 1, lfd. Nr. 1).
+# Nach dem ersten Saisonwechsel ist diese Kodierung semantisch falsch und
+# darf im Code nie als Tier-Quelle dienen.
+# Sortierung nach team_id ist verbindlich, damit Diffs lesbar bleiben.
+# Leitplanken fuer die Handpflege: docs/DATENMODELL_APEX_M0.md, Abschnitt 15.
+team_id,name,short_name,code,country,city,founded_year,start_tier,colour_primary,colour_secondary,ai_archetype,prestige,start_capital,engine_supplier_id,is_works_team,history_titles,history_best_tier,flavour
+1001,Scuderia Aurelia,Aurelia,AUR,ITA,Maranello,1929,1,#B30000,#F2C200,works_team,96,42000000,,1,14,1,"Der Maßstab. Vierzehn Titel, und jede Saison ohne einen davon gilt als Krise."
+1002,Northgate Racing,Northgate,NRD,GBR,Brackley,1968,1,#0B3D2E,#C9F224,works_team,88,31000000,,1,6,1,"Ingenieursgetrieben, unaufgeregt, seit dreißig Jahren nie schlechter als Rang sechs."
+6042,Kessler Motorsport,Kessler,KSL,DEU,Ingolstadt,1994,6,#1A1A1A,#E8541F,traditional,34,780000,,0,0,3,"Stand einmal in Tier 3. Die Fabrik von damals kostet noch heute mehr, als die Liga einbringt."
+10015,Silvertown Junior Team,Silvertown,SVT,GBR,Silverstone,2019,10,#005BBB,#FFFFFF,academy,9,95000,,0,0,10,"Zwei Transporter, ein Zelt, sechs Mechaniker im Nebenberuf – und die beste Talentquote der Liga."

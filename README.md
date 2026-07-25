@@ -6,9 +6,12 @@ tiefer, mit einer **10-stufigen Ligenpyramide** und **saisonalem Auf- und Abstie
 Dieses Repository enthält aktuell:
 
 * das vollständige Designdokument → [`docs/KONZEPT_MEHRLIGA_RENNMANAGER.md`](docs/KONZEPT_MEHRLIGA_RENNMANAGER.md)
+* die Schema-Spezifikation der Stammdaten → [`docs/DATENMODELL_APEX_M0.md`](docs/DATENMODELL_APEX_M0.md)
 * den **Ligen-Explorer**: eine Vite/TypeScript-App, die eine deterministisch erzeugte
-  Beispielwelt (167 Teams, ~290 Stammfahrer, alle zehn Ligen über eine volle Saison
+  Beispielwelt (167 Teams, 334 Stammfahrer, alle zehn Ligen über eine volle Saison
   durchsimuliert) im Browser darstellt.
+* den **Bootstrapper**: liest `data/*.csv`, prüft sie gegen das Schema und erzeugt daraus
+  `build/world_data.db`.
 
 **Live:** https://michaelkrinningersg-coder.github.io/Race-Manager/
 
@@ -51,6 +54,36 @@ plus konsistenzabhängiges Rauschen, dazu Ausfälle nach Zuverlässigkeit und Li
 
 ---
 
+## Bootstrapper
+
+Der Bootstrapper ist der Weg von den handgepflegten Stammdaten zur Spieldatenbank. Er liest
+`data/*.csv`, prüft sie in fünf Stufen (Syntax, Typen, Wertebereiche, Referenzen,
+Konsistenzregeln) und schreibt `build/world_data.db`.
+
+```bash
+npm run bootstrap                # prüfen und schreiben
+npm run bootstrap -- --partial   # Bestandslücken nur als Warnung
+npm run bootstrap:check          # nur prüfen, nichts schreiben
+```
+
+Zwei Eigenschaften sind bewusst so gebaut:
+
+* **Alle Prüfungen laufen durch, bevor abgebrochen wird.** Der Bericht listet sämtliche
+  Befunde auf einmal – bei 617 handgepflegten Zeilen ist ein Validator, der beim ersten
+  Fehler stehen bleibt, unbenutzbar.
+* **Kein Zufall, keine Zeitstempel.** Gleiche CSVs ergeben eine byteweise identische
+  Datenbank, damit Balancing-Änderungen im Diff sichtbar werden.
+
+Fehler verhindern das Schreiben, Warnungen nicht. Solange die 167 Teams und 450 Fahrer noch
+entstehen, gilt `--partial`: Alle inhaltlichen Regeln greifen scharf, nur die Vollständigkeit
+des Bestandes wird gestundet.
+
+`build/` ist nicht versioniert – versioniert wird ausschließlich `data/*.csv`.
+
+Schema, Wertebereiche und Validierungsregeln: [`docs/DATENMODELL_APEX_M0.md`](docs/DATENMODELL_APEX_M0.md).
+
+---
+
 ## Entwicklung
 
 ```bash
@@ -58,13 +91,25 @@ npm install
 npm run dev        # http://localhost:5173
 npm run build      # Typprüfung + Produktionsbuild nach dist/
 npm run preview    # gebauten Stand lokal ansehen
+npm run typecheck  # App und Bootstrapper prüfen
 ```
 
 **Projektstruktur**
 
 ```text
 Race-Manager/
-├── docs/KONZEPT_MEHRLIGA_RENNMANAGER.md   # Designdokument
+├── docs/
+│   ├── KONZEPT_MEHRLIGA_RENNMANAGER.md    # Designdokument
+│   └── DATENMODELL_APEX_M0.md             # Schema der Stammdaten
+├── data/                                  # CSV-Stammdaten (die Wahrheit)
+├── tools/bootstrap/
+│   ├── csv.ts                             # CSV-Leser nach den Konventionen
+│   ├── schema.ts                          # Spaltendefinitionen der acht Dateien
+│   ├── load.ts                            # Typen, Wertebereiche, Eindeutigkeit
+│   ├── validate.ts                        # dateiübergreifende Konsistenzregeln
+│   ├── db.ts                              # DDL und SQLite-Erzeugung
+│   ├── report.ts                          # Befunde und ihre Ausgabe
+│   └── index.ts                           # CLI
 ├── src/
 │   ├── data/leagues.ts                    # Stammdaten der 10 Ligen, Punkte, Bewegungsregeln
 │   ├── data/world.ts                      # Weltgenerator (Seed) + Light-Sim einer Saison
@@ -73,6 +118,7 @@ Race-Manager/
 │   ├── main.ts                            # Hash-Router und Layout
 │   └── style.css
 ├── .github/workflows/pages.yml            # Build + Deployment auf GitHub Pages
+├── tsconfig.tools.json                    # Typprüfung für tools/ (außerhalb des App-Builds)
 └── vite.config.ts                         # base: '/Race-Manager/' für Pages
 ```
 

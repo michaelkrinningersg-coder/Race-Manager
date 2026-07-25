@@ -1,0 +1,16 @@
+# Auf- und Abstieg je Ligengrenze.
+# Die Bewegungen muessen sich an jeder Grenze decken:
+#   direct_down[t] == direct_up[t+1] und
+#   relegation_barrage_slots[t] == promotion_barrage_slots[t+1].
+# Der Bootstrapper prueft das als harten Fehler.
+tier,valid_from_season,direct_up,direct_down,promotion_barrage_slots,relegation_barrage_slots,relegation_mode,barrage_track_id,barrage_leg_count,barrage_regulation_tier,tiebreak_rule,licence_fallback
+1,1,0,2,0,1,tier,,2,2,quali_average,next_eligible
+2,1,2,2,1,1,tier,,2,3,quali_average,next_eligible
+3,1,2,2,1,1,tier,,2,4,quali_average,next_eligible
+4,1,2,2,1,1,tier,,2,5,quali_average,next_eligible
+5,1,2,2,1,1,tier,,2,6,quali_average,next_eligible
+6,1,2,2,1,1,tier,,2,7,quali_average,next_eligible
+7,1,2,2,1,1,tier,,2,8,quali_average,next_eligible
+8,1,2,2,1,1,tier,,2,9,quali_average,next_eligible
+9,1,2,2,1,1,tier,,2,10,quali_average,next_eligible
+10,1,2,2,1,0,licence_loss,,2,10,quali_average,next_eligible

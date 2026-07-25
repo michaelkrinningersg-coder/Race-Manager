@@ -1,0 +1,16 @@
+# HANDGEPFLEGT - Zielbestand ~450 Fahrer (334 Stammcockpits), Stand: 9.
+# 17 Attribute je 0-100. Der Kernschnitt aus pace, qualifying, braking und
+# cornering muss im Leistungsband der jeweiligen Liga liegen
+# (Tier 1: 87-95, dann je 6 Punkte tiefer bis Tier 10: 33-41).
+# Pay Driver liegen im unteren Drittel ihres Bandes und bringen 10-25 %
+# des Ligakostendeckels mit. Leitplanken: docs/DATENMODELL_APEX_M0.md, 15.
+driver_id,first_name,last_name,country,birth_year,pace,qualifying,braking,cornering,car_control,overtaking,defending,starts,racecraft_traffic,consistency,pressure,aggression,feedback,tyre_management,fuel_saving,fitness,wet_skill,potential,ego,adaptability,marketability,morale,superlicence_points,start_team_id,start_role,start_seat,contract_until_season,salary,pay_driver_budget
+100001,Matteo,Ferrante,ITA,1997,94,95,92,93,90,91,89,88,90,89,92,74,86,86,82,90,88,96,88,79,93,78,98,1001,race,1,3,18000000,0
+100002,Lars,Bergström,SWE,2001,88,86,87,89,85,84,82,86,83,84,80,68,81,90,85,88,84,95,61,84,76,82,47,1001,race,2,2,4200000,0
+100003,James,Ravenhill,GBR,1994,90,89,88,90,87,86,90,84,88,91,87,61,92,88,89,86,90,90,70,82,74,80,86,1002,race,1,4,11000000,0
+100004,Diogo,Salazar,PRT,1999,87,88,86,87,84,88,79,87,85,82,78,79,78,81,80,87,82,92,74,86,81,84,52,1002,race,2,3,6500000,0
+100221,Tobias,Marquardt,DEU,1995,64,62,63,64,61,60,63,59,61,66,58,55,68,64,66,62,60,65,44,58,38,71,18,6042,race,1,2,240000,0
+100222,Émile,Rochat,FRA,2003,59,61,57,58,60,62,54,60,56,55,52,72,51,53,55,64,57,78,55,71,44,76,9,6042,race,2,1,0,620000
+100288,Yuki,Harada,JPN,2006,40,41,38,39,42,37,35,41,36,34,33,66,36,38,37,55,40,88,44,74,31,85,2,10015,race,1,1,0,0
+100289,Amara,Okonjo,NGA,2005,36,35,34,37,38,34,33,36,33,36,35,48,40,39,41,52,36,71,33,68,27,79,1,10015,race,2,2,0,48000
+100401,Colin,Whitaker,GBR,1989,71,68,70,69,72,74,76,68,73,79,75,52,81,77,78,66,74,71,52,64,49,58,31,,free_agent,,,0,0

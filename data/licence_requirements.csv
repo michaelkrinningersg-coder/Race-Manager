@@ -1,0 +1,15 @@
+# Lizenzhuerden je Liga, geprueft gegen die Anforderungen der Zielliga.
+# Gleichmaessig lineare Leiter, verankert an der Tier-2-Pruefung aus
+# Konzept 5.1 (Liquiditaet 25 %, Windkanal 2, Pruefstand 2, Simulator 1,
+# 30 Mitarbeiter, Technical Director und Chief Designer, Superlizenz 25).
+tier,min_liquidity_pct,min_windtunnel_level,min_dyno_level,min_simulator_level,min_factory_level,min_staff_count,required_roles,needs_engine_contract,min_licence_points,min_superlicence_points,grace_period_seasons
+1,0.28,3,3,2,3,33,technical_director|chief_designer|head_of_aero|powertrain_chief,1,0,30,1
+2,0.25,2,2,1,2,30,technical_director|chief_designer,1,0,25,1
+3,0.22,2,2,1,2,27,technical_director|chief_designer,1,0,20,1
+4,0.19,2,1,1,2,24,technical_director,1,0,15,1
+5,0.16,1,1,0,1,21,technical_director,1,0,0,1
+6,0.13,1,1,0,1,18,technical_director,1,0,0,1
+7,0.10,1,0,0,1,15,,0,0,0,1
+8,0.07,0,0,0,0,12,,0,0,0,1
+9,0.04,0,0,0,0,9,,0,0,0,1
+10,0.01,0,0,0,0,6,,0,0,0,1

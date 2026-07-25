@@ -1,5 +1,8 @@
 node_modules/
 dist/
 .vite/
+
+# Erzeugnis des Bootstrappers - entsteht reproduzierbar aus data/*.csv
+build/
 *.local
 .DS_Store

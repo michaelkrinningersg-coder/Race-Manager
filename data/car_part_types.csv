@@ -1,0 +1,15 @@
+# Die neun Bauteilgruppen als Typdefinition (Konzept 6.1).
+# carry_over_default ist an den Ankern aus Konzept 5.3 ausgerichtet
+# (Aerodynamik ~0.3, Bremsen ~0.9), base_failure_rate summiert auf 1.0.
+# Muster: was schnell entwickelt (dev_constant_k hoch), verliert beim
+# Reglementwechsel am meisten (carry_over_default niedrig).
+part_key,name,sort_order,primary_effect,conflict,dev_constant_k,base_failure_rate,damage_prone,weight_reference_kg,carry_over_default,supplied_by_engine
+chassis,Monocoque / Chassis,1,"Gesamtsteifigkeit, Gewicht, Crash-Sicherheit",Steifigkeit vs. Gewicht,0.70,0.04,0.05,120,0.55,0
+front_wing,Frontflügel & Nase,2,"Frontgrip, Balance",Abtrieb vs. Empfindlichkeit,1.30,0.06,0.90,12,0.30,0
+rear_wing,Heckflügel,3,Topspeed vs. Kurvenabtrieb,direkt im Setup einstellbar,1.20,0.04,0.40,10,0.30,0
+floor,Unterboden / Diffusor,4,Abtrieb ohne Luftwiderstand,Performance vs. Fahrbarkeit,1.15,0.05,0.55,25,0.30,0
+powertrain,Antriebseinheit,5,"Leistung, Verbrauch, Standfestigkeit, Hitze",Leistung vs. Zuverlässigkeit,0.60,0.28,0.12,150,0.70,1
+ers,Energierückgewinnung,6,"Beschleunigung, Überholhilfe",Effizienz vs. Gewicht,0.80,0.16,0.10,40,0.65,1
+gearbox,Getriebe,7,"Beschleunigung, Schaltverluste",Übersetzung vs. Topspeed,0.85,0.15,0.15,45,0.80,0
+suspension,Fahrwerk & Aufhängung,8,"Mechanischer Grip, Reifenverschleiß",Härte vs. Reifenschonung,1.00,0.10,0.45,60,0.75,0
+brakes,Bremsen & Kühlung,9,"Bremspunkte, Hitzemanagement",Kühlung vs. Luftwiderstand,1.05,0.12,0.20,30,0.90,0
