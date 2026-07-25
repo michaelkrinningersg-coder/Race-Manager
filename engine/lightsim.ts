@@ -38,6 +38,13 @@ export interface WeekendContext {
   legCount: number;
   reverseGridTopN: number;
   points: Map<number, number>;
+  /**
+   * Welcher Lauf der Sprint ist (Konzept 11.1). Ohne Angabe kein Sprint.
+   * Der Sprint zaehlt nach einer eigenen, flacheren Skala und vergibt weder
+   * Pole- noch Rundenbonus - beides gehoert dem Hauptrennen.
+   */
+  sprintLeg?: number;
+  sprintPoints?: Map<number, number>;
   bonusPole: number;
   bonusFastestLap: number;
   fastestLapMaxPosition: number;
@@ -146,9 +153,11 @@ function runLeg(
 
   const rows: ResultRow[] = running.map((item, index) => {
     const position = index + 1;
-    let points = context.points.get(position) ?? 0;
+    const isSprint = context.sprintLeg === leg;
+    const table = isSprint ? (context.sprintPoints ?? context.points) : context.points;
+    let points = table.get(position) ?? 0;
     const isPole = item.entry.driverId === poleDriver;
-    const isFastest = item.entry.driverId === fastestDriver;
+    const isFastest = !isSprint && item.entry.driverId === fastestDriver;
     if (isPole) points += context.bonusPole;
     if (isFastest) points += context.bonusFastestLap;
     return {

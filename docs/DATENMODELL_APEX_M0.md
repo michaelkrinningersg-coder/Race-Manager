@@ -31,6 +31,7 @@
 19. [M5 Teil 2: Personal](#19-m5-teil-2-personal)
 20. [M5 Teil 3: Infrastruktur](#20-m5-teil-3-infrastruktur)
 21. [M6: Wirtschaft](#21-m6-wirtschaft)
+22. [M7 Teil 1: Wetter, Safety Car, Sprint](#22-m7-teil-1-wetter-safety-car-sprint)
 
 ---
 
@@ -1404,3 +1405,59 @@ Bilanz in Saison 20, alle Posten als Prozent des Kostendeckels:
 * **Der Kostendeckel ist eine Schranke, keine Entscheidung.** Die KI plant nur den Anlagenausbau dagegen; Entwicklung, Gehälter und Logistik laufen ungesteuert. „Kluges Wirtschaften" aus Konzept 9.3 ist damit erst zur Hälfte umgesetzt.
 * **Insolvenz, Fahrerverkauf und Vorstandsziele fehlen.** Ablösesummen (Konzept 9.1) und Jobwechsel des Spielers (14.2) sind nicht angefasst.
 * **`w_sponsor` wirkt weiterhin nicht.** Die Anlage Marketing zahlt laut `facility_types.csv` auf den Sponsorenwert ein – die Sponsorenvergabe liest sie noch nicht. Marketing und Medizin bleiben damit die einzigen Anlagen ohne Wirkung.
+
+---
+
+## 22. M7 Teil 1: Wetter, Safety Car, Sprint
+
+Drei Dinge aus M7, die das einzelne Rennen unberechenbar machen. Alle drei hatten seit M4 einen Platz in den Daten und keinen im Code: `safety_car_rate` stand in `tracks.csv` und wurde nirgends gelesen, Intermediate und Regen standen in `tyre_compounds.csv` und wurden von der Engine ausdrücklich ausgeschlossen (`WHERE wet_only = 0`), `sprint_weekends_per_season` stand in `race_weekend_formats.csv` und war eine Zahl ohne Wirkung.
+
+### 22.1 `weather_profiles.csv` – Klima je Strecke
+
+Konzept 15.1 nennt `track_id, kalenderwoche, Wahrscheinlichkeiten`. Gepflegt wird nur die **Strecke** (30 Zeilen), die Jahreszeit rechnet die Engine aus der Kalenderwoche in `calendar.csv` dazu – getroffene Entscheidung. Der Charakter einer Strecke steht damit an einer Stelle: Der Bergring Eifel ist wechselhaft, weil er es ist, nicht weil eine Aprilwoche zufällig so gefüllt wurde.
+
+Vier Werte je Strecke: Regenwahrscheinlichkeit, Wechselhaftigkeit, Grundtemperatur, Jahresschwankung. Dazu `southern` – ohne diese Kennzeichnung wäre der australische Kalendersommer der kälteste Termin des Jahres.
+
+Der Wetterverlauf eines Rennens ist bewusst grob: entweder trocken, oder eine nasse Phase mit Aufziehen, Höhepunkt und Abtrocknen. Eine feinere Zeitreihe wäre ohne das Live-Cockpit aus Konzept 11.3 nicht ablesbar.
+
+### 22.2 Reichweite: ausschließlich die Tick-Sim
+
+Wetter und Safety Car wirken **nur** in der rundenweisen Simulation (getroffene Entscheidung). Die Light-Sim, deren Ergebnisverteilung über fünf Meilensteine eingemessen ist, bleibt unangetastet.
+
+Der Preis ist bekannt und benannt: Von 2.600 Rennwochenenden einer 20-Saisons-Welt laufen 28 rundenweise. In Tabellen, Karrieren und Statistik kommt Regen damit nicht vor – er existiert nur dort, wo man ihm beim Entstehen zusehen kann.
+
+### 22.3 Was im Rennen passiert
+
+**Nässe** kostet 8 bis 25 % Rundenzeit (Konzept 12.5), gedämpft durch `wet_skill`. Wer auf der falschen Mischung unterwegs ist, zahlt zusätzlich 0,6 bis 2,8 Sekunden je Runde – das ist die eigentliche Strafe für einen verpassten Wechsel, nicht der Regen selbst.
+
+Der Reifenwechsel bei Wetterumschwung folgt nicht dem Plan, sondern der **Reaktionszeit des Chefstrategen**: Je schlechter er ist, desto länger bleibt das Auto auf der falschen Mischung. Damit hat `w_strategy` aus `staff_roles.csv` zum ersten Mal einen Hebel, der nicht nur die Stopprunde verschiebt.
+
+**Safety Car** entsteht aus `tracks.safety_car_rate`, bei Nässe bis zu 3,5-fach wahrscheinlicher. Während der Phase fährt das Feld neutralisiert, es wird nicht überholt, und das Feld schließt auf den Führenden auf. Der Boxenstopp kostet nur 35 % – der berüchtigte Gratis-Stopp aus Konzept 12.4, der den herausgefahrenen Vorsprung des Führenden vernichtet.
+
+### 22.4 Sprintwochenenden
+
+Sechs pro Saison in Tier 1, gleichmäßig über den Kalender verteilt und deterministisch aus der Rundenzahl gerechnet. Der Sprint ist ein **eigener Lauf** über ein Drittel der Distanz mit eigener, flacherer Wertung (8-7-6-5-4-3-2-1, neues Punktesystem 3) und ohne Pole- oder Rundenbonus. Die Startaufstellung des Hauptrennens ist das Sprintergebnis.
+
+Genutzt wird dafür die `leg`-Mechanik, die für die Doppelrennen in Tier 7 und 8 seit M1 steht – kein neues Konzept, nur ein anderer Zuschnitt.
+
+**Ein Fehler, gemessen und behoben:** Die Tick-Sim rechnet ihre Punkte selbst und kannte die Sprinttabelle zunächst nicht – der Sprintsieger bekam 27 statt 8 Punkten, also mehr als der Sieger des Hauptrennens.
+
+### 22.5 Gemessen
+
+Über 28 rundenweise gefahrene Rennen der Schlusssaison:
+
+| | Anteil |
+| :--- | ---: |
+| Rennen mit Nassreifen | 5 (18 %) |
+| Rennen mit Safety Car | 7 (25 %) |
+| beides zugleich | 2 |
+
+Von 31.602 Rundenzeilen entfallen 1.687 auf Intermediate und Regen. Die beiden Mischungen waren die ersten toten Zeilen des Projekts und sind jetzt in Benutzung.
+
+### 22.6 Was offen bleibt
+
+* **Die Wirkung von `wet_skill` ist nicht nachweisbar.** Die naive Korrelation zwischen `wet_skill` und Platzierung liegt im Regen bei −0,50 und im Trockenen bei −0,54 – sie misst nur, dass gute Fahrer gute Nasswerte haben. Der eigentliche Test, ob sich ein Regenspezialist im Regen *verbessert*, ergibt r = +0,16 bei 22 auswertbaren Fahrern: das falsche Vorzeichen und statistisch nichts. Bei fünf Regenrennen ist der Effekt schlicht nicht messbar. Rechnerisch müsste er groß sein – zwischen `wet_skill` 40 und 90 liegen bei halber Nässe rund 3,7 Sekunden je Runde. Entweder überdeckt ihn die Reifenwahl, oder die Stichprobe ist zu klein. **Ungeklärt.**
+* **Rote Flagge, Kollisionen und Strafen fehlen.** Konzept 12.4 nennt sie neben dem Safety Car; umgesetzt ist bisher nur die Neutralisierung.
+* **Die Temperatur wird gewürfelt und nirgends gelesen.** Sie steht im Profil und im Wetterobjekt, wirkt aber weder auf Reifenfenster noch auf Zuverlässigkeit.
+* **Sprints gibt es nur in Tier 1.** Die anderen Formate haben `sprint_weekends_per_season = 0`; ob Tier 2 und 3 welche bekommen sollen, ist eine offene Designfrage.
+* **Wetter bleibt für 99 % der Rennen unsichtbar** – die Folge der Entscheidung aus 22.2. Sobald die Light-Sim Wetter bekommen soll, ist ihre Ergebnisverteilung neu einzumessen.

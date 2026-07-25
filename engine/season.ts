@@ -23,6 +23,7 @@ import { sponsorIncome } from './sponsors.js';
 import { simulateRace, type Compound, type RaceContext, type RaceEntry } from './racesim.js';
 import { loadStaffValues } from './staff.js';
 import { loadFacilityTypes, loadLevels, upkeepTotal } from './facilities.js';
+import { drawWeather, loadWeatherProfiles } from './weather.js';
 
 const PART_KEYS = [
   'chassis',
@@ -119,12 +120,13 @@ function loadRosters(db: Database, season: number): Map<number, Roster> {
 }
 
 /**
- * Laedt die Reifenmischungen. Regenmischungen bleiben aussen vor, solange es
- * kein Wetter gibt (M7).
+ * Laedt alle Reifenmischungen einschliesslich der Regenmischungen. Bis M7 waren
+ * die beiden Nassmischungen ausgeschlossen, weil es kein Wetter gab - sie waren
+ * die ersten toten Zeilen des Projekts und jetzt die letzten, die aufwachen.
  */
 function loadCompounds(db: Database): Compound[] {
   return (db
-    .prepare('SELECT * FROM tyre_compounds WHERE wet_only = 0 ORDER BY compound_id')
+    .prepare('SELECT * FROM tyre_compounds ORDER BY compound_id')
     .all() as Record<string, number | string>[]).map((row) => ({
     compoundId: row.compound_id as number,
     shortName: String(row.short_name),
@@ -132,6 +134,7 @@ function loadCompounds(db: Database): Compound[] {
     wearRate: row.wear_rate as number,
     cliffWearPct: row.cliff_wear_pct as number,
     minStintLaps: row.min_stint_laps as number,
+    wetOnly: row.wet_only === 1,
   }));
 }
 
@@ -172,6 +175,8 @@ export function runSeason(db: Database, season: number, tickTier = 0): SeasonSum
     ]),
   );
   const compounds = loadCompounds(db);
+  // Wetterprofile je Strecke (Konzept 12.5). Nur die Tick-Sim liest sie.
+  const weatherProfiles = loadWeatherProfiles(db);
   // Strategen- und Crewqualitaet kommen jetzt aus dem Personalbestand.
   const staffValues = loadStaffValues(db, season);
 
@@ -206,10 +211,29 @@ export function runSeason(db: Database, season: number, tickTier = 0): SeasonSum
         .prepare('SELECT * FROM calendar WHERE season = 1 AND tier = ? ORDER BY round')
         .all(tier) as Record<string, number>[];
 
+      // Sprintwochenenden gleichmaessig ueber den Kalender verteilt
+      // (Konzept 11.1: sechs pro Saison in Tier 1). Deterministisch aus der
+      // Rundenzahl gerechnet, damit derselbe Seed dieselben Termine ergibt.
+      const sprintRounds = new Set<number>();
+      const firstFormat = formats.get(calendar[0]?.format_id);
+      const sprintCount = (firstFormat?.sprint_weekends_per_season as number) ?? 0;
+      if (sprintCount > 0 && calendar.length > 0) {
+        for (let i = 0; i < sprintCount; i += 1) {
+          sprintRounds.add(Math.round(((i + 1) * calendar.length) / (sprintCount + 1)));
+        }
+      }
+
       for (const round of calendar) {
         const format = formats.get(round.format_id);
         const profile = profiles.get(round.track_id);
         if (!format || !profile) continue;
+
+        const isSprintWeekend = sprintRounds.has(round.round);
+        const sprintSystem = isSprintWeekend
+          ? pointsBySystem.get(format.sprint_points_system_id as number)
+          : undefined;
+        // Am Sprintwochenende faehrt die Liga zwei Laeufe statt einem.
+        const legCount = isSprintWeekend ? format.race_count + 1 : format.race_count;
 
         const context: WeekendContext = {
           worldSeed,
@@ -219,8 +243,12 @@ export function runSeason(db: Database, season: number, tickTier = 0): SeasonSum
           profile,
           overtakingDifficulty: tracks.get(round.track_id) ?? 0.5,
           dnfBaseRate: league.dnf_base_rate,
-          legCount: format.race_count,
-          reverseGridTopN: format.reverse_grid_top_n,
+          legCount,
+          // Kein Umkehrgitter am Sprintwochenende: Die Startaufstellung des
+          // Hauptrennens ist das Sprintergebnis, unveraendert.
+          reverseGridTopN: isSprintWeekend ? 0 : format.reverse_grid_top_n,
+          sprintLeg: isSprintWeekend ? 1 : undefined,
+          sprintPoints: sprintSystem,
           points: system,
           bonusPole: systemMeta?.bonus_pole ?? 0,
           bonusFastestLap: systemMeta?.bonus_fastest_lap ?? 0,
@@ -243,7 +271,9 @@ export function runSeason(db: Database, season: number, tickTier = 0): SeasonSum
           );
           rows = [];
 
-          for (let leg = 1; leg <= format.race_count; leg += 1) {
+          for (let leg = 1; leg <= legCount; leg += 1) {
+            // Der Sprint geht ueber ein Drittel der Renndistanz.
+            const distance = isSprintWeekend && leg === 1 ? 0.34 : format.race_distance_pct;
             const raceEntries: RaceEntry[] = roster.entries.map((entry) => {
               const staff = staffValues.get(entry.teamId);
               return {
@@ -262,12 +292,23 @@ export function runSeason(db: Database, season: number, tickTier = 0): SeasonSum
               leg,
               profile,
               trackLengthM: track?.length_m ?? 4500,
-              laps: Math.max(8, Math.round((track?.laps ?? 55) * format.race_distance_pct)),
+              laps: Math.max(8, Math.round((track?.laps ?? 55) * distance)),
               abrasion: track?.abrasion ?? 0.6,
               pitLossS: track?.pit_loss_s ?? 20,
               overtakingDifficulty: tracks.get(round.track_id) ?? 0.5,
               dnfBaseRate: league.dnf_base_rate,
               compounds,
+              safetyCarRate: track?.safety_car_rate ?? 0.2,
+              weather: drawWeather(
+                weatherProfiles.get(round.track_id),
+                Math.max(8, Math.round((track?.laps ?? 55) * distance)),
+                round.week as number,
+                worldSeed,
+                season,
+                tier,
+                round.round,
+                leg,
+              ),
             };
 
             const race = simulateRace(raceEntries, raceContext);
@@ -320,10 +361,16 @@ export function runSeason(db: Database, season: number, tickTier = 0): SeasonSum
             const poleDriver = leg === 1 ? (light[0]?.driverId ?? null) : null;
             rows.push(
               ...race.outcomes.map((outcome) => {
-                let points = outcome.position ? system.get(outcome.position) ?? 0 : 0;
+                // Der Sprint zaehlt nach eigener, flacherer Skala und vergibt
+                // weder Pole- noch Rundenbonus - beides gehoert dem Hauptrennen.
+                // Ohne diese Fallunterscheidung bekam der Sprintsieger in der
+                // Tick-Sim die volle Wertung, gemessen 27 statt 8 Punkte.
+                const sprintLeg = isSprintWeekend && leg === 1;
+                const table = sprintLeg ? (sprintSystem ?? system) : system;
+                let points = outcome.position ? table.get(outcome.position) ?? 0 : 0;
                 const isPole = outcome.driverId === poleDriver;
-                const isFastest = outcome.driverId === fastest;
-                if (isPole) points += systemMeta?.bonus_pole ?? 0;
+                const isFastest = !sprintLeg && outcome.driverId === fastest;
+                if (isPole && !sprintLeg) points += systemMeta?.bonus_pole ?? 0;
                 if (isFastest) points += systemMeta?.bonus_fastest_lap ?? 0;
                 return {
                   leg,

@@ -278,6 +278,7 @@ export const TABLES: TableSpec[] = [
       { name: 'race_distance_pct', type: 'real', required: true, min: 0.2, max: 1 },
       { name: 'reverse_grid_top_n', type: 'int', required: true, min: 0, max: 12 },
       { name: 'sprint_weekends_per_season', type: 'int', required: true, min: 0, max: 12 },
+      { name: 'sprint_points_system_id', type: 'int', min: 1 },
       { name: 'flavour', type: 'text', required: true },
     ],
   },
@@ -384,6 +385,20 @@ export const TABLES: TableSpec[] = [
       { name: 'parachute_pct_2', type: 'real', required: true, min: 0, max: 1 },
       { name: 'prize_pool_per_race', type: 'int', required: true, min: 0 },
       { name: 'logistics_base', type: 'int', required: true, min: 0 },
+    ],
+  },
+  {
+    file: 'weather_profiles.csv',
+    table: 'weather_profiles',
+    primaryKey: ['track_id'],
+    expectedRows: 30,
+    columns: [
+      { name: 'track_id', type: 'int', required: true, min: 300001, unique: true },
+      { name: 'rain_probability', type: 'real', required: true, min: 0, max: 1 },
+      { name: 'changeability', type: 'real', required: true, min: 0, max: 1 },
+      { name: 'base_temp_c', type: 'int', required: true, min: -20, max: 55 },
+      { name: 'temp_swing_c', type: 'int', required: true, min: 0, max: 40 },
+      { name: 'southern', type: 'int', min: 0, max: 1 },
     ],
   },
   {

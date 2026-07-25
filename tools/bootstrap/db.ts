@@ -23,6 +23,7 @@ CREATE TABLE race_weekend_formats (
   race_distance_pct          REAL    NOT NULL,
   reverse_grid_top_n         INTEGER NOT NULL,
   sprint_weekends_per_season INTEGER NOT NULL,
+  sprint_points_system_id    INTEGER,
   flavour                    TEXT    NOT NULL
 );
 
@@ -88,6 +89,15 @@ CREATE TABLE league_payouts (
   parachute_pct_2     REAL    NOT NULL,
   prize_pool_per_race INTEGER NOT NULL DEFAULT 0,
   logistics_base      INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE weather_profiles (
+  track_id         INTEGER PRIMARY KEY REFERENCES tracks(track_id),
+  rain_probability REAL    NOT NULL,
+  changeability    REAL    NOT NULL,
+  base_temp_c      INTEGER NOT NULL,
+  temp_swing_c     INTEGER NOT NULL,
+  southern         INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE sponsors (
@@ -425,6 +435,7 @@ const INSERT_ORDER = [
   'promotion_rules.csv',
   'licence_requirements.csv',
   'league_payouts.csv',
+  'weather_profiles.csv',
   'sponsors.csv',
   'teams.csv',
   'engine_suppliers.csv',

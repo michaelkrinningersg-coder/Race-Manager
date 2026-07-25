@@ -62,6 +62,21 @@ export function renderRace(
   const fastest = results.find((entry) => entry.fastest_lap === 1);
   const dnfs = results.filter((entry) => isDnf(entry.status)).length;
 
+  // Wetter und Safety Car stehen nicht in einer eigenen Tabelle, sondern in den
+  // Runden: die gefahrenen Mischungen verraten die Naesse, das Ereignisfeld die
+  // Neutralisierung.
+  const wetLaps = laps.filter((lap) => lap.compound === 'I' || lap.compound === 'R').length;
+  const safetyCarLaps = new Set(
+    laps.filter((lap) => lap.event === 'safety_car' || lap.event === 'pit_sc').map((lap) => lap.lap),
+  ).size;
+  const weatherLabel = laps.length
+    ? laps.some((lap) => lap.compound === 'R')
+      ? 'Regen'
+      : wetLaps > 0
+        ? 'wechselhaft'
+        : 'trocken'
+    : null;
+
   const resultRows = results
     .map((entry) => {
       const gained = entry.position ? entry.grid - entry.position : null;
@@ -97,14 +112,20 @@ export function renderRace(
     })
     .join('');
 
+  const isSprintWeekend = race.legs > 1 && tier === 1;
   const legLinks =
     race.legs > 1
       ? `<div class="leg-switch">
            ${Array.from({ length: race.legs }, (_, index) => {
              const value = index + 1;
              const active = value === leg ? ' is-active' : '';
+             const label = isSprintWeekend
+               ? value === 1
+                 ? 'Sprint'
+                 : 'Hauptrennen'
+               : `Lauf ${value}`;
              return `<a class="leg-switch__item${active}"
-                        href="${withSeason(`#/rennen/${tier}/${round}/${value}`, season)}">Lauf ${value}</a>`;
+                        href="${withSeason(`#/rennen/${tier}/${round}/${value}`, season)}">${label}</a>`;
            }).join('')}
          </div>`
       : '';
@@ -119,7 +140,8 @@ export function renderRace(
           <span class="tier-badge">Tier ${tier} · Saison ${season} · Runde ${round}</span>
           <h1>${escapeHtml(race.track)}</h1>
           <p class="lead">
-            ${escapeHtml(race.country)} · ${escapeHtml(race.archetype)} · ${race.laps} Runden
+            ${escapeHtml(race.country)} · ${escapeHtml(race.archetype)} ·
+            ${laps.length ? Math.max(...laps.map((lap) => lap.lap)) : race.laps} Runden
           </p>
         </div>
       </header>
@@ -131,6 +153,16 @@ export function renderRace(
         <div class="stat"><span class="stat__value">${escapeHtml(poleSitter?.name.split(' ').pop() ?? '—')}</span><span class="stat__label">Pole</span></div>
         <div class="stat"><span class="stat__value">${escapeHtml(fastest?.name.split(' ').pop() ?? '—')}</span><span class="stat__label">Schnellste Runde</span></div>
         <div class="stat"><span class="stat__value">${dnfs}</span><span class="stat__label">Ausfälle</span></div>
+        ${
+          weatherLabel
+            ? `<div class="stat"><span class="stat__value">${weatherLabel}</span><span class="stat__label">Bedingungen</span></div>`
+            : ''
+        }
+        ${
+          safetyCarLaps > 0
+            ? `<div class="stat"><span class="stat__value">${safetyCarLaps}</span><span class="stat__label">Runden Safety Car</span></div>`
+            : ''
+        }
       </div>
 
       <h2>Ergebnis</h2>
@@ -146,7 +178,7 @@ export function renderRace(
         </table>
       </div>
 
-      ${renderLapChart(laps, race.laps)}
+      ${renderLapChart(laps)}
       ${renderAnalysis(analysis)}
       ${
         !laps.length && info.tickSeason
@@ -182,7 +214,7 @@ export function renderRace(
  * die kompakteste Form, ein Rennen zu erzaehlen. Boxenstopps und Zwischenfaelle
  * stehen als Punkte darauf.
  */
-function renderLapChart(laps: LapRow[], totalLaps: number): string {
+function renderLapChart(laps: LapRow[]): string {
   if (!laps.length) return '';
 
   const byDriver = new Map<number, LapRow[]>();
@@ -192,7 +224,10 @@ function renderLapChart(laps: LapRow[], totalLaps: number): string {
     else byDriver.set(lap.driver_id, [lap]);
   }
 
-  const maxLap = Math.max(...laps.map((lap) => lap.lap), totalLaps);
+  // Die Distanz kommt aus den Daten, nicht aus der Nenn-Rundenzahl der Strecke:
+  // Ein Sprint geht ueber ein Drittel, ein Kurzformat ueber knapp die Haelfte.
+  // Mit tracks.laps gezeichnet endete die Kurve nach einem Drittel der Breite.
+  const maxLap = Math.max(...laps.map((lap) => lap.lap));
   const maxPosition = Math.max(...laps.map((lap) => lap.position));
   const width = 900;
   const height = 340;
@@ -247,8 +282,8 @@ function renderLapChart(laps: LapRow[], totalLaps: number): string {
   return `
     <h2>Positionsverlauf</h2>
     <p class="muted small">
-      Eine Linie je Fahrer über ${maxLap} Runden. Punkte markieren Boxenstopps und
-      Zwischenfälle – Mouseover zeigt, was passiert ist.
+      Eine Linie je Fahrer über ${maxLap} Runden. Punkte markieren Boxenstopps, Reifenwechsel
+      bei Wetterumschwung, Safety-Car-Phasen und Ausfälle – Mouseover zeigt, was passiert ist.
     </p>
     <div class="chart-scroll">
       <svg class="chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="Positionsverlauf">

@@ -6,13 +6,21 @@
  * Boxenstopps und Ausfaelle. Jede Runde landet in lap_records - dieselbe
  * Tabelle speist spaeter Live-Ansicht, Post-Race-Analyse und Rekorde.
  *
- * Was hier bewusst NICHT drin ist: Safety Car und Wetter. Beide gehoeren
- * laut Roadmap zu M7. Ohne sie bleibt die Strategie eine Rechenaufgabe -
- * mit ihnen wird sie eine Entscheidung.
+ * Seit M7 sind Wetter und Safety Car dabei - beide ausschliesslich hier und
+ * nicht in der Light-Sim (getroffene Entscheidung). Erst mit ihnen ist die
+ * Strategie eine Entscheidung und keine Rechenaufgabe mehr: Ein Schauer macht
+ * den Reifenplan wertlos, ein Safety Car verschenkt den Boxenstopp an alle, die
+ * ihn noch vor sich haben.
  */
 
 import { createRng, gaussian, seedFrom } from './rng.js';
 import { carScore, combinedScore, driverScore, type SectorProfile } from './scoring.js';
+import {
+  compoundForWetness,
+  safetyCarMultiplier,
+  wetLapPenalty,
+  type RaceWeather,
+} from './weather.js';
 
 /** Rundenzeit eines Autos mit Score 100 bei einer Referenzstrecke. */
 const REFERENCE_SPEED_MS = 55;
@@ -34,6 +42,8 @@ export interface Compound {
   wearRate: number;
   cliffWearPct: number;
   minStintLaps: number;
+  /** Regenmischung. Bis M7 aus der Sim ausgeschlossen, weil es kein Wetter gab. */
+  wetOnly: boolean;
 }
 
 export interface RaceEntry {
@@ -63,6 +73,10 @@ export interface RaceContext {
   overtakingDifficulty: number;
   dnfBaseRate: number;
   compounds: Compound[];
+  /** Grundwahrscheinlichkeit einer Safety-Car-Phase je Rennen (tracks.csv). */
+  safetyCarRate: number;
+  /** Wetterverlauf des Rennens. Ohne Angabe wird trocken gefahren. */
+  weather?: RaceWeather;
 }
 
 export interface LapRecord {
@@ -175,7 +189,10 @@ export function simulateRace(
   const rng = createRng(
     seedFrom(context.worldSeed, context.season, context.tier, context.round, context.leg, 7),
   );
-  const dry = context.compounds.filter((c) => c.grip > 0 && c.minStintLaps > 0);
+  const dry = context.compounds.filter((c) => !c.wetOnly);
+  const intermediate = context.compounds.find((c) => c.wetOnly && c.grip >= 0.86);
+  const wetTyre = context.compounds.find((c) => c.wetOnly && c.grip < 0.86);
+  const weather = context.weather;
   const baseLapS = context.trackLengthM / REFERENCE_SPEED_MS;
 
   const cars: CarState[] = entries.map((entry) => {
@@ -215,7 +232,21 @@ export function simulateRace(
   const records: LapRecord[] = [];
   const perLapDnf = 1 - Math.pow(1 - context.dnfBaseRate, 1 / context.laps);
 
+  // Safety Car (Konzept 12.4). Die Streckenrate gilt fuer das ganze Rennen und
+  // wird auf die Runden verteilt; Naesse hebt sie deutlich an.
+  const perLapSafetyCar = 1 - Math.pow(1 - Math.min(0.95, context.safetyCarRate), 1 / context.laps);
+  let safetyCarLapsLeft = 0;
+
   for (let lap = 1; lap <= context.laps; lap += 1) {
+    const wetness = weather?.perLap[lap - 1] ?? 0;
+
+    // Eine Safety-Car-Phase dauert drei bis fuenf Runden.
+    if (safetyCarLapsLeft > 0) {
+      safetyCarLapsLeft -= 1;
+    } else if (rng() < perLapSafetyCar * safetyCarMultiplier(wetness)) {
+      safetyCarLapsLeft = 3 + Math.floor(rng() * 3);
+    }
+    const underSafetyCar = safetyCarLapsLeft > 0;
     const running = cars.filter((car) => !car.retired);
     const order = [...running].sort((a, b) => a.totalMs - b.totalMs);
 
@@ -249,10 +280,22 @@ export function simulateRace(
       const fuelLoss = (car.fuel / 10) * FUEL_TIME_PER_10KG;
       const gripGain = (car.compound.grip - 1) * -baseLapS * 0.012;
 
-      let lapS =
-        car.cleanPace + tyreLoss + fuelLoss + gripGain + gaussian(rng) * car.sigma;
+      // Naesse: Grundzuschlag auf die Rundenzeit, gedaempft durch wet_skill.
+      // Wer auf der falschen Mischung unterwegs ist, zahlt zusaetzlich - das
+      // ist die eigentliche Strafe fuer einen verpassten Wechsel.
+      const wanted = compoundForWetness(wetness);
+      const onWet = car.compound.wetOnly;
+      const wrongTyre =
+        (wanted === 'dry' && onWet) || (wanted !== 'dry' && !onWet)
+          ? 0.6 + wetness * 2.2
+          : 0;
+      const wetLoss =
+        baseLapS * wetLapPenalty(wetness, car.entry.attributes.wet_skill ?? 50) + wrongTyre;
 
-      car.lostToTyres += tyreLoss;
+      let lapS =
+        car.cleanPace + tyreLoss + fuelLoss + gripGain + wetLoss + gaussian(rng) * car.sigma;
+
+      car.lostToTyres += tyreLoss + wrongTyre;
       car.lostToFuel += fuelLoss;
 
       let event: string | null = null;
@@ -261,7 +304,7 @@ export function simulateRace(
       // wenn Tempo und Streckencharakter es hergeben.
       const index = order.indexOf(car);
       const ahead = index > 0 ? order[index - 1] : undefined;
-      if (ahead && !ahead.retired) {
+      if (ahead && !ahead.retired && !underSafetyCar) {
         const gapS = (car.totalMs - ahead.totalMs) / 1000;
         if (gapS > 0 && gapS < 1.2 && car.cleanPace < ahead.cleanPace) {
           const skill =
@@ -279,15 +322,48 @@ export function simulateRace(
         }
       }
 
-      // Boxenstopp
-      if (car.plan.includes(lap) && car.stintLaps >= 2) {
+      // Reifenwechsel bei Wetterwechsel. Der Stratege reagiert nicht sofort -
+      // je schlechter er ist, desto laenger bleibt das Auto auf der falschen
+      // Mischung. Das ersetzt die geplante Strategie, sobald Regen einsetzt.
+      const reactionLag = Math.round((1 - car.entry.strategy / 100) * 4);
+      const seenWetness = weather?.perLap[Math.max(0, lap - 1 - reactionLag)] ?? 0;
+      const needsChange =
+        compoundForWetness(seenWetness) !== (car.compound.wetOnly
+          ? car.compound.grip >= 0.86
+            ? 'intermediate'
+            : 'wet'
+          : 'dry');
+
+      if (needsChange && car.stintLaps >= 2) {
+        const target =
+          compoundForWetness(seenWetness) === 'wet'
+            ? wetTyre
+            : compoundForWetness(seenWetness) === 'intermediate'
+              ? intermediate
+              : dry.find((c) => c.compoundId === 3) ?? dry[0];
+        if (target) {
+          const standS = 2.9 - 1.2 * (car.entry.crew / 100);
+          // Unter Safety Car ist der Stopp fast geschenkt - der beruechtigte
+          // Gratis-Boxenstopp aus Konzept 12.4.
+          const loss = underSafetyCar ? context.pitLossS * 0.35 : context.pitLossS;
+          const stopS = loss + standS;
+          lapS += stopS;
+          car.lostToPits += stopS;
+          car.stops += 1;
+          car.wear = 0;
+          car.stintLaps = 0;
+          car.compound = target;
+          event = underSafetyCar ? 'pit_sc' : 'pit_weather';
+        }
+      } else if (car.plan.includes(lap) && car.stintLaps >= 2) {
         // Die Crew wirkt auf Mittelwert UND Fehlerrate (Konzept 8.1). Nur die
         // Streuung zu staffeln reichte nicht: Zwischen der besten und der
         // schlechtesten Crew in Tier 1 lagen dann neun Hundertstel, weniger
         // als das Rauschen einer einzelnen Saison.
         const standS = 2.9 - 1.2 * (car.entry.crew / 100);
         const crewNoise = (1 - car.entry.crew / 100) * 1.6;
-        const stopS = context.pitLossS + standS + Math.abs(gaussian(rng)) * crewNoise;
+        const pitLoss = underSafetyCar ? context.pitLossS * 0.35 : context.pitLossS;
+        const stopS = pitLoss + standS + Math.abs(gaussian(rng)) * crewNoise;
         lapS += stopS;
         car.lostToPits += stopS;
         car.stops += 1;
@@ -295,8 +371,12 @@ export function simulateRace(
         car.stintLaps = 0;
         // Zweiter Stint auf der haerteren Mischung, wenn vorhanden.
         car.compound = dry.find((c) => c.compoundId === 3) ?? car.compound;
-        event = 'pit';
+        event = underSafetyCar ? 'pit_sc' : 'pit';
       }
+
+      // Unter Safety Car faehrt das ganze Feld neutralisiert: langsamer, aber
+      // ohne Streuung. Ueberholen gibt es nicht, Zeit gewinnt niemand.
+      if (underSafetyCar) lapS = car.cleanPace * 1.4 + (event === 'pit_sc' ? lapS - car.cleanPace : 0);
 
       const lapMs = Math.round(lapS * 1000);
       car.totalMs += lapMs;
@@ -318,6 +398,15 @@ export function simulateRace(
     // Positionen und Rueckstand nach dieser Runde nachtragen.
     const afterLap = cars.filter((car) => !car.retired).sort((a, b) => a.totalMs - b.totalMs);
     const leaderMs = afterLap[0]?.totalMs ?? 0;
+
+    // Das Feld schliesst hinter dem Safety Car auf. Genau das macht die Phase
+    // so teuer fuer den Fuehrenden: Sein herausgefahrener Vorsprung ist weg.
+    if (underSafetyCar) {
+      for (let i = 1; i < afterLap.length; i += 1) {
+        const gap = afterLap[i].totalMs - leaderMs;
+        afterLap[i].totalMs = leaderMs + Math.min(gap, i * 700);
+      }
+    }
     for (const record of records) {
       if (record.lap !== lap || record.event === 'dnf') continue;
       const position = afterLap.findIndex((car) => car.entry.driverId === record.driverId);
@@ -325,6 +414,7 @@ export function simulateRace(
         record.position = position + 1;
         record.gapToLeaderMs = afterLap[position].totalMs - leaderMs;
       }
+      if (underSafetyCar && record.event === null) record.event = 'safety_car';
     }
   }
 
