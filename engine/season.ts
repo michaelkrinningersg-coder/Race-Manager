@@ -37,6 +37,17 @@ const PART_KEYS = [
   'brakes',
 ];
 
+/**
+ * Fahrerwerte, die in die Simulation geladen werden.
+ *
+ * Nicht zu verwechseln mit der Liste in scoring.ts: Die entscheidet, was in die
+ * Sektorzeit eingeht. Diese hier entscheidet, was ueberhaupt ankommt - und ein
+ * Wert, der hier fehlt, ist in der Sim schlicht `undefined`.
+ *
+ * `wet_skill` hat genau das passieren lassen: Mit M7 kam die Regenwertung dazu,
+ * die Spalte blieb aber aussen vor, und jeder Fahrer fuhr im Regen mit dem
+ * Rueckfallwert 50. Gemessen war die Wirkung von wet_skill deshalb exakt null.
+ */
 const DRIVER_KEYS = [
   'pace',
   'qualifying',
@@ -46,6 +57,7 @@ const DRIVER_KEYS = [
   'starts',
   'tyre_management',
   'consistency',
+  'wet_skill',
 ];
 
 export interface SeasonSummary {

@@ -1456,8 +1456,28 @@ Von 31.602 Rundenzeilen entfallen 1.687 auf Intermediate und Regen. Die beiden M
 
 ### 22.6 Was offen bleibt
 
-* **Die Wirkung von `wet_skill` ist nicht nachweisbar.** Die naive Korrelation zwischen `wet_skill` und Platzierung liegt im Regen bei −0,50 und im Trockenen bei −0,54 – sie misst nur, dass gute Fahrer gute Nasswerte haben. Der eigentliche Test, ob sich ein Regenspezialist im Regen *verbessert*, ergibt r = +0,16 bei 22 auswertbaren Fahrern: das falsche Vorzeichen und statistisch nichts. Bei fünf Regenrennen ist der Effekt schlicht nicht messbar. Rechnerisch müsste er groß sein – zwischen `wet_skill` 40 und 90 liegen bei halber Nässe rund 3,7 Sekunden je Runde. Entweder überdeckt ihn die Reifenwahl, oder die Stichprobe ist zu klein. **Ungeklärt.**
 * **Rote Flagge, Kollisionen und Strafen fehlen.** Konzept 12.4 nennt sie neben dem Safety Car; umgesetzt ist bisher nur die Neutralisierung.
 * **Die Temperatur wird gewürfelt und nirgends gelesen.** Sie steht im Profil und im Wetterobjekt, wirkt aber weder auf Reifenfenster noch auf Zuverlässigkeit.
 * **Sprints gibt es nur in Tier 1.** Die anderen Formate haben `sprint_weekends_per_season = 0`; ob Tier 2 und 3 welche bekommen sollen, ist eine offene Designfrage.
 * **Wetter bleibt für 99 % der Rennen unsichtbar** – die Folge der Entscheidung aus 22.2. Sobald die Light-Sim Wetter bekommen soll, ist ihre Ergebnisverteilung neu einzumessen.
+
+### 22.7 Nachtrag: warum `wet_skill` zunächst nichts bewirkte
+
+Der erste Messlauf ergab für die Frage *„verbessert sich ein Regenspezialist im Regen?"* r = **+0,16** – das falsche Vorzeichen. Der Verdacht lag auf der Stichprobe: fünf Regenrennen sind wenig. Es war aber ein Fehler in der Verkabelung.
+
+`season.ts` führt eine Liste `DRIVER_KEYS`, die bestimmt, welche Fahrerwerte überhaupt aus `driver_state` in die Simulation geladen werden. **`wet_skill` stand nicht darin.** Die Rennsimulation las `entry.attributes.wet_skill ?? 50` – und bekam ausnahmslos den Rückfallwert. Jeder Fahrer war im Regen exakt gleich gut.
+
+Die Liste ist nicht zu verwechseln mit der gleichnamigen in `scoring.ts`: Die entscheidet, was in die Sektorzeit *eingeht*, diese hier, was überhaupt *ankommt*. Ein Wert, der hier fehlt, ist in der Sim schlicht `undefined` – und weil die Formel einen Rückfallwert hatte, fiel es nicht auf.
+
+Mit `wet_skill` in der Liste, gemessen über zehn rundenweise gefahrene Saisons (87 Regenrennen, 51 auswertbare Fahrer, dieselbe Welt und dieselbe Stichprobe):
+
+| | r(`wet_skill`, Platzveränderung im Regen) |
+| :--- | ---: |
+| ohne `wet_skill` in `DRIVER_KEYS` | **+0,19** |
+| mit `wet_skill` | **−0,57** |
+
+In Plätzen: Das untere Drittel der Tier-1-Fahrer (`wet_skill` 69–78) verliert im Regen im Mittel 0,84 Plätze, das obere Drittel (82–92) gewinnt 0,62 – ein Unterschied von **1,47 Plätzen**. Regen ist damit tatsächlich die Chance des Außenseiters, wie Konzept 12.5 es vorsieht.
+
+Die Korrektur verändert **kein einziges Trockenergebnis**: In den Ligen 2 bis 10, die als Light-Sim laufen, sind 0 von 5.008 Positionen der Saison 20 abgewichen. Die Wertung selbst liest weiter nur die sechs Sektorwerte aus `scoring.ts`.
+
+**Lehre für die Liste:** Jeder neue Wert, den eine Formel liest, muss in `DRIVER_KEYS` nachgezogen werden. Ein Rückfallwert macht den fehlenden Eintrag unsichtbar – die Sim rechnet weiter, nur eben mit einer Konstanten.
