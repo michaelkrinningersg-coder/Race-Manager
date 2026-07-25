@@ -1573,3 +1573,140 @@ Der Stadtkurs bleibt ein Stadtkurs: Bei Überholbarkeit 0,92 bringt auch ein deu
 **Eine Nebenwirkung, bewusst in Kauf genommen:** Die Überholquote insgesamt fällt von 37,2 auf 32,4 Prozent. Der Grund ist eine Schiefe in den Daten – die Differenz aus `overtaking` und `defending` liegt im Mittel bei −7,2, der Term zieht also im Schnitt ab. Auf das Renngeschehen schlägt das nicht durch: Die Positionswechsel gegenüber dem Start bleiben bei 2,89 je Fahrer und Rennen (vorher 2,95). Es verschiebt sich das Verhältnis von gelungenen zu abgewehrten Angriffen, nicht die Bewegung im Feld.
 
 Offen bleibt, **warum die Differenz systematisch negativ ist**. Entweder liegen die `defending`-Werte in `drivers.csv` durchgängig über den `overtaking`-Werten, oder die Paarung ist verzerrt, weil ein Zweikampf nur entsteht, wenn das schnellere Auto hinten liegt. Ungeklärt.
+
+---
+
+## 23. M7 Teil 2: Zwischenfälle
+
+Der Rest von Konzept 12.4 – Fahrfehler, Dreher, Kollisionen, Schäden, Strafen – und die Temperatur, die seit M7 Teil 1 gewürfelt und nirgends gelesen wurde.
+
+### 23.1 Umfang: alles außer der roten Flagge
+
+Getroffene Entscheidung. Die rote Flagge ist der einzige Posten aus 12.4, der nicht gebaut wurde – nicht aus Aufwandsgründen, sondern weil sie **kein Ereignis in der Rundenschleife ist, sondern ein Eingriff in sie**: Sie unterbricht das Rennen, friert die Reihenfolge ein, erlaubt einen Reifenwechsel zum Nulltarif und verschiebt damit die Renndistanz, an der Reifenverschleiß, Spritlast und Stoppplanung eingemessen sind. Alles andere hängt sich an Stellen, die schon stehen.
+
+### 23.2 `tracks.risk` – die Streckentücke als eigene Spalte
+
+Konzept 12.4 nennt die Streckentücke als Faktor des Fahrfehlers, `tracks.csv` hatte sie nicht. Zur Wahl standen eine neue handgepflegte Spalte, eine Ableitung aus `safety_car_rate`/`elevation_change_m`/`overtaking_difficulty` oder `safety_car_rate` direkt. Gewählt: **eigene Spalte**, 30 Werte von Hand.
+
+Der Grund ist nicht Genauigkeit, sondern Einmessbarkeit. Wer die Tücke an die Safety-Car-Rate koppelt, macht beide Größen zu einer: Eine Strecke mit vielen Unterbrechungen und wenigen Ausritten kann es dann nicht mehr geben, und keiner der beiden Werte lässt sich je gegen den anderen kalibrieren.
+
+`risk` beantwortet **nicht**, wie oft ein Fehler passiert, sondern was er kostet. Krakowia steht bei 0,28 („technisch anspruchsvoll, ohne besondere Tücke"), Vieux Port bei 0,88.
+
+### 23.3 Was im Rennen passiert
+
+**Fahrfehler.** Je Runde und Auto, aus `consistency`, `pressure` und der Nässe. Der weit überwiegende Teil ist ein Verbremser (0,35–1,2 s). `SPIN_SHARE`, gedämpft durch `car_control`, macht daraus einen Dreher (4–9 s); `CRASH_SHARE`, gehoben durch `risk`, aus dem Dreher einen Ausritt. Ein Dreher hinterlässt in 45 % der Fälle eine Flatstelle.
+
+**Kollisionen.** Der Zweikampf hat einen dritten Ausgang neben *vorbei* und *hängengeblieben*. Die Wahrscheinlichkeit hängt an der Aggressivität beider Beteiligter, an `risk` und an der Nässe. Folgen: Zeitverlust auf beiden Seiten, Frontflügelschaden beim Angreifer, Reifenschaden beim Vordermann, bei einer schweren Kollision der Ausfall eines oder beider Autos.
+
+**Schäden** kosten jede Runde Zeit (Flügel 1,1 s, Reifen 1,4 s), bis die Box sie repariert – und genau darin liegt die Entscheidung: sofort rein und die Position aufgeben, oder weiterfahren. Der Schaden ist der dritte Anlass für einen Stopp neben Wetter und Plan; er hat Vorrang vor dem Plan, aber nicht vor dem Wetter, weil man beides in einem Stopp erledigt. Der Chefstratege bestimmt, wie schnell die Box reagiert.
+
+**Strafen** wirken erst in der Endwertung. Die Rundenzeiten bleiben unberührt – eine Strafe ist keine verlorene Zeit auf der Strecke, sondern eine Zeile im Ergebnisprotokoll. Drei Quellen: Kollisionsverschulden (5 s, schwer 10 s), Streckenbegrenzung (vierte Verwarnung, 5 s), Boxengassentempo (5 s).
+
+### 23.4 Die Temperatur wirkt in zwei Richtungen
+
+Getroffene Entscheidung: **Reifen und Zuverlässigkeit**. Bezugspunkt ist 22 °C; der Hitzefaktor läuft von −1 bis +1.
+
+* Hitze: Verschleiß × (1 + 0,28 · Hitze), Ausfallrate × (1 + 0,4 · Hitze) – der Hitzefaktor genau wie in Konzept 12.4 formuliert.
+* Kälte: bis zu 0,8 s in der ersten Runde eines Stints, halb so viel in der zweiten.
+
+Der zweite Teil war nicht gefordert, macht die Wirkung aber erst zu einer Entscheidung: Ohne ihn wäre kalt immer besser. So ist ein zusätzlicher Stopp an einem kalten Tag teurer, und beide Enden der Skala kosten etwas.
+
+Gemessen über 420 rundenweise gefahrene Rennen, nach mittlerer Streckentemperatur:
+
+| Temperatur | Starts | Reifenverlust | Stopps |
+| ---: | ---: | ---: | ---: |
+| 16 °C | 1980 | 18,6 s | 1,59 |
+| 20 °C | 3960 | **16,0 s** | 1,50 |
+| 24 °C | 2640 | 22,9 s | 1,69 |
+| 28 °C | 660 | 23,9 s | 2,36 |
+
+Das Minimum liegt am Auslegungspunkt, nicht am kalten Ende – die U-Form ist der Beleg, dass beide Richtungen wirken.
+
+### 23.5 Der Zweikampf fand bis v0.17.0 nur halb statt
+
+Beim Einbau gefunden, kein Teil des Auftrags. Die Rundenschleife läuft in Eintragsreihenfolge über die Autos, der Abstand zum Vordermann wurde aber gegen dessen `totalMs` gerechnet – und das enthielt bereits die laufende Runde, **wenn der Vordermann in der Schleife früher an der Reihe war**. Der Abstand wurde dann negativ, die Bedingung `gapS > 0` scheiterte, der Zweikampf fiel aus.
+
+Betroffen war rund die Hälfte aller Paarungen, und zwar nicht zufällig, sondern nach Eintragsreihenfolge – also systematisch dieselben. Behoben durch eine Momentaufnahme des Rennstands zu Rundenbeginn. Die gemessene Zahl der Zweikämpfe stieg von rund 75 auf rund 148 je Rennen.
+
+Dieselbe Klasse wie die Befunde aus 22.7 und 22.8, aber eine andere Ursache: kein fehlender Wert, sondern ein Wert, der zum Zeitpunkt des Lesens schon veraltet war.
+
+### 23.6 Zwei Messungen, die zunächst das falsche Vorzeichen zeigten
+
+**Streckenbegrenzung, gebaut als Folge des Fahrfehlers: feuerte in 420 Rennen genau einmal.** Es gibt rund sieben Fahrfehler je Rennen im ganzen Feld, und vier davon beim selben Fahrer kommen nie zusammen. Der Aufhänger war falsch: Einen Randstein zu weit mitzunehmen ist kein Fehler, sondern der Normalfall – er kostet nichts, bis er das vierte Mal passiert. Als eigener Wurf je Runde neu gebaut, gewichtet mit `1 − risk` und der Aggressivität.
+
+**Aggressivität gegen Kollisionen: r = −0,52, also genau verkehrt herum.** Ursache war dieselbe wie beim Zweikampf in 22.9 – eine Vermengung. Eine Kollision schrieb zwei identische Zeilen, die des Angreifers und die des Getroffenen. Auf den Angreifer wirkt seine Aggressivität mit vollem Gewicht, auf den Vordermann nur mit einem Drittel; in einer gemeinsamen Zahl heben sich beide auf. Mit `collision` und `collision_hit` getrennt und je Zweikampf statt je Start gemessen:
+
+| Aggressivität | Zweikämpfe | Kollisionen | Quote |
+| ---: | ---: | ---: | ---: |
+| 65 | 3 498 | 55 | 1,57 % |
+| 75 | 25 059 | 364 | 1,45 % |
+| 85 | 14 456 | 249 | 1,72 % |
+| 90 | 2 805 | 51 | 1,82 % |
+
+r = **+0,75**. Der Effekt ist klein – 16 % relativ über die ganze Spanne – aber er hat das richtige Vorzeichen und ist die schwächste der vier Attributwirkungen.
+
+### 23.7 Gemessen über 420 rundenweise gefahrene Rennen
+
+| Ereignis | je Rennen |
+| :--- | ---: |
+| Verkehr | 147,7 |
+| Überholmanöver | 76,4 |
+| Safety Car (Runden) | 25,2 |
+| Boxenstopps gesamt | 35,9 |
+| Fahrfehler | 7,1 |
+| Kollisionen | 3,7 |
+| technische Ausfälle | 1,3 |
+| Ausritte | 1,0 |
+| Strafe Streckenbegrenzung | 0,9 |
+| Dreher | 0,6 |
+
+Zeitstrafen: 3,3 je Rennen, 15,2 % aller Ergebnisse. Attributwirkung, je Start:
+
+| | r | Spanne |
+| :--- | ---: | :--- |
+| `consistency` → Fahrfehler | **−0,93** | 0,434 → 0,311 |
+| `pressure` → Fahrfehler | **−0,97** | 0,448 → 0,342 |
+| `car_control` → Dreher | **−0,75** | 0,080 → 0,063 |
+| `aggression` → Kollisionen | **+0,75** | 1,57 % → 1,82 % je Zweikampf |
+
+Die Streckentücke wirkt monoton über die ganze Spanne, und zwar in beide Richtungen gegenläufig – genau wie vorgesehen:
+
+| `risk` | Ausritte je Start | Streckenbegrenzung je Start |
+| ---: | ---: | ---: |
+| 0,3 | 0,021 | 0,100 |
+| 0,5 | 0,053 | 0,039 |
+| 0,7 | 0,059 | 0,002 |
+| 0,9 | **0,130** | **0,000** |
+
+Auf Vieux Port gibt es keine Track-Limit-Strafen, weil hinter dem Randstein kein Asphalt steht, sondern Beton.
+
+### 23.8 Die Light-Sim musste nachziehen
+
+Die Zwischenfälle hoben die Ausfallquote der Tick-Sim in Tier 1 von 6,1 auf **10,6 %**, während die Light-Sim bei 6,0 % blieb. Vier Wege standen zur Wahl; getroffene Entscheidung: **die Light-Sim anheben**.
+
+Sie fährt keine Runden und kann eine Kollision nicht simulieren – sie bildet nur deren Häufigkeit nach, über einen zweiten Ausfallgrund, der als Gegenwahrscheinlichkeit mit dem technischen verknüpft wird. Er hängt an denselben zwei Größen wie in der Tick-Sim, `risk` und `consistency`. Ein Wert, der nur die Quote trifft, wäre billiger gewesen; er hätte aber bedeutet, dass ein unkonzentrierter Fahrer auf einem Mauerkurs genauso sicher ankommt wie ein konstanter auf einer Piste mit Auslauf – und damit die Aussage des Features in neun von zehn Ligen wieder kassiert.
+
+Ergebnis Tier 1: Light-Sim **10,7 %**, Tick-Sim **10,3 %**. Über alle zehn Ligen steigt die Quote von 15,9 auf 20,4 Prozent und staffelt sich weiter sauber am Ligenniveau (Tier 1: 10,6 %, Tier 10: 26,6 %).
+
+Das ist die erste Änderung dieses Projekts, die die Light-Sim selbst anfasst – bis hierher galt sie als eingemessener Bezugspunkt, den nur die Tick-Sim umkreist. Der Preis ist benannt: Die Kalibrierung aus M1 bis M5 ist an dieser einen Stelle nicht mehr die von damals.
+
+### 23.9 Nebenbefund: der Mobilitätsrückgang aus 21.8 ist behoben
+
+M6 hatte die Zahl der Teams mit einer Ligenspanne von mindestens zwei von 25 auf 15 gedrückt, mit der unbewiesenen Vermutung, dass Sponsoren und Preisgeld beide am Vorjahresergebnis hängen und den Status quo verstärken. Mit den Zwischenfällen:
+
+| | vor M6 | nach M6 | jetzt |
+| :--- | ---: | ---: | ---: |
+| Teams mit Ligenspanne ≥ 2 | 25 | 15 | **25** |
+| Aufstiege über 20 Saisons | 291 | 278 | **287** |
+
+Damit ist die Vermutung aus 21.8 zumindest im Ergebnis bestätigt: Der Rückgang war eine Varianzfrage, keine Strukturfrage. M6 hatte das Rauschen aus den Tabellen genommen, indem es Einnahmen an Ergebnisse koppelte; die Zwischenfälle geben es zurück. Ein Rennen, in dem ein Viertel des Feldes ausfallen kann, lässt sich nicht allein über das Budget gewinnen.
+
+Was das **nicht** beweist: dass die Kopplung von Sponsoren und Preisgeld an das Vorjahr richtig kalibriert ist. Sie ist nur nicht mehr die bindende Schranke.
+
+### 23.10 Was offen bleibt
+
+* **Rote Flagge** – bewusst nicht gebaut (23.1).
+* **Kollisionsstrafen bei Ausfall** verfallen. Eine Startplatzstrafe im nächsten Rennen wäre ein eigenes Regelwerk und gehört nicht in die Rennsimulation.
+* **3,3 Zeitstrafen je Rennen** sind am oberen Rand des Plausiblen. Der Wert hängt fast vollständig an der Kollisionsquote von 3,7; beide sind zusammen zu kalibrieren, wenn sie kalibriert werden.
+* **Die Differenz aus `overtaking` und `defending` ist weiter systematisch −7,2** (22.10). Unverändert ungeklärt.
+* `w_newgen`, `w_sponsor`, `w_fitness`, `w_morale` haben nach wie vor keinen Leser.
