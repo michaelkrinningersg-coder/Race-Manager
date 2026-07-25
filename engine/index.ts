@@ -1,5 +1,5 @@
 /**
- * M1: eine komplette Saison ueber alle zehn Ligen.
+ * Saisonlauf: M1 (eine Saison) und M2 (Auf-/Abstieg ueber beliebig viele).
  *
  * Aufruf:
  *   npm run season                    # Saison 1, schreibt build/savegame.db
