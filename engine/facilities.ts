@@ -14,6 +14,7 @@
  */
 
 import type { Database } from './savegame.js';
+import { playerTeam, withoutPlayer } from './player.js';
 
 export interface Facilities {
   windtunnel: number;
@@ -407,6 +408,11 @@ export function planInvestments(db: Database, season: number): FacilitySummary {
     )
     .all(season) as { team_id: number; tier: number; ai_archetype: string }[];
 
+  // Ueber den Ausbau des Spielerteams entscheidet der Spieler (Konzept 14.2).
+  // forceSales weiter unten gilt weiterhin fuer alle: Ein Zwangsverkauf ist
+  // keine Entscheidung, sondern die Folge einer leeren Kasse.
+  const building = withoutPlayer(teams, playerTeam(db));
+
   const setLevel = db.prepare(
     'UPDATE team_facilities SET level = ? WHERE team_id = ? AND season = ? AND facility_key = ?',
   );
@@ -418,7 +424,7 @@ export function planInvestments(db: Database, season: number): FacilitySummary {
   const summary: FacilitySummary = { upgrades: 0, invested: 0, sales: 0, recovered: 0 };
 
   const run = db.transaction(() => {
-    for (const team of teams) {
+    for (const team of building) {
       const owned = levels.get(team.team_id);
       if (!owned) continue;
 

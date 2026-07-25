@@ -14,6 +14,7 @@ import type { Database } from './savegame.js';
 import { createRng, gaussian, seedFrom } from './rng.js';
 import { loadPayoutRules, payoutFor } from './finance.js';
 import { facilityValues, loadFacilityTypes, loadLevels } from './facilities.js';
+import { playerTeam, withoutPlayer } from './player.js';
 
 /**
  * Anteil der Ausschuettung, den ein Team in seine beiden Stammfahrer steckt.
@@ -510,10 +511,14 @@ export function runMarket(db: Database, season: number): CareerSummary {
       number
     >[]).map((row) => [row.tier, row.min_superlicence_points]),
   );
-  const teams = db.prepare('SELECT team_id, tier FROM team_seasons WHERE season = ?').all(season) as {
-    team_id: number;
-    tier: number;
-  }[];
+  // Die Cockpits des Spielerteams besetzt der Spieler (Konzept 14.2).
+  const teams = withoutPlayer(
+    db.prepare('SELECT team_id, tier FROM team_seasons WHERE season = ?').all(season) as {
+      team_id: number;
+      tier: number;
+    }[],
+    playerTeam(db),
+  );
 
   type StateRow = Record<string, number | string | null>;
   const core = ['pace', 'qualifying', 'braking', 'cornering'];

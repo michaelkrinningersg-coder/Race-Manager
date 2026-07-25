@@ -14,6 +14,7 @@
 
 import type { Database } from './savegame.js';
 import { createRng, seedFrom } from './rng.js';
+import { playerTeam, withoutPlayer } from './player.js';
 
 /** Bezugslaenge fuer Podest- und Siegvorgaben (siehe sponsors.csv). */
 const REFERENCE_RACES = 16;
@@ -104,6 +105,12 @@ export function assignSponsors(db: Database, season: number): SponsorSummary {
     field: number;
   }[];
 
+  // Seine Sponsoren sucht sich der Spieler selbst (Konzept 14.2). Wichtig fuer
+  // die Ausschliesslichkeit: Sein Titelsponsor blockiert den Platz in der Liga
+  // trotzdem - deshalb faellt er erst aus der Vergabeschleife, nicht aus den
+  // laufenden Vertraegen.
+  const negotiating = withoutPlayer(teams, playerTeam(db));
+
   // Laufende Vertraege aus der Vorsaison.
   const running = new Map<string, Record<string, number | string>>();
   for (const row of db
@@ -143,7 +150,7 @@ export function assignSponsors(db: Database, season: number): SponsorSummary {
       takenByTier.set(tier, set);
     }
 
-    for (const team of teams) {
+    for (const team of negotiating) {
       const cap = costCaps.get(team.tier) ?? 0;
       const taken = takenByTier.get(team.tier) ?? new Set<string>();
       takenByTier.set(team.tier, taken);

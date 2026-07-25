@@ -78,7 +78,10 @@ CREATE TABLE game_state (
   id             INTEGER PRIMARY KEY CHECK (id = 1),
   current_season INTEGER NOT NULL,
   current_week   INTEGER NOT NULL,
-  world_seed     INTEGER NOT NULL
+  world_seed     INTEGER NOT NULL,
+  -- Team des Spielers (Konzept 14.2). NULL heisst: keine Karriere, die Welt
+  -- laeuft vollstaendig unter KI - so entsteht die Auslieferwelt.
+  player_team_id INTEGER REFERENCES teams(team_id)
 );
 
 CREATE TABLE lap_records (

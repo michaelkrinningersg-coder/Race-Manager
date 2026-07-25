@@ -18,6 +18,7 @@ import { createRng, gaussian, seedFrom } from './rng.js';
 import { loadStaffValues } from './staff.js';
 import { facilityValues, loadFacilityTypes, loadLevels } from './facilities.js';
 import { atrPenalties } from './costcap.js';
+import { playerTeam, withoutPlayer } from './player.js';
 
 /**
  * Ein Team ganz ohne Fortschrittsbremse gewinnt hoechstens diesen Anteil des
@@ -109,6 +110,14 @@ export function developParts(
     )
     .all(fromSeason) as Record<string, number | string>[];
 
+  // Das Spielerteam entwickelt nicht die KI (Konzept 14.2): Es faellt aus der
+  // Liste, die die Entwicklungsschleife unten abarbeitet. Sein Auto bleibt
+  // damit stehen, bis der Spieler seine Ressourcen verteilt hat.
+  const developing = withoutPlayer(
+    previous as unknown as { team_id: number }[],
+    playerTeam(db),
+  ) as unknown as Record<string, number | string>[];
+
   const target = new Map(
     (db.prepare('SELECT team_id, tier FROM team_seasons WHERE season = ?').all(toSeason) as {
       team_id: number;
@@ -157,7 +166,7 @@ export function developParts(
   const run = db.transaction(() => {
     db.prepare('DELETE FROM car_parts WHERE season = ?').run(toSeason);
 
-    for (const row of previous) {
+    for (const row of developing) {
       const teamId = row.team_id as number;
       const oldTier = row.tier as number;
       const newTier = target.get(teamId);
