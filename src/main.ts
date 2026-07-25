@@ -4,6 +4,7 @@ import { openWorld, type LoadProgress } from './data/db';
 import { leagues, worldInfo, type League, type WorldInfo } from './data/queries';
 import { renderConcept } from './views/concept';
 import { renderDriver } from './views/driver';
+import { renderEditor } from './views/editor';
 import { renderHall } from './views/hall';
 import { renderLeague } from './views/league';
 import { renderPyramid } from './views/pyramid';
@@ -35,6 +36,7 @@ type Route =
   | { view: 'driver'; driverId: number }
   | { view: 'race'; tier: number; round: number; leg: number }
   | { view: 'records' }
+  | { view: 'editor'; file: string }
   | { view: 'hall' }
   | { view: 'concept' };
 
@@ -69,6 +71,7 @@ function parseRoute(parts: string[]): Route {
       return { view: 'race', tier, round, leg: Number.isInteger(leg) ? leg : 1 };
     }
   }
+  if (head === 'editor') return { view: 'editor', file: a ?? '' };
   if (head === 'rekorde') return { view: 'records' };
   if (head === 'ruhmeshalle') return { view: 'hall' };
   if (head === 'konzept') return { view: 'concept' };
@@ -103,6 +106,8 @@ function renderSidebar(context: Context, route: Route): string {
          href="${withSeason('#/rekorde', context.season)}">Rekorde</a>
       <a class="nav-item nav-item--wide${route.view === 'hall' ? ' is-active' : ''}"
          href="${withSeason('#/ruhmeshalle', context.season)}">Ruhmeshalle</a>
+      <a class="nav-item nav-item--wide${route.view === 'editor' ? ' is-active' : ''}"
+         href="${withSeason('#/editor', context.season)}">Editor</a>
       <a class="nav-item nav-item--wide${route.view === 'concept' ? ' is-active' : ''}"
          href="${withSeason('#/konzept', context.season)}">Konzept</a>
     </nav>`;
@@ -146,6 +151,8 @@ function renderMain(context: Context, route: Route): string {
         route.leg,
         context.info,
       );
+    case 'editor':
+      return renderEditor(route.file);
     case 'records':
       return renderRecords(context.db, context.season, context.info);
     case 'hall':
