@@ -1,6 +1,6 @@
 {
   "name": "race-manager",
-  "version": "0.10.0",
+  "version": "0.20.0",
   "private": true,
   "description": "APEX - Racing Director: Motorsport-Manager mit 10-stufiger Ligenpyramide",
   "type": "module",
@@ -11,12 +11,16 @@
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.tools.json",
     "bootstrap": "tsx tools/bootstrap/index.ts",
     "bootstrap:check": "tsx tools/bootstrap/index.ts --check --partial",
-    "season": "tsx engine/index.ts"
+    "season": "tsx engine/index.ts",
+    "publish": "tsx tools/publish/index.ts",
+    "world": "npm run bootstrap && npm run season -- --seasons 20 --tick-tier 1 --tick-from 20 --quiet && npm run publish"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.11",
     "@types/node": "^22.9.0",
+    "@types/sql.js": "^1.4.11",
     "better-sqlite3": "^11.5.0",
+    "sql.js": "^1.14.1",
     "tsx": "^4.19.2",
     "typescript": "^5.6.3",
     "vite": "^5.4.10"

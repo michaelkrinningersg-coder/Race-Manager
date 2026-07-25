@@ -58,6 +58,11 @@ Code, Bezeichner und Dateinamen auf Englisch.
 * `data/*.csv` – die Stammdaten selbst; sie sind die Wahrheit, die Datenbank ist Erzeugnis
 * `tools/bootstrap/` – liest, prüft und überführt die CSVs nach `build/world_data.db`
 * `engine/` – Saison-Engine: Light-Sim aller zehn Ligen, Ergebnisse und Tabellen ins Savegame
-* `src/data/leagues.ts` – Stammdaten der zehn Ligen
-* `src/data/world.ts` – deterministischer Weltgenerator + Light-Sim einer Saison
-* `src/views/` – Ansichten des Ligen-Explorers
+* `tools/publish/` – bereitet das Savegame zur Auslieferdatei `public/apex.db` auf
+* `src/data/db.ts` – laedt die Auslieferdatei und fragt sie per sql.js im Browser ab
+* `src/data/queries.ts` – alle Abfragen der Webansicht an einer Stelle
+* `src/views/` – Ansichten: Pyramide, Liga, Team, Fahrerakte, Rennen
+
+Die Webansicht hat keinen eigenen Weltgenerator mehr. Bis v0.13 lag in
+`src/data/world.ts` eine zweite, voellig unabhaengige Simulation - sichtbar war
+damit die falsche. Sie ist entfernt; `npm run world` erzeugt die echte Welt.

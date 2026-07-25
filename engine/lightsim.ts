@@ -35,9 +35,21 @@ export interface WeekendContext {
   profile: SectorProfile[];
   overtakingDifficulty: number;
   dnfBaseRate: number;
+  /**
+   * Streckentuecke 0-1 (tracks.csv). Sie speist hier ausschliesslich die
+   * Zwischenfallquote - Rundenzeiten kennt die Light-Sim nicht.
+   */
+  risk: number;
   legCount: number;
   reverseGridTopN: number;
   points: Map<number, number>;
+  /**
+   * Welcher Lauf der Sprint ist (Konzept 11.1). Ohne Angabe kein Sprint.
+   * Der Sprint zaehlt nach einer eigenen, flacheren Skala und vergibt weder
+   * Pole- noch Rundenbonus - beides gehoert dem Hauptrennen.
+   */
+  sprintLeg?: number;
+  sprintPoints?: Map<number, number>;
   bonusPole: number;
   bonusFastestLap: number;
   fastestLapMaxPosition: number;
@@ -53,6 +65,39 @@ export interface ResultRow {
   points: number;
   pole: boolean;
   fastestLap: boolean;
+  /**
+   * Zeitstrafe in Sekunden (Konzept 12.4). Optional, weil nur die Tick-Sim sie
+   * kennt - die Light-Sim rechnet ohne Zwischenfaelle und laesst sie offen.
+   */
+  penaltyS?: number;
+}
+
+/**
+ * Ausfaelle durch Zwischenfaelle (Konzept 12.4).
+ *
+ * Die Light-Sim faehrt keine Runden und kann Kollisionen nicht simulieren - sie
+ * bildet nur deren Haeufigkeit nach. Ohne diesen Posten fiel sie mit 6,0 %
+ * gegen 10,6 % der Tick-Sim aus: In derselben Saison waeren Ligen mit und ohne
+ * Rundenverlauf zwei verschiedene Sportarten gewesen.
+ *
+ * Eingemessen an der Tick-Sim: dort endeten 4,5 % aller Starts im Ausritt oder
+ * in einer schweren Kollision. Der Grundwert ergibt genau das bei mittlerer
+ * Streckentuecke und mittlerer Konstanz.
+ */
+const INCIDENT_DNF_BASE = 0.057;
+
+/**
+ * Ausfallwahrscheinlichkeit durch einen Zwischenfall.
+ *
+ * Haengt an denselben zwei Groessen wie in der Tick-Sim - Streckentuecke und
+ * Konstanz des Fahrers. Ein Wert, der nur die Quote trifft, waere billiger zu
+ * haben gewesen; er haette aber bedeutet, dass ein unkonzentrierter Fahrer auf
+ * einem Mauerkurs genauso sicher ankommt wie ein konstanter auf einer Piste
+ * mit Auslauf - und damit die Aussage des Features in neun von zehn Ligen
+ * wieder kassiert.
+ */
+function incidentProbability(risk: number, consistency: number): number {
+  return INCIDENT_DNF_BASE * (0.4 + risk) * (1.7 - consistency / 100);
 }
 
 interface Rated extends Entry {
@@ -69,7 +114,12 @@ function rate(entries: Entry[], context: WeekendContext): Rated[] {
       ...entry,
       base: combinedScore(car, driver),
       sigma: noiseSigma(entry.attributes.consistency ?? 60),
-      dnfChance: dnfProbability(context.dnfBaseRate, entry.reliability),
+      // Technik und Zwischenfall sind zwei Ursachen, aber ein Ergebnis. Als
+      // Gegenwahrscheinlichkeit verknuepft, damit die Summe nie ueber 1 laeuft.
+      dnfChance:
+        1 -
+        (1 - dnfProbability(context.dnfBaseRate, entry.reliability)) *
+          (1 - incidentProbability(context.risk, entry.attributes.consistency ?? 60)),
     };
   });
 }
@@ -146,9 +196,11 @@ function runLeg(
 
   const rows: ResultRow[] = running.map((item, index) => {
     const position = index + 1;
-    let points = context.points.get(position) ?? 0;
+    const isSprint = context.sprintLeg === leg;
+    const table = isSprint ? (context.sprintPoints ?? context.points) : context.points;
+    let points = table.get(position) ?? 0;
     const isPole = item.entry.driverId === poleDriver;
-    const isFastest = item.entry.driverId === fastestDriver;
+    const isFastest = !isSprint && item.entry.driverId === fastestDriver;
     if (isPole) points += context.bonusPole;
     if (isFastest) points += context.bonusFastestLap;
     return {

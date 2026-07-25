@@ -7,17 +7,16 @@
  *   npm run season -- --seed 20260724
  *   npm run season -- --world <pfad> --out <pfad>
  *   npm run season -- --tick-tier 1   # Tier 1 rundenweise statt Light-Sim
+ *   npm run season -- --tick-tier 1 --tick-from 20   # nur in Saison 20
  *   npm run season -- --quiet         # nur die Kennzahlen, keine Tabellen
  */
 
 import { existsSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createSavegame } from './savegame.js';
-import { seedCarParts } from './car.js';
-import { applyFinances, buildStandings, prepareSeason, runSeason } from './season.js';
-import { resolveMovements } from './promotion.js';
-import { developParts } from './development.js';
+import { createSavegame } from './savegame.node.js';
+import type { Database } from './db.js';
+import { advanceSeason, emptyReport } from './loop.js';
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -27,6 +26,13 @@ interface Options {
   seed: number;
   seasons: number;
   tickTier: number;
+  /**
+   * Ab welcher Saison die Tick-Sim greift. Der Rundenverlauf ist mit Abstand
+   * die groesste Tabelle - eine Tier-1-Saison bringt rund 28.000 Zeilen, zwanzig
+   * davon sprengen jede Auslieferdatei. Fuer die Webansicht laeuft die Tick-Sim
+   * deshalb nur in der Schlusssaison.
+   */
+  tickFrom: number;
   quiet: boolean;
 }
 
@@ -37,6 +43,7 @@ function parseArgs(argv: string[]): Options {
     seed: 20260724,
     seasons: 1,
     tickTier: 0,
+    tickFrom: 1,
     quiet: false,
   };
   for (let i = 0; i < argv.length; i += 1) {
@@ -47,6 +54,7 @@ function parseArgs(argv: string[]): Options {
     else if (arg === '--seed') options.seed = Number(argv[++i]);
     else if (arg === '--seasons') options.seasons = Number(argv[++i]);
     else if (arg === '--tick-tier') options.tickTier = Number(argv[++i]);
+    else if (arg === '--tick-from') options.tickFrom = Number(argv[++i]);
     else {
       console.error(`Unbekannte Option: ${arg}`);
       process.exit(2);
@@ -55,7 +63,7 @@ function parseArgs(argv: string[]): Options {
   return options;
 }
 
-function printLeagueTable(db: ReturnType<typeof createSavegame>, tier: number, season: number): void {
+function printLeagueTable(db: Database, tier: number, season: number): void {
   const league = db.prepare('SELECT name, short_name FROM leagues WHERE tier = ?').get(tier) as {
     name: string;
     short_name: string;
@@ -116,47 +124,57 @@ function main(): void {
   console.log(`  Savegame: ${options.savePath}`);
   console.log(`  Seed:     ${options.seed}`);
   console.log(`  Saisons:  ${options.seasons}`);
-  if (options.tickTier > 0) console.log(`  Tick-Sim: Tier ${options.tickTier}`);
+  if (options.tickTier > 0) {
+    console.log(
+      `  Tick-Sim: Tier ${options.tickTier}` +
+        (options.tickFrom > 1 ? ` ab Saison ${options.tickFrom}` : ''),
+    );
+  }
 
   const db = createSavegame(options.worldPath, options.savePath, options.seed);
 
   try {
     const started = process.hrtime.bigint();
-    let totalWeekends = 0;
-    let totalResults = 0;
-    let totalDnfs = 0;
+    const total = emptyReport(0);
 
     for (let season = 1; season <= options.seasons; season += 1) {
-      prepareSeason(db, season);
-      // Nur die erste Saison wird aus Prestige und Deckel abgeleitet. Danach
-      // traegt jedes Team sein gewachsenes Auto weiter (Konzept 6.3).
-      if (season === 1) seedCarParts(db, season);
-      else developParts(db, season - 1, season);
-
-      const summary = runSeason(db, season, options.tickTier);
-      buildStandings(db, season);
-      applyFinances(db, season);
-      const movements = resolveMovements(db, season);
-
-      totalWeekends += summary.weekends;
-      totalResults += summary.results;
-      totalDnfs += summary.dnfs;
+      const tickTier = season >= options.tickFrom ? options.tickTier : 0;
+      const report = advanceSeason(db, season, tickTier);
+      for (const key of Object.keys(total) as (keyof typeof total)[]) {
+        if (key !== 'season') total[key] += report[key];
+      }
 
       console.log(
-        `\n  Saison ${season}: ${summary.weekends} Wochenenden, ${movements.promoted} Aufstiege, ` +
-          `${movements.relegated} Abstiege, ${movements.barrages} Barragen, ` +
-          `${movements.licenceDenied} Lizenz verweigert, ${movements.licenceLoss} Lizenzverlust`,
+        `\n  Saison ${season}: ${report.weekends} Wochenenden, ${report.promoted} Aufstiege, ` +
+          `${report.relegated} Abstiege, ${report.barrages} Barragen, ` +
+          `${report.licenceDenied} Lizenz verweigert, ${report.licenceLoss} Lizenzverlust`,
       );
-
-      db.prepare('UPDATE game_state SET current_season = ? WHERE id = 1').run(season);
     }
 
     const ms = Number(process.hrtime.bigint() - started) / 1e6;
-    console.log(`\n  Rennwochenenden gesamt: ${totalWeekends}`);
-    console.log(`  Einzelergebnisse:       ${totalResults}`);
+    console.log(`\n  Rennwochenenden gesamt: ${total.weekends}`);
+    console.log(`  Einzelergebnisse:       ${total.results}`);
     console.log(
-      `  Ausfaelle:              ${totalDnfs} (${((100 * totalDnfs) / totalResults).toFixed(1)} %)`,
+      `  Ausfaelle:              ${total.dnfs} (${((100 * total.dnfs) / total.results).toFixed(1)} %)`,
     );
+    console.log(`  Ruecktritte:            ${total.retired}`);
+    console.log(`  Newgens:                ${total.newgens}`);
+    console.log(`  Cockpitwechsel:         ${total.signings}`);
+    console.log(`  Unbesetzte Cockpits:    ${total.unfilled}`);
+    console.log(`  Ueber Budget besetzt:   ${total.overBudget}`);
+    console.log(`  Personal verpflichtet:  ${total.hired}`);
+    console.log(`  davon abgeworben:       ${total.poached}`);
+    console.log(
+      `  Anlagen ausgebaut:      ${total.upgrades} (${(total.invested / 1e6).toFixed(1)} Mio investiert)`,
+    );
+    console.log(
+      `  Zwangsverkaeufe:        ${total.sales} (${(total.recovered / 1e6).toFixed(1)} Mio erloest)`,
+    );
+    console.log(`  Sponsoren verpflichtet: ${total.sponsorsSigned}`);
+    console.log(
+      `  Ziele erfuellt/verfehlt:${total.sponsorsMet} / ${total.sponsorsMissed}`,
+    );
+    console.log(`  Deckelverstoesse:       ${total.capBreaches}`);
     console.log(`  Rechenzeit:             ${ms.toFixed(0)} ms`);
 
     if (!options.quiet) {

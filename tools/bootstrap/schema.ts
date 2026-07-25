@@ -67,6 +67,36 @@ export const PART_KEYS = [
 /** Die drei aerodynamischen Gruppen - sie tragen den gedrosselten Deckel. */
 export const AERO_PART_KEYS = ['front_wing', 'rear_wing', 'floor'] as const;
 
+/**
+ * Die Wirkungsspalten von staff_roles.csv. Jede einzelne summiert sich ueber
+ * alle acht Rollen auf 1.0 - der Validator prueft das hart. Damit ist jeder
+ * Personalwert ein sauberer gewichteter Mittelwert auf der 0-100-Skala.
+ */
+export const STAFF_WEIGHT_COLUMNS = [
+  ...PART_KEYS.map((key) => `w_${key}`),
+  'w_reliability',
+  'w_strategy',
+  'w_pit',
+  'w_feedback',
+  'w_morale',
+  'w_newgen',
+];
+
+/**
+ * Die Wirkungsspalten von facility_types.csv. Dieselbe Normierung wie beim
+ * Personal: jede Spalte summiert sich ueber alle acht Anlagen auf genau 1.0,
+ * damit der Infrastrukturwert einer Wirkung auf der 0-100-Skala bleibt.
+ */
+export const FACILITY_WEIGHT_COLUMNS = [
+  ...PART_KEYS.map((key) => `w_${key}`),
+  'w_reliability',
+  'w_feedback',
+  'w_driver_dev',
+  'w_newgen',
+  'w_sponsor',
+  'w_fitness',
+];
+
 /** Die 17 Fahrerattribute, je 0-100. */
 export const DRIVER_ATTRIBUTES = [
   'pace',
@@ -184,6 +214,51 @@ export const TABLES: TableSpec[] = [
     ],
   },
   {
+    file: 'staff_roles.csv',
+    table: 'staff_roles',
+    primaryKey: ['role_key'],
+    expectedRows: 8,
+    sortBy: ['sort_order'],
+    columns: [
+      { name: 'role_key', type: 'text', required: true, unique: true },
+      { name: 'name', type: 'text', required: true, unique: true },
+      { name: 'sort_order', type: 'int', required: true, min: 1, max: 8, unique: true },
+      { name: 'count_per_team', type: 'int', required: true, min: 1, max: 4 },
+      ...STAFF_WEIGHT_COLUMNS.map((name) => ({
+        name,
+        type: 'real' as const,
+        required: true,
+        min: 0,
+        max: 1,
+      })),
+      { name: 'salary_share', type: 'real', required: true, min: 0, max: 1 },
+      { name: 'flavour', type: 'text', required: true },
+    ],
+  },
+  {
+    file: 'facility_types.csv',
+    table: 'facility_types',
+    primaryKey: ['facility_key'],
+    expectedRows: 8,
+    sortBy: ['sort_order'],
+    columns: [
+      { name: 'facility_key', type: 'text', required: true, unique: true },
+      { name: 'name', type: 'text', required: true, unique: true },
+      { name: 'sort_order', type: 'int', required: true, min: 1, max: 8, unique: true },
+      { name: 'licence_checked', type: 'int', required: true, min: 0, max: 1 },
+      { name: 'upkeep_base', type: 'int', required: true, min: 0 },
+      { name: 'build_factor', type: 'real', required: true, min: 1, max: 10 },
+      ...FACILITY_WEIGHT_COLUMNS.map((name) => ({
+        name,
+        type: 'real' as const,
+        required: true,
+        min: 0,
+        max: 1,
+      })),
+      { name: 'flavour', type: 'text', required: true },
+    ],
+  },
+  {
     file: 'race_weekend_formats.csv',
     table: 'race_weekend_formats',
     primaryKey: ['format_id'],
@@ -203,6 +278,7 @@ export const TABLES: TableSpec[] = [
       { name: 'race_distance_pct', type: 'real', required: true, min: 0.2, max: 1 },
       { name: 'reverse_grid_top_n', type: 'int', required: true, min: 0, max: 12 },
       { name: 'sprint_weekends_per_season', type: 'int', required: true, min: 0, max: 12 },
+      { name: 'sprint_points_system_id', type: 'int', min: 1 },
       { name: 'flavour', type: 'text', required: true },
     ],
   },
@@ -242,6 +318,8 @@ export const TABLES: TableSpec[] = [
       { name: 'abrasion', type: 'real', required: true, min: 0, max: 1 },
       { name: 'downforce_level', type: 'real', required: true, min: 0, max: 1 },
       { name: 'first_used_year', type: 'int', required: true, min: 1900, max: 2100 },
+      { name: 'logistics_factor', type: 'real', required: true, min: 0.5, max: 3 },
+      { name: 'risk', type: 'real', required: true, min: 0, max: 1 },
       { name: 'flavour', type: 'text', required: true },
     ],
   },
@@ -306,6 +384,51 @@ export const TABLES: TableSpec[] = [
       { name: 'expense_ratio', type: 'real', required: true, min: 0, max: 2 },
       { name: 'parachute_pct_1', type: 'real', required: true, min: 0, max: 1 },
       { name: 'parachute_pct_2', type: 'real', required: true, min: 0, max: 1 },
+      { name: 'prize_pool_per_race', type: 'int', required: true, min: 0 },
+      { name: 'logistics_base', type: 'int', required: true, min: 0 },
+    ],
+  },
+  {
+    file: 'weather_profiles.csv',
+    table: 'weather_profiles',
+    primaryKey: ['track_id'],
+    expectedRows: 30,
+    columns: [
+      { name: 'track_id', type: 'int', required: true, min: 300001, unique: true },
+      { name: 'rain_probability', type: 'real', required: true, min: 0, max: 1 },
+      { name: 'changeability', type: 'real', required: true, min: 0, max: 1 },
+      { name: 'base_temp_c', type: 'int', required: true, min: -20, max: 55 },
+      { name: 'temp_swing_c', type: 'int', required: true, min: 0, max: 40 },
+      { name: 'southern', type: 'int', min: 0, max: 1 },
+    ],
+  },
+  {
+    file: 'sponsors.csv',
+    table: 'sponsors',
+    primaryKey: ['sponsor_key'],
+    expectedRows: 16,
+    sortBy: ['sort_order'],
+    columns: [
+      { name: 'sponsor_key', type: 'text', required: true, unique: true },
+      { name: 'name', type: 'text', required: true, unique: true },
+      { name: 'sort_order', type: 'int', required: true, min: 1, unique: true },
+      { name: 'industry', type: 'text', required: true },
+      { name: 'slot', type: 'text', required: true, values: ['title', 'side'] },
+      { name: 'tier_min', type: 'int', required: true, min: 1, max: 10 },
+      { name: 'tier_max', type: 'int', required: true, min: 1, max: 10 },
+      { name: 'value_pct', type: 'real', required: true, min: 0, max: 1 },
+      { name: 'term_min', type: 'int', required: true, min: 1, max: 5 },
+      { name: 'term_max', type: 'int', required: true, min: 1, max: 5 },
+      {
+        name: 'objective_type',
+        type: 'text',
+        required: true,
+        values: ['rank', 'podiums', 'wins', 'finishes', 'improve'],
+      },
+      { name: 'objective_value', type: 'int', required: true, min: 1, max: 100 },
+      { name: 'bonus_pct', type: 'real', required: true, min: 0, max: 1 },
+      { name: 'malus_pct', type: 'real', required: true, min: 0, max: 1 },
+      { name: 'flavour', type: 'text', required: true },
     ],
   },
   {
@@ -423,6 +546,17 @@ export const TABLES: TableSpec[] = [
       { name: 'history_titles', type: 'int', required: true, min: 0 },
       { name: 'history_best_tier', type: 'int', required: true, min: 1, max: 10 },
       { name: 'flavour', type: 'text' },
+    ],
+  },
+  {
+    file: 'driver_names.csv',
+    table: 'driver_names',
+    primaryKey: ['country'],
+    columns: [
+      { name: 'country', type: 'text', required: true, pattern: ISO3, unique: true },
+      { name: 'weight', type: 'int', required: true, min: 1, max: 20 },
+      { name: 'first_names', type: 'text', required: true },
+      { name: 'last_names', type: 'text', required: true },
     ],
   },
   {

@@ -1,0 +1,39 @@
+# HANDGEPFLEGT - Die acht Personalrollen als Typdefinition (Konzept 8.1).
+#
+# Kein Personalbestand - der entsteht zur Laufzeit in `staff`, genau wie der
+# Teambestand an Bauteilen erst in `car_parts` entsteht. Diese Datei legt fest,
+# WAS eine Rolle bewirkt, nicht WER sie ausfuellt.
+#
+# Alle Gewichtsspalten sind spaltenweise auf 1.0 normiert: Ueber alle acht
+# Rollen hinweg summiert sich jede einzelne Wirkung zu genau 1. Der Validator
+# prueft das hart. Damit ist der Personalwert einer Wirkung immer ein sauberer
+# gewichteter Mittelwert auf derselben 0-100-Skala wie die Einzelwerte - eine
+# Summe von 1.1 saehe in keiner einzelnen Zahl falsch aus, verschoebe aber
+# jede Entwicklung im Spiel.
+#
+# w_chassis .. w_brakes  Wirkung auf die Entwicklung der neun Bauteilgruppen.
+#   powertrain und ers entwickelt der Hersteller (Konzept 6.6), nicht das Team -
+#   die Gewichte stehen hier trotzdem, weil der Powertrain-Chef sie ueber die
+#   Zuverlaessigkeit beeinflusst und Werksteams sie spaeter brauchen.
+# w_reliability          Wachstum der Standfestigkeit ueber die Saison.
+# w_strategy             Guete der Boxenstopp- und Reifenentscheidungen (Tick-Sim).
+# w_pit                  Boxenstoppzeit und Fehlerrate der Crew.
+# w_feedback             Verwertung des Fahrer-Feedbacks in der Entwicklung.
+# w_morale               Wirkung auf die Fahrermoral.
+# w_newgen               Qualitaet des eigenen Nachwuchses. Bis das Scouting
+#   steht, ohne Wirkung im Code - die Spalte existiert, damit dafuer spaeter
+#   keine Schemaaenderung noetig ist (wie bei den Regenmischungen).
+#
+# count_per_team  Wie oft ein Team die Rolle besetzt. Der Renningenieur ist
+#   je Auto einer, alle anderen gibt es einmal. Macht 9 Personen je Team.
+# salary_share    Anteil am Personalbudget des Teams. Ueber alle Rollen mal
+#   count_per_team summiert sich das zu 1.0.
+role_key,name,sort_order,count_per_team,w_chassis,w_front_wing,w_rear_wing,w_floor,w_powertrain,w_ers,w_gearbox,w_suspension,w_brakes,w_reliability,w_strategy,w_pit,w_feedback,w_morale,w_newgen,salary_share,flavour
+technical_director,Technischer Direktor,1,1,0.35,0.30,0.30,0.30,0.25,0.25,0.35,0.35,0.35,0.20,0.00,0.00,0.15,0.00,0.00,0.20,"Zeichnet keine einzige Linie selbst und entscheidet trotzdem, wie das Auto aussieht. Wer ihn verliert, merkt es erst zwei Saisons spaeter."
+chief_designer,Chefkonstrukteur,2,1,0.65,0.00,0.00,0.25,0.00,0.00,0.35,0.65,0.45,0.15,0.00,0.00,0.00,0.00,0.00,0.16,"Monocoque, Fahrwerk, Unterboden - alles, was das Auto zusammenhaelt und traegt."
+head_of_aero,Leiter Aerodynamik,3,1,0.00,0.70,0.70,0.45,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.15,"Verwaltet die knappste Ressource im Reglement: die Stunden im Windkanal."
+powertrain_chief,Antriebschef,4,1,0.00,0.00,0.00,0.00,0.75,0.75,0.30,0.00,0.20,0.65,0.00,0.00,0.00,0.00,0.00,0.14,"Zustaendig fuer Leistung und dafuer, dass sie bis zur Zielflagge anliegt."
+race_engineer,Renningenieur,5,2,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.35,0.15,0.85,0.80,0.00,0.07,"Die Stimme am Funk. Uebersetzt, was der Fahrer fuehlt, in etwas, womit die Fabrik arbeiten kann."
+chief_strategist,Chefstratege,6,1,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.65,0.15,0.00,0.00,0.00,0.09,"Entscheidet in vier Sekunden, was die Fabrik in vier Monaten aufgebaut hat."
+mechanic_crew,Mechanikercrew,7,1,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.70,0.00,0.00,0.00,0.08,"Zwei Zehntel an der Box sind zwei Zehntel. Nur merkt sie niemand, solange nichts schiefgeht."
+scout,Nachwuchsleiter,8,1,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.20,1.00,0.04,"Faehrt an Wochenenden zu Kartrennen, an denen sonst niemand aus dem Team auftaucht."

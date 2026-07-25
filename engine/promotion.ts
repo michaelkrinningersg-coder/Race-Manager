@@ -11,12 +11,14 @@ import { createRng, seedFrom } from './rng.js';
 import { loadTrackProfiles } from './scoring.js';
 import { simulateWeekend, type Entry, type WeekendContext } from './lightsim.js';
 import {
-  deriveFacilities,
+  derivedStaffCount,
   loadFacilityMinimums,
+  loadLevels,
   prestigeSpans,
   relativePrestige,
 } from './facilities.js';
 import { checkLicence, type LicenceRequirement } from './licence.js';
+import { licencePenalties } from './costcap.js';
 
 export type Movement =
   | 'promoted'
@@ -76,10 +78,10 @@ function entriesFor(
 
   const drivers = db
     .prepare(
-      `SELECT driver_id, ${DRIVER_KEYS.join(', ')} FROM drivers
-       WHERE start_team_id = ? AND start_role = 'race' ORDER BY start_seat`,
+      `SELECT driver_id, ${DRIVER_KEYS.join(', ')} FROM driver_state
+       WHERE season = ? AND team_id = ? AND role = 'race' AND retired = 0 ORDER BY seat`,
     )
-    .all(teamId) as Record<string, number>[];
+    .all(season, teamId) as Record<string, number>[];
 
   return drivers.map((row) => ({
     driverId: row.driver_id,
@@ -126,9 +128,9 @@ function runBarrage(
     (rule.barrage_track_id as number | null) ?? trackIds[Math.floor(rng() * trackIds.length)];
 
   const profile = loadTrackProfiles(db).get(trackId);
-  const overtaking = (db
-    .prepare('SELECT overtaking_difficulty d FROM tracks WHERE track_id = ?')
-    .get(trackId) as { d: number }).d;
+  const track = db
+    .prepare('SELECT overtaking_difficulty d, risk FROM tracks WHERE track_id = ?')
+    .get(trackId) as { d: number; risk: number };
 
   const pointsTable = new Map<number, number>();
   for (const row of db
@@ -150,8 +152,9 @@ function runBarrage(
     tier: 100 + boundaryTier,
     round: 1,
     profile: profile ?? [],
-    overtakingDifficulty: overtaking,
+    overtakingDifficulty: track.d,
     dnfBaseRate: league.dnf_base_rate,
+    risk: track.risk,
     legCount: (rule.barrage_leg_count as number) ?? 2,
     reverseGridTopN: 0,
     points: pointsTable,
@@ -275,6 +278,16 @@ export function resolveMovements(db: Database, season: number): MovementSummary 
     >[]).map((row) => [row.team_id, row.closing]),
   );
 
+  // Anlagenbestand der laufenden Saison. Seit Konzept 8.2 als echter Bestand
+  // umgesetzt wird hier nichts mehr abgeleitet: Geprueft wird, was das Team
+  // tatsaechlich besitzt und bezahlt. Nur die Belegschaftsstaerke haengt
+  // weiterhin an Liga und Prestige - sie ist keine Anlage.
+  const facilityLevels = loadLevels(db, season);
+
+  // Lizenzpunktabzug aus einem Deckelverstoss derselben Saison (Konzept 9.3).
+  // Der Grundstock von 12 Punkten steht bis M7 fest - abgezogen wird davon.
+  const capPenalties = licencePenalties(db, season);
+
   const movement = new Map<number, Movement>();
   for (const row of standings) movement.set(row.teamId, 'stay');
 
@@ -286,14 +299,21 @@ export function resolveMovements(db: Database, season: number): MovementSummary 
     if (!requirement || !meta || !minimum) return true;
 
     const rel = relativePrestige((meta.prestige as number) ?? 50, realSpans.get(team.tier));
+    const owned = facilityLevels.get(team.teamId) ?? new Map<string, number>();
     const verdict = checkLicence(
       {
         teamId: team.teamId,
         name: String(meta.name),
         balance: balances.get(team.teamId) ?? 0,
-        facilities: deriveFacilities(minimum, rel),
+        facilities: {
+          windtunnel: owned.get('windtunnel') ?? 0,
+          dyno: owned.get('dyno') ?? 0,
+          simulator: owned.get('simulator') ?? 0,
+          factory: owned.get('factory') ?? 0,
+          staff: derivedStaffCount(minimum, rel),
+        },
         hasEngineContract: meta.engine_supplier_id !== null,
-        licencePoints: 12,
+        licencePoints: Math.max(0, 12 - (capPenalties.get(team.teamId) ?? 0)),
       },
       requirement,
       costCaps.get(targetTier) ?? 0,

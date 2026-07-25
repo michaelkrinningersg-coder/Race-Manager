@@ -26,6 +26,12 @@
 14. [Bootstrapper & Validierung](#14-bootstrapper--validierung)
 15. [Autorenleitfaden für die handgepflegten Bestände](#15-autorenleitfaden-für-die-handgepflegten-bestände)
 16. [Wert-Entscheidungen](#16-wert-entscheidungen)
+17. [Zweite Datei-Runde: Strecken, Kalender, Motoren](#17-zweite-datei-runde-strecken-kalender-motoren)
+18. [M5: Fahrerkarrieren](#18-m5-fahrerkarrieren)
+19. [M5 Teil 2: Personal](#19-m5-teil-2-personal)
+20. [M5 Teil 3: Infrastruktur](#20-m5-teil-3-infrastruktur)
+21. [M6: Wirtschaft](#21-m6-wirtschaft)
+22. [M7 Teil 1: Wetter, Safety Car, Sprint](#22-m7-teil-1-wetter-safety-car-sprint)
 
 ---
 
@@ -995,3 +1001,831 @@ Der Bootstrapper legt eine View an, die den Vorrang auflöst: Streckenzeile gewi
 **Validierung:** Bauteilgewichte je Zeile Summe 1.0 · Fahrergewichte je Zeile Summe 1.0 · jeder Archetyp mit allen drei Sektoren · `sector_share` je Archetyp und je überschreibender Strecke Summe 1.0 · eine Strecke überschreibt **alle drei** Sektoren oder keinen · `track_id` existiert.
 
 Diese Summenregeln sind der Grund, warum die Prüfung hart ist: Eine Gewichtssumme von 1,1 sieht in keiner einzelnen Zahl falsch aus, verschiebt aber alle Rundenzeiten dieser Strecke systematisch.
+
+---
+
+## 18. M5: Fahrerkarrieren
+
+Bis M4 waren Fahrer unveränderlich: `drivers.csv` sagte, wer für wen fährt, und daran änderte sich über zwanzig Saisons nichts. Damit konnte ein aufgestiegenes Team seine neue Liga nie gewinnen – sein Auto wuchs, seine Fahrer nicht. M5 löst die Identität eines Fahrers von seinem Zustand.
+
+### 18.1 `driver_state` – der Verlauf
+
+Dieselbe Trennung wie bei den Teams: `drivers` hält, was sich nie ändert (Name, Land, Jahrgang, Potenzial), `driver_state` hält je Saison eine Zeile mit allem, was sich ändert – die 17 Attribute, Rolle, Team, Cockpitnummer, Vertragslaufzeit, Gehalt, Moral und Superlizenzpunkte. Primärschlüssel `(driver_id, season)`.
+
+`drivers.start_team_id`, `start_role`, `start_seat` und `contract_until_season` sind damit endgültig **Startwerte** – ab Saison 2 wären sie falsch, und keine Abfrage der Engine liest sie noch. `seedDriverState` überträgt sie einmalig in die Saison-1-Zeile.
+
+`contract_until` ist die **letzte gedeckte Saison**: Wer bis 7 unterschrieben hat, fährt Saison 7 noch und ist erst zu Saison 8 frei.
+
+### 18.2 `driver_history` – die Chronik
+
+Eine schmale Tabelle `(driver_id, season, event)` mit `tier`, `team_id` und einem Freitextfeld. Sie hält fest, was aus den Zustandszeilen nicht mehr rekonstruierbar wäre: Verpflichtungen und Rücktritte. Für die spätere Fahrerakte im Frontend ist sie die Quelle.
+
+### 18.3 Entwicklung als Annäherungsrate
+
+Die Alterskurve arbeitet nicht mit festen Punktzuwächsen, sondern mit **Annäherungsraten** an das Potenzial:
+
+| Alter | Tempo (`pace`, `qualifying`, `braking`, `cornering`, `car_control`) | Erfahrung (`pressure`, `feedback`, `racecraft_traffic`, `defending`) |
+| :--- | :--- | :--- |
+| ≤ 21 | 0.20 | 0.24 |
+| 22–26 | 0.15 | 0.20 |
+| 27–31 | 0.10 | 0.14 |
+| 32–35 | −2.0 Punkte | 0.06 |
+| ≥ 36 | −3.5 Punkte | −0.5 Punkte |
+
+Eine Rate von 0.20 heißt: ein Fünftel des Abstands zum Potenzial pro Saison. Ein fester Punktzuwachs wäre hier falsch – er läuft nicht aus, sodass ein Fahrer mit Potenzial 45 genauso schnell wächst wie einer mit 95 und irgendwann sein eigenes Potenzial überschreitet. Abbauwerte sind dagegen echte Punktabzüge: Wer nachlässt, verliert unabhängig davon, wie nah er seinem Potenzial einmal kam.
+
+Die Raten sind an der Alterskurve der handgepflegten Startfahrer kalibriert. Deren `pace`/`potential`-Quote liegt mit 16–19 Jahren bei 0.79, mit 24–27 bei 0.93 und ab 28 bei 0.97; mit diesen Raten trifft ein Newgen dieselbe Kurve.
+
+Zwei Faktoren skalieren die Rate: die **Ligastufe** (`1.16 − 0.04 × (tier − 1)` – wer oben fährt, lernt schneller) und das **Cockpit** (ohne Stammcockpit nur 35 %).
+
+### 18.4 Newgens ziehen aus dem Startfeld
+
+Der Nachwuchs füllt den Bestand jede Saison auf 450 auf. Sein Potenzial wird **nicht** aus einer Formel gezogen, sondern aus der Potenzialverteilung der handgepflegten Startfahrer – die Marke `drivers.is_newgen` trennt beide Bestände dauerhaft. Damit bleibt die Pyramide aus `drivers.csv` mit ihrer breiten Mitte und ihrer dünnen Spitze über beliebig viele Saisons erhalten.
+
+Der erste Versuch mit einer freien Formel (`38 + rng^1.7 × 58`) ließ die Welt verarmen: Nach zwanzig Saisons war die mittlere `pace` in Tier 1 von 89 auf 55 gefallen, weil die zurücktretende Spitze durch schwächere Jahrgänge ersetzt wurde. Namen und Nationen kommen aus `driver_names.csv` (30 Nationen, gewichtet).
+
+Startwerte folgen der Alterskurve: 0.75 des Potenzials mit 17, 0.81 mit 19.
+
+### 18.5 Der Markt füllt nur freie Cockpits
+
+Ein Cockpit wird frei, wenn der Vertrag ausläuft oder der Fahrer zurücktritt – **Abwerbung aus laufenden Verträgen gibt es nicht** (getroffene Entscheidung). Die Vergabe läuft von Tier 1 abwärts, damit die oberen Ligen zuerst zugreifen. Kandidat ist jeder ohne Stammcockpit, sofern er die **Superlizenzpunkte** seiner Liga erfüllt (Tier 1: 30, Tier 4: 15, ab Tier 5: keine). Punkte gibt es nach Saisonplatzierung, in Tier 1 bis 40 für den Meister, in Tier 10 noch 2.
+
+Diese Schranke ist der Aufstiegsweg eines Fahrers: Ein Newgen startet in Tier 5–10, sammelt Punkte und wird erst danach für die obere Hälfte verpflichtbar.
+
+### 18.6 Das Gehalt als zweite Schranke
+
+Die Superlizenz allein reicht nicht. Ohne Geldschranke gibt jedes Team sein Cockpit dem besten Verfügbaren – auch das ärmste – und die Ligen rücken über zwanzig Saisons bis auf wenige Punkte zusammen: gemessen stieg das mittlere Potenzial in Tier 10 von den handgepflegten 43 auf 63, während 105 Fahrer mit Potenzial 48 nie ein Cockpit fanden.
+
+Der Preis eines Fahrers hängt deshalb **allein an seiner Güte, nie an der Liga**. Ein 90er kostet in Tier 10 dasselbe wie in Tier 1, nur kann ihn dort niemand bezahlen. Genau daraus entsteht die Staffelung, die in `drivers.csv` von Hand gesetzt ist.
+
+Beide Ankerpunkte kommen aus den Daten:
+
+* **Preis:** das Sitzbudget von Tier 1 und Tier 10 – 12 % der Ausschüttung bei mittlerer Platzierung, geteilt durch zwei Cockpits. Aktuell 5,22 Mio. gegen 9.360 EUR.
+* **Güte:** der Kernwertschnitt der handgepflegten Stammfahrer dieser beiden Ligen. Aktuell 88,9 gegen 35,6.
+
+Der Exponent ist damit nicht gewählt, sondern die Lösung von `Budget₁ / Budget₁₀ = (Güte₁ / Güte₁₀)^Exponent` – aktuell 6,92. Wer `league_payouts` oder `drivers.csv` nachjustiert, justiert den Markt mit.
+
+Das Budget eines einzelnen Teams folgt der Ausschüttung, die es in seiner **neuen** Liga zu erwarten hat, bezogen auf seine Platzierung der Vorsaison: Der Meister einer Liga hat mehr für Fahrer übrig als ihr Letzter, und ein Aufsteiger rechnet bereits mit dem Geld der neuen Liga.
+
+#### Der Ruf – warum die beiden Schranken sich nicht zuschnüren dürfen
+
+Mit reinem Gütepreis saß ein schneller Neunzehnjähriger in der Falle: für Tier 1–4 fehlten ihm die Punkte, für Tier 5–10 war er zu teuer. Er fuhr nie, verdiente nie Punkte, und die Spitze blutete aus – der Kernwert der Tier-1-Fahrer fiel in zwanzig Saisons von 89 auf 74, während im freien Pool dauerhaft ein 82er saß, den niemand verpflichten konnte.
+
+Der Preis wird deshalb mit dem **Ruf** gedämpft, gemessen an den Superlizenzpunkten: Ein völlig unbeschriebener Fahrer kostet 10 % seines späteren Werts, ab 45 Punkten ruft er ihn voll auf. Ein Rookie unterschreibt billig dort, wo er darf, fährt sich Punkte heraus und wird beim nächsten Vertrag teuer. Ein alternder Fahrer wird über den fallenden Kernwert von selbst wieder billiger und findet weiter unten ein Cockpit.
+
+Ein **Pay-Driver** senkt über `pay_driver_budget` direkt, was er das Team kostet – dafür steht die Spalte.
+
+Findet sich niemand im Rahmen, wird der günstigste Fahrer über Budget verpflichtet; ein Team muss zwei Autos an den Start bringen. Über 20 Saisons trat dieser Fall zuletzt **kein einziges Mal** ein.
+
+Neue Verträge laufen 1–4 Jahre.
+
+### 18.7 Rücktritte
+
+| Alter | Mit Cockpit | Ohne Cockpit |
+| :--- | :--- | :--- |
+| < 32 | 0 % | 3 % |
+| 32–35 | 4 % | 22 % |
+| 36–38 | 16 % | 52 % |
+| 39–41 | 40 % | 100 % |
+| ≥ 42 | 100 % | 100 % |
+
+### 18.8 Reihenfolge im Saisonzyklus
+
+Sie ist zwingend, nicht beliebig:
+
+1. `prepareSeason` – Ligazugehörigkeit der neuen Saison
+2. `developParts` – Autoentwicklung
+3. `ageAndDevelop` – Altern und Entwicklung in die neue Saison
+4. `generateNewgens` – Bestand auf 450 auffüllen
+5. `runMarket` – freie Cockpits besetzen *(kann nur vergeben, wer schon existiert)*
+6. `runSeason` → `buildStandings` → `applyFinances`
+7. `awardSuperlicence` – *vor* den Rücktritten: Wer aufhört, hat sich die Punkte trotzdem verdient
+8. `retireDrivers`
+9. `resolveMovements` – Auf- und Abstieg
+
+### 18.9 Der Aufsteiger-Bonus
+
+Zwei Änderungen an der Bauteilentwicklung, beide auf den Aufsteiger gemünzt:
+
+1. Ein Aufsteiger entwickelt gegen den Deckel der Liga, in der sein Auto **fahren** wird, nicht gegen den, unter dem es gebaut wurde. Am alten Deckel gemessen blieb ihm kein Spielraum – sein Sättigungsterm war nahe null, ausgerechnet in der Saison, in der er aufholen muss.
+2. Ein Faktor von **1,6** auf die Entwicklung, genau eine Saison lang, nämlich die erste in der neuen Liga. Er läuft danach von selbst aus und ist kein zweiter Deckel.
+
+Für Absteiger und Verbleibende bleibt der alte Deckel maßgeblich. Auch den Absteiger am neuen, niedrigeren Deckel zu messen, wurde ausprobiert und verworfen: Er entwickelte dann gar nicht mehr weiter, war mit seinem gekappten Auto unten trotzdem überlegen, und die Quote der direkten Wiederaufstiege stieg von 60 auf 71 Prozent.
+
+**Wirkung, über 20 Saisons gemessen:** Das Auto eines Aufsteigers liegt in seiner ersten Saison in der neuen Liga jetzt bei **101 % des Ligaschnitts** – das Auto ist nicht mehr der Engpass. Er landet damit im Mittelfeld (0,56 auf einer Skala, auf der 0 der Meister und 1 der Letzte ist) und bleibt dort auch in den Folgesaisons.
+
+### 18.10 Was offen bleibt
+
+* **Teams steigen weiterhin höchstens eine Liga.** Der Aufsteiger-Bonus hat den Engpass verschoben, aber nicht aufgelöst: Über 20 Saisons erreicht kein Team einen Netto-Aufstieg von zwei Stufen, und die Zahl der Teams, die zwei Saisons hintereinander aufsteigen, blieb bei 5. Die Ursache ist jetzt sichtbar und liegt tiefer als ein Regler: Der Sättigungsterm zieht alle Autos einer Liga so dicht an den Deckel, dass die Tabelle über die Jahre nahe am Zufall entscheidet. Genau das ist die Anti-Dominanz-Regelung, die dafür sorgt, dass der Tier-1-Titel überhaupt den Besitzer wechselt (4–6 verschiedene Meister in 20 Saisons statt einem). Sie steht im direkten Widerspruch zum Ziel aus Konzept 18, einem Aufstieg alle 3–4 Saisons – **das ist eine Designentscheidung, keine weitere Justierung.**
+* **Tier 5 liegt leicht über Tier 4.** Tier 5 ist die oberste Liga ohne Superlizenzhürde, also landet dort das beste noch unlizenzierte Talent. Gemessen: Potenzial 78,6 in Tier 5 gegen 75,3 in Tier 4.
+* Der Homologations-Ratchet aus M3 (+8 % je Aufstieg, unbegrenzt kumulierend) ist weiterhin ungeklärt.
+* `grace_period_seasons` in `licence_requirements.csv` ist weiterhin ungenutzt.
+* Personal (8 Rollen) ist ausdrücklich auf einen späteren Schritt verschoben.
+
+---
+
+## 19. M5 Teil 2: Personal
+
+Konzept 8.1 nennt acht Rollen. Drei Entscheidungen prägen die Umsetzung.
+
+### 19.1 Rollen von Hand, Personen generiert
+
+167 Teams × 9 Stellen sind rund **1.500 Personen** – zum Vergleich: die gesamte Handarbeit in M0 waren 617 Zeilen. Handgepflegt ist deshalb nur `staff_roles.csv` mit **acht Zeilen**: sie legt fest, *was* eine Rolle bewirkt, nicht *wer* sie ausfüllt. Der Bestand entsteht deterministisch aus dem Seed, Namen aus `driver_names.csv`.
+
+Das ist dasselbe Muster wie bei `car_part_types.csv`: Typdefinition von Hand, Bestand zur Laufzeit.
+
+#### Die Normierung
+
+Jede Wirkungsspalte summiert sich **über alle acht Rollen auf genau 1.0**. Der Validator prüft das hart, wie bei den Gewichtsprofilen der Strecken. Nur dadurch ist der Personalwert einer Wirkung ein sauberer gewichteter Mittelwert auf derselben 0–100-Skala wie die Einzelwerte – eine Summe von 1,1 sähe in keiner einzelnen Zahl falsch aus, verschöbe aber jede Entwicklung im Spiel.
+
+| Spalte | Wirkung |
+| :--- | :--- |
+| `w_chassis` … `w_brakes` | Entwicklung der neun Bauteilgruppen |
+| `w_reliability` | Wachstum der Standfestigkeit |
+| `w_strategy` | Güte der Boxenstopp- und Reifenentscheidungen (Tick-Sim) |
+| `w_pit` | Boxenstoppzeit und Fehlerrate |
+| `w_feedback` | Verwertung des Fahrer-Feedbacks |
+| `w_morale` | Fahrermoral (noch ohne Wirkung, siehe 19.5) |
+| `w_newgen` | Qualität des eigenen Nachwuchses (noch ohne Wirkung) |
+
+Zusätzlich summiert sich `salary_share × count_per_team` über alle Rollen auf 1.0 – das Personalbudget wird über die tatsächlich besetzten Stellen verteilt, der Renningenieur zählt doppelt.
+
+Ein Team ohne besetzte Stelle fällt nicht auf null, sondern aus der Gewichtung: Der Wert wird auf den abgedeckten Anteil hochgerechnet.
+
+### 19.2 Sieben Rollen wirken, der Nachwuchsleiter noch nicht
+
+Seine Wirkung ist Sichtbarkeit und Schätzgenauigkeit – das braucht erst einen Spieler, der etwas nicht weiß. Er wird trotzdem besetzt und bezahlt, damit später kein Bestand nachgezogen werden muss. Dieselbe Vorgehensweise wie bei den Regenmischungen in `tyre_compounds.csv`.
+
+### 19.3 Abwerbung nur über zwei Ligen hinweg
+
+Ein Tier-6-Team verliert seinen Chefkonstrukteur an Tier 4 und höher, **nie an den direkten Ligarivalen**. Konzept 8.1 will die Dramatik, dass ein erfolgreiches kleines Team seine Leute nach oben verliert; der Abstand von zwei Stufen nimmt ihr die Spitze gegen genau den Konkurrenten, gegen den der Aufstieg entschieden wird.
+
+Loyalität (steigt um 8 je Saison im Amt) und Restlaufzeit senken die Erfolgsquote, verhindern den Wechsel aber nie ganz – das ist die Ausstiegsklausel aus Konzept 8.1. Gemessen: 245 Abwerbungen in 20 Saisons.
+
+### 19.4 Was das Personal ersetzt hat
+
+Bis hierher war `staff` in `developParts` eine reine Ligafunktion (`68 − 4,5 × (Tier−1)`) und damit **für jedes Team einer Liga identisch** – es gab innerhalb einer Liga schlicht keinen personellen Unterschied. Dieselbe Formel stand für Stratege und Boxencrew in der Tick-Sim.
+
+Beim Verkabeln fiel eine Abweichung vom Konzept auf: Der Crewwert wirkte nur auf die *Streuung* der Stoppzeit. Zwischen der besten und der schlechtesten Crew in Tier 1 lagen damit neun Hundertstel – weniger als das Rauschen einer Saison. Konzept 8.1 verlangt ausdrücklich „Mittelwert **und** Fehlerrate"; die Standzeit folgt jetzt `2,9 − 1,2 × (Crew/100)`. Gemessen liegen zwischen der besten und schlechtesten Tier-1-Crew nun 0,26 s.
+
+### 19.5 Gemessen über 20 Saisons
+
+| | Saison 1 | Saison 20 |
+| :--- | :--- | :--- |
+| Personalwert Tier 1 | 87,2 | 86,7 |
+| Personalwert Tier 4 | 69,1 | 64,8 |
+| Personalwert Tier 10 | 33,0 | 32,1 |
+| Streuung innerhalb Tier 1 | – | SD 4,9 (78,4 – 94,4) |
+| Streuung innerhalb Tier 10 | – | SD 1,2 (28,8 – 35,1) |
+| Verschiedene Tier-1-Meister | – | 7 (vorher 4) |
+
+Die Pyramide hält, und Teams derselben Liga unterscheiden sich jetzt personell. Der Zusammenhang zwischen Personalwert und Tabellenplatz liegt im Mittel der Saisons 10–20 bei **r = −0,52 (Tier 1)**, −0,46 (Tier 7) und −0,33 (Tier 10) – in Tier 4 dagegen bei −0,02.
+
+Ein Fehler, der dabei auffiel und behoben ist: Teams griffen nach jedem freien Kandidaten, auch weit unter ihrem Ligaband, statt einen besseren Neuzugang zu holen. Der Personalwert der Mittelfeldligen sackte dadurch um bis zu 14 Punkte ab.
+
+### 19.6 Was offen bleibt
+
+* **Die Mobilität hat sich nicht bewegt.** Auch mit Personal steigt netto kein Team zwei Ligen (Spannweite ≥ 2: 23 von 167 Teams, unbewegt 46). Die Erwartung, dass personelle Unterschiede innerhalb einer Liga den Aufsteiger tragen, hat sich **nicht** bestätigt. Der Befund aus 18.10 steht unverändert.
+* **In Tier 4 wirkt das Personal nicht messbar** (r = −0,02 gegen −0,52 in Tier 1). Ungeklärt.
+* **Gehälter werden weiterhin nicht verbucht** – weder die der Fahrer noch die des Personals. `applyFinances` rechnet Ausgaben pauschal als `expense_ratio × cost_cap`. Gehört nach M6.
+* `w_morale` und `w_newgen` sind ohne Wirkung: Die Fahrermoral wird geführt, aber nirgends gelesen, und der Nachwuchsleiter wartet auf das Scouting.
+* Infrastruktur (Konzept 8.2, Level 0–5) ist nicht angefasst.
+
+---
+
+## 20. M5 Teil 3: Infrastruktur
+
+Konzept 8.2 nennt acht Anlagen mit Level 0–5. Bis hierher gab es sie nur als Ableitung: `facilities.ts` rechnete im Moment der Lizenzprüfung aus Liga und Prestige einen Wert aus und warf ihn danach weg. Kein Bestand, keine Kosten, keine Wirkung.
+
+Vier Entscheidungen prägen die Umsetzung.
+
+### 20.1 Alle acht anlegen, fünf verkabeln
+
+`facility_types.csv` hält alle acht Anlagen aus Konzept 8.2 – dasselbe Muster wie bei den Regenmischungen und beim Nachwuchsleiter: Bestand jetzt, Wirkung wenn der Abnehmer existiert. Marketing wartet auf die Sponsoren aus M6, Medizin auf die Verletzungen aus M7.
+
+Die Datei legt fest, *was* eine Anlage bewirkt und *was* sie kostet, nicht *wer* sie besitzt. Der Bestand steht in `team_facilities`, eine Zeile je Team, Saison und Anlage. Wie bei `staff_roles.csv` ist **jede Wirkungsspalte über alle acht Anlagen auf genau 1.0 normiert**, hart geprüft; der Infrastrukturwert einer Wirkung ist damit ein gewichteter Mittelwert auf derselben 0–100-Skala wie der Personalwert.
+
+Zusätzlich prüft der Validator die Rückbindung an die Lizenzleiter: Genau die vier Schlüssel mit `licence_checked = 1` müssen den `min_*_level`-Spalten aus `licence_requirements.csv` entsprechen. Fiele eine Anlage aus dieser Menge, prüfte die Lizenz gegen ein Niveau, das kein Team je aufbauen kann – ein Fehler, der erst beim ersten verweigerten Aufstieg aufgefallen wäre.
+
+### 20.2 Gruppenspezifische Wirkung
+
+Jede Anlage wirkt dort, wo das Konzept sie verortet: Windkanal und CFD auf die drei Aero-Gruppen, Prüfstand auf Antrieb, ERS und Zuverlässigkeit, Fertigung auf alles, was gebaut statt umströmt wird, Simulator auf Feedback-Verwertung und Fahrerentwicklung. Der Multiplikator in der Entwicklungsformel läuft von 0,80 (nichts) bis 1,20 (alles auf Stufe 5) und liegt für einen Weltmeisterschaftsteilnehmer mit Startbestand bei rund 0,96 – Personal und Ressourcen bleiben die stärkeren Hebel.
+
+Ein flacher Mittelwert über alle Anlagen wäre der bequemere Weg gewesen und genau der Fehler, den 19.4 beim Personal beheben musste.
+
+**`w_newgen` bleibt ohne Wirkung.** Newgens entstehen als Free Agents ohne Team; eine Akademie kann dort nichts verbessern, solange das Scouting fehlt. Derselbe Blocker wie beim Nachwuchsleiter. Die Akademie ist deshalb trotzdem nicht wirkungslos – sie zahlt über `w_driver_dev` auf die Fahrerentwicklung ein.
+
+### 20.3 Die Deckelung des Startbestands
+
+Der Startbestand wird beim Bootstrap abgeleitet, damit sich Saison 1 unverändert verhält. Die alte Formel – Ligaminimum plus bis zu zwei Stufen nach Prestige – musste dafür aber **gedeckelt** werden: Der Schritt reicht jetzt höchstens bis zum Mindestniveau der nächsthöheren Liga.
+
+Solange Anlagen nichts kosteten, war der ungedeckelte Schritt harmlos. Mit echten Fixkosten ist er tödlich: Ein Tier-10-Team mit Prestige bekam einen Windkanal auf Stufe 2 und damit **518 % seines Kostendeckels** allein an Hallenkosten.
+
+Die Deckelung ändert nachweislich kein Lizenzurteil der Saison 1 – geprüft wird gegen genau das Minimum, an dem gedeckelt wird, sie kappt also ausschließlich Stufen, die ohnehin über der Anforderung lagen.
+
+Die vier Anlagen ohne Lizenzanker starten bei **null**. Die Lizenzleiter ist der einzige Anhaltspunkt dafür, wie die Infrastruktur einer Liga aussieht, und sie sagt zu CFD, Akademie, Marketing und Medizin nichts. Ein erfundener Startwert wäre keine Ableitung gewesen, sondern eine Setzung – und eine teure.
+
+### 20.4 Die Kostenleiter ist gemessen, nicht gesetzt
+
+Level 0–5 sind flach, das Geld spannt über die Pyramide um den Faktor 558 (145 Mio gegen 260 Tsd Deckel). Eine lineare Leiter kann beides nicht bedienen. Die Fixkosten folgen deshalb `upkeep_base × [0, 1, 4, 16, 60, 200]` und sind **absolut**, nicht am Deckel der aktuellen Liga bemessen – genau darin liegt die Fixkostenfalle.
+
+Der Vervierfacher je Stufe steht am Ende von neun gemessenen Kombinationen aus Leiter und Ausgabenquote:
+
+| Leiter | `expense_ratio` | Aufstiege | Spannweite ≥ 2 | Verschiedene Meister |
+| :--- | ---: | ---: | ---: | ---: |
+| ohne Infrastruktur | 0,58 | 255 | 23 | 7 |
+| 1-6-34-150-520 | 0,48 | 149 | 2 | 2 |
+| 1-6-34-150-520 | 0,36 | 273 | 14 | 4 |
+| **1-4-16-60-200** | **0,36** | **285** | **25** | **6** |
+| 1-3-9-27-81 | 0,36 | 285 | 19 | 6 |
+
+Die steile Leiter macht schon den Schritt von Stufe 1 auf 2 teurer, als der Jahresüberschuss einer Mittelfeldliga hergibt; die flache nimmt der Fixkostenfalle den Zahn.
+
+### 20.5 Nicht die Fixkosten waren die Bremse, sondern die Marge
+
+Der erste Lauf war ein Desaster: Aufstiege von 255 auf 149, Teams mit Ligaspannweite ≥ 2 von 23 auf **2**. Zwei Ursachen, beide in der Umsetzung, nicht im Konzept.
+
+**Die Investitionsprüfung war einjährig.** Ein Team baute, sobald es einmal genug Geld gesehen hatte, und verkaufte die Halle im nächsten Winter mit 40 % Verlust wieder – 578 Ausbauten gegen 461 Zwangsverkäufe. Die Bausumme fällt einmal an, die Fixkosten jedes Jahr danach; geprüft wird jetzt beides, und der laufende Überschuss muss die neue Stufe dauerhaft tragen. Zudem lag die Rücklage gegen den eigenen, kleineren Deckel statt gegen den der Zielliga – Teams bauten sich ihre eigene Liquiditätsprüfung weg (188 von 494 Verweigerungen).
+
+**Die eigentliche Bremse war aber `expense_ratio`.** Bei 0,58 blieben einem Tier-5-Team rund 0,69 Mio im Jahr, während eine Windkanalstufe 0,75 Mio jährlich kostet. Investieren war rechnerisch unmöglich. Der Wert liegt jetzt bei **0,36** und deckt ausdrücklich alles außer der Infrastruktur – sie steht mit `facility_cost`, `investment` und `asset_sales` als eigene Posten in `team_finances`.
+
+Das ist ein tiefer Eingriff und der Preis ist bekannt: Die Gesamtlast fällt anfangs von 58 % auf rund 40 % des Deckels, das Tabellenende zehrt nicht mehr an der Substanz. Über zwanzig Saisons holt der Ausbau das aber wieder ein – in Saison 20 liegen Betrieb und Fixkosten zusammen bei 62–68 % des Deckels.
+
+### 20.6 Gemessen über 20 Saisons
+
+Infrastrukturwert (Mittel über die neun Bauteilgruppen):
+
+| | Saison 1 | Saison 20 | Streuung S20 |
+| :--- | ---: | ---: | :--- |
+| Tier 1 | 48,1 | 78,1 | SD 5,1 (68,7 – 84,8) |
+| Tier 4 | 30,1 | 45,9 | SD 4,3 (40,0 – 60,0) |
+| Tier 7 | 13,8 | 17,8 | SD 6,4 (5,4 – 31,9) |
+| Tier 10 | 0,0 | 0,4 | SD 0,8 (0,0 – 3,6) |
+
+Die Pyramide hält. Der Zusammenhang zwischen Infrastrukturwert und Tabellenplatz liegt im Mittel der Saisons 10–20 bei **r = −0,59 (Tier 1)**, −0,34 (Tier 4), −0,59 (Tier 7) und −0,56 (Tier 10) – und damit erstmals **gleichmäßig über die Pyramide**. Die Tier-4-Anomalie des Personals (r = −0,02, siehe 19.6) wiederholt sich hier nicht.
+
+**Und die Mobilität bewegt sich.** Zum ersten Mal seit M5:
+
+| | ohne Infrastruktur | mit Infrastruktur |
+| :--- | ---: | ---: |
+| Aufstiege (Saison 2–20) | 255 | **285** |
+| Lizenz verweigert | 337 | **289** |
+| Teams mit Ligaspannweite ≥ 2 | 23 | **25** |
+| Völlig unbewegte Teams | 46 | **41** |
+| Netto ≥ 2 Ligen gestiegen | 0 | **1** |
+| Verschiedene Tier-1-Meister | 7 | 6 |
+
+Der Befund aus 18.10 und 19.6 – *netto steigt kein Team zwei Ligen* – ist damit erstmals gebrochen, wenn auch von einem einzigen Team.
+
+### 20.7 Was offen bleibt
+
+* **Die Fixkostenfalle schnappt nicht zu** – untersucht in 20.8 und 20.9. Der Kern von Konzept 8.2 findet praktisch nicht statt: Nur 10 % der Abstiege führen binnen fünf Saisons zu einem Zwangsverkauf, binnen zwei Saisons so gut wie keiner. Die Falle ist gebaut, aber niemand läuft hinein.
+* **Teams kaufen billig statt richtig.** Gebaut werden vor allem CFD (306) und Simulator (225), kaum Windkanal (51) und Fertigung (55) – obwohl genau die beiden lizenzrelevant sind. Die Überschussprüfung blockiert die teuren Anlagen, und die Wunschliste fällt auf die billigen durch. Infrastruktur ist damit schwächer Aufstiegshebel, als sie sein könnte.
+* **Marketing und Medizin werden nie gebaut** – 0 Ausbauten in 20 Saisons. Erwartbar, solange sie keine Wirkung haben, aber es heißt: Die beiden existieren bisher nur als Typzeile, nicht als Bestand.
+* **`w_newgen` bleibt ohne Abnehmer**, zusammen mit `staff_roles.w_newgen`. Beide warten auf dasselbe Scouting.
+* **Gehälter werden weiterhin nicht verbucht.** Der Befund aus 19.6 steht; `expense_ratio` deckt sie pauschal mit. Mit 0,36 ist die Ausgabenseite jetzt allerdings dünner als zuvor – M6 hat entsprechend mehr aufzufüllen.
+* **Die Belegschaftsstärke wird weiter abgeleitet.** Sie ist keine Anlage und bleibt außerhalb von `team_facilities`; mit 207 von 289 Verweigerungen ist sie inzwischen der mit Abstand häufigste Ablehnungsgrund.
+
+### 20.8 Warum die Fixkostenfalle nicht zuschnappt – der Fallschirm ist es nicht
+
+Die naheliegende Erklärung war, dass die Fallschirmzahlung den Abstieg zu weich abfedert. Gemessen über drei Stufen (Konzept 4.3 sieht 60 %/30 % vor):
+
+| `parachute_pct_1/2` | Falle binnen 2 S | binnen 5 S | sofort zurück | Überschuss Jahr 1 | Aufstiege | Spannweite ≥ 2 |
+| :--- | ---: | ---: | ---: | ---: | ---: | ---: |
+| **0,60 / 0,30** (Konzept) | 0 % | **10 %** | 73 % | +10,48 Mio | 285 | 25 |
+| 0,30 / 0,15 | 0 % | 8 % | 75 % | +6,23 Mio | 263 | 14 |
+| 0,00 / 0,00 | 3 % | 8 % | 70 % | +2,52 Mio | 233 | 18 |
+
+**Ohne jeden Fallschirm schnappt die Falle nicht häufiger zu, sondern seltener** – und die Mobilität bricht ein: 233 statt 285 Aufstiege. Die Hypothese ist damit widerlegt.
+
+Der Grund steht in der vorletzten Spalte. Ein Absteiger verdient im ersten Jahr unten **auch ohne Fallschirm noch Geld** (+2,52 Mio), weil `expenses` als `expense_ratio × cost_cap` an der *aktuellen* Liga hängen: Beim Abstieg von Tier 1 nach Tier 2 fällt die Ausschüttung um 45 Mio, der Betrieb aber um 27 Mio, und die Anlagen kosten nur rund 11 Mio weiter. Der Abstieg ist finanziell schlicht kein Absturz.
+
+Vor allem aber: **73 % der Absteiger sind binnen einer Saison wieder oben.** Sie bleiben gar nicht lange genug unten, als dass laufende Fixkosten sie aufzehren könnten – und es ist genau die behaltene Infrastruktur, die sie eine Liga tiefer sofort dominieren lässt. Die Falle setzt einen längeren Aufenthalt voraus, den es im Modell nicht gibt.
+
+Wer sie scharf stellen will, muss deshalb an einer der beiden Stellen ansetzen – an den mitfallenden Betriebskosten oder am Drehtür-Effekt an der Ligagrenze –, nicht am Fallschirm. Der bleibt bei den 60 %/30 % aus Konzept 4.3.
+
+### 20.9 Die Falle setzt einen Absturz voraus, den es nicht gibt
+
+Nach 20.8 blieben zwei Ansatzpunkte: die beim Abstieg mitfallenden Betriebskosten und der Drehtür-Effekt. Der zweite ist von Konzept 6.5 ausdrücklich gedeckt – „der Absteiger ist im ersten Jahr unten regelmäßig Titelfavorit ('Fallschirm-Favorit') – ein bewusst gewollter, aus dem Fußball bekannter Effekt" –, und zwei Gegenmaßnahmen auf der Autoseite sind ausweislich der Codekommentare schon erprobt und verworfen. Also blieb die Kostenseite.
+
+Umgesetzt ist deshalb ein **nachlaufendes Betriebsniveau**: `expenses` hängt nicht mehr direkt am Deckel der aktuellen Liga, sondern an `cost_basis`, die je Saison nur um `COST_BASIS_DECAY` fällt, bis sie den neuen Deckel erreicht. Nach oben wirkt die Bremse nicht.
+
+Gemessen über vier Abklingraten – und das Ergebnis kehrt die Erwartung um:
+
+| Abklingrate | Falle ≤ 5 S | sofort zurück | Aufstiege | Spannweite ≥ 2 | unbewegt |
+| :--- | ---: | ---: | ---: | ---: | ---: |
+| ohne | 10 % | 73 % | 285 | 25 | 41 |
+| **0,50** (gesetzt) | 9 % | 73 % | 291 | 25 | 41 |
+| 0,65 | **7 %** | 73 % | 275 | **15** | 44 |
+| 0,80 | 7 % | 75 % | 257 | 15 | 46 |
+| 1,00 (nie abrüsten) | **20 %** | 79 % | **198** | 15 | 49 |
+
+Bei 0,65 **sinkt** der Anteil der Abstiege mit Zwangsverkauf, statt zu steigen. Der Grund ist mechanisch: Höhere Betriebskosten verhindern, dass überhaupt gebaut wird – und was nie gebaut wurde, kann auch nicht zwangsverkauft werden. Erst 1,00 lässt die Falle wirklich zuschnappen, kostet aber ein Drittel der Aufstiege und lässt die Pyramide erstarren.
+
+**Der eigentliche Grund liegt tiefer und ist mit diesem Regler nicht erreichbar.** Konzept 8.2 beschreibt die Falle so: „Wer auf Tier-2-Niveau ausbaut und dann in Tier 5 abstürzt, muss verkaufen." Diesen Absturz gibt es im Modell nicht:
+
+* Von **232 Abstiegen folgte kein einziger** auf einen zweiten – niemand fällt zwei Ligen hintereinander.
+* Nur 15 von 167 Teams sind über zwanzig Saisons überhaupt je zwei Ligen tief gefallen.
+* 73 % der Absteiger sind binnen einer Saison wieder oben.
+
+Die Falle ist nicht falsch gebaut, ihr fehlt der Anwendungsfall. Sie scharf zu stellen hieße, die Dynamik der Pyramide selbst zu ändern – und die liefert derzeit die besten Mobilitätswerte des Projekts.
+
+**`COST_BASIS_DECAY` steht deshalb auf 0,50 und ist damit heute fast folgenlos** (beim Abstieg von Tier 1 nach Tier 2 liegt die Basis im ersten Jahr bei 72,5 statt 70 Mio, im zweiten schon am neuen Deckel; 123 von 3.340 Bilanzzeilen sind überhaupt erhöht). Die Größe bleibt als eigener Bilanzposten stehen, damit M6 die Gehälter und Sponsoren daran andocken kann, ohne die Bilanz erneut umzubauen – getroffene Entscheidung.
+
+---
+
+## 21. M6: Wirtschaft
+
+Konzept 9 nennt sieben Einnahmequellen und acht Ausgabenposten. Umgesetzt waren zwei Einnahmen (TV-Ausschüttung, Fallschirm) und eine Pauschale. Alles Übrige steckte in `expense_ratio` – einem einzigen Anteil des Kostendeckels, der Gehälter, Entwicklung, Logistik und Leasing gleichzeitig abbildete, ohne dass eine dieser Größen je geprüft worden wäre.
+
+### 21.1 Warum die Zahlen nicht stimmen konnten
+
+Die Gehälter standen seit M5 in `driver_state` und `staff_state`. Sie wurden gezahlt, verhandelt und für Abwerbungen herangezogen – aber nie von einem Konto abgebucht. Gemessen lagen sie bei **24 bis 30 % des Kostendeckels in jeder Liga**, während bereits 51 bis 68 % gebucht waren. Zusammen 75 bis 98 % gegen eine Ausschüttung von 60 %.
+
+Ein Wert, der nirgends abgezogen wird, kann nicht falsch sein – er kann nur unbemerkt bleiben. Genau das war der Zustand.
+
+### 21.2 `sponsors.csv` – Typdefinition, Verträge zur Laufzeit
+
+Sechzehn Sponsoren, acht für den Hauptvertrag und acht für die Nebenverträge, mit Ligafenster, Wert als Anteil des Deckels, Laufzeit und Zielvorgabe. Dasselbe Muster wie bei `staff_roles.csv` und `facility_types.csv`: Die Datei sagt, *wer am Markt ist und was er verlangt*, nicht wer ihn bekommt. Der Bestand entsteht in `team_sponsors`.
+
+Fünf Zielarten deckt die Engine ab: Platzierung, Podien, Siege, Zielankunftsquote und Verbesserung gegenüber dem Vorjahr. Podest- und Siegvorgaben skalieren mit der Kalenderlänge – drei Podien sind in einer 22-Rennen-Saison eine andere Forderung als in einer mit acht.
+
+**Zwei Zuteilungsfehler, beide gemessen und behoben.** Zunächst war ein Sponsor weltweit exklusiv: Bei 16 Definitionen und 167 Teams kamen genau **26 Verträge** zustande. Danach je Liga exklusiv: 147 – immer noch weit zu wenig, weil acht Nebensponsoren nie vier bis sechs Slots von 22 Teams füllen können. Exklusiv ist jetzt nur der Hauptvertrag und nur innerhalb einer Liga; ein Nebensponsor darf auf vielen Autos kleben, aber **nie zweimal auf demselben** – dieser Zusatz fehlte zunächst und führte zu vier identischen Logos an einem Auto.
+
+### 21.3 Das Preisgeld war um den Faktor Teamzahl daneben
+
+`prize_pool_per_race` ist der **Ligatopf**, nicht der Teamanteil. Zuerst auf 12 % des Deckels bemessen, kam bei einem Team über die ganze Saison rund **1 %** an – in der Bilanz nicht auffindbar. Bemessen ist er jetzt so, dass ein Team im Mittel 8 % seines Deckels einfährt; verteilt wird geometrisch mit Faktor 0,78, der Sieger bekommt gut ein Viertel des Topfes.
+
+### 21.4 Logistik hängt an der Strecke, nicht am Team
+
+Konzept 9.2 nennt die Logistik ausdrücklich entfernungsabhängig. Eine Matrix Team × Strecke wäre genauer und für 167 Teams nicht zu pflegen. `tracks.csv` trägt deshalb einen `logistics_factor` (1,00 europäischer Kern bis 2,50 Australien, Mittel 1,53): Das Feld ist überwiegend europäisch, ein Übersee-Rennen kostet also alle mehr.
+
+Das Motorenleasing skaliert analog: `lease_cost_customer` ist auf Tier 1 bemessen, die acht Hersteller beliefern aber bis Tier 3 hinunter – der Betrag folgt dem Deckel der eigenen Liga.
+
+### 21.5 Die Kalibrierung: `expense_ratio` ist ein Restposten
+
+Der Wert ist dreimal gefallen, jedes Mal weil ein Posten herausgelöst wurde: **0,58** deckte alles, **0,36** alles außer der Infrastruktur, **0,16** deckt nur noch Entwicklung und Fertigung.
+
+Gemessen über vier Werte bei sonst gleicher Welt:
+
+| `expense_ratio` | Aufstiege | Spannweite ≥ 2 | Meister | chronisch zahlungsunfähig |
+| ---: | ---: | ---: | ---: | ---: |
+| 0,36 | 225 | 17 | 2 | **12** |
+| 0,28 | 273 | 21 | 5 | 1 |
+| 0,22 | 287 | 18 | 7 | 0 |
+| **0,16** | **285** | **23** | **8** | **0** |
+
+Bei 0,36 blieben die Gehälter faktisch doppelt gebucht – einmal einzeln, einmal in der Pauschale. Die Folge war kein Gleichgewicht, sondern ein Dauerdefizit in den Mittelfeldligen.
+
+Bei den Gehältern selbst wurde das Verhältnis korrigiert: `STAFF_BUDGET_SHARE` von 0,22 auf **0,18**, `DRIVER_BUDGET_SHARE` von 0,12 auf **0,16**. Ein Fahrer kostete das Team vorher weniger als ein einzelner Ingenieur.
+
+### 21.6 Der Kostendeckel wirkt erst, wenn die KI ihn einplant
+
+Deckelrelevant sind Betrieb, Anlagen, Personal, Leasing, Logistik und Ausbau; Fahrergehälter erst oberhalb eines Freibetrags von 8 % des Deckels (Konzept 9.3 nennt den Freibetrag, ohne ihn zu beziffern). Überschreitung kostet Lizenzpunkte und Windkanalzeit, beides in der **Folgesaison** – wer im Dezember merkt, dass er zu viel ausgegeben hat, kann die Saison nicht mehr ändern.
+
+Der erste Lauf ergab **870 Verstöße** in zwanzig Saisons, mit Überschreitungen von über 20 % bei Spitzenteams und einer Windkanalkürzung, die damit nie mehr endete. Der Grund war nicht die Höhe des Deckels: Die KI baute Anlagen ohne jeden Bezug darauf. Mit dem Deckel als dritter Hürde in der Investitionsentscheidung fielen die Verstöße auf **243** und die Zwangsverkäufe von 108 auf 28.
+
+### 21.7 Gemessen über 20 Saisons
+
+Bilanz in Saison 20, alle Posten als Prozent des Kostendeckels:
+
+| Tier | TV | Preisgeld | Sponsoren | Betrieb | Anlagen | Gehälter | Leasing | Logistik | Saldo |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 1 | 60 | 8 | 22 | 16 | 23 | 26 | 10 | 9 | −1 |
+| 4 | 60 | 8 | 22 | 16 | 29 | 26 | 0 | 6 | +6 |
+| 7 | 60 | 16 | 15 | 16 | 33 | 25 | 0 | 7 | +12 |
+| 10 | 60 | 16 | 6 | 16 | 0 | 21 | 0 | 6 | +41 |
+
+**Kein Team ist dauerhaft zahlungsunfähig** – über zwanzig Saisons stand genau eines von 167 überhaupt je im Minus, keines fünfmal oder öfter. Damit ist die Frage aus der Planung beantwortet: Die Insolvenz aus Konzept 9.4 hat bei dieser Kalibrierung **keinen Anwendungsfall** und ist deshalb nicht gebaut. Sie hängt allerdings direkt an der Kalibrierung – bei `expense_ratio` 0,36 wären es zwölf Kandidaten gewesen.
+
+### 21.8 Was offen bleibt
+
+* **Die Ligaspannweite ist zurückgegangen.** Teams mit Spannweite ≥ 2 fallen von 25 auf 15, die Aufstiege von 291 auf 278. Die Wirtschaft macht die Welt vielfältiger und die Wege kürzer – warum, ist nicht geklärt. Der naheliegende Verdacht: Sponsoren und Preisgeld hängen beide am Vorjahresergebnis und verstärken damit den Bestand.
+* **Tier 9 und 10 schwimmen im Geld** (+29 % und +41 % Saldo). Sie haben keine Anlagen zu unterhalten, kein Leasing zu zahlen und kaum Gehälter – die Ausgabenseite ist dort schlicht leer. Bevor das ein Vorteil wird, gehört ihnen eine eigene Kostenstruktur.
+* **Der Kostendeckel ist eine Schranke, keine Entscheidung.** Die KI plant nur den Anlagenausbau dagegen; Entwicklung, Gehälter und Logistik laufen ungesteuert. „Kluges Wirtschaften" aus Konzept 9.3 ist damit erst zur Hälfte umgesetzt.
+* **Insolvenz, Fahrerverkauf und Vorstandsziele fehlen.** Ablösesummen (Konzept 9.1) und Jobwechsel des Spielers (14.2) sind nicht angefasst.
+* **`w_sponsor` wirkt weiterhin nicht.** Die Anlage Marketing zahlt laut `facility_types.csv` auf den Sponsorenwert ein – die Sponsorenvergabe liest sie noch nicht. Marketing und Medizin bleiben damit die einzigen Anlagen ohne Wirkung.
+
+---
+
+## 22. M7 Teil 1: Wetter, Safety Car, Sprint
+
+Drei Dinge aus M7, die das einzelne Rennen unberechenbar machen. Alle drei hatten seit M4 einen Platz in den Daten und keinen im Code: `safety_car_rate` stand in `tracks.csv` und wurde nirgends gelesen, Intermediate und Regen standen in `tyre_compounds.csv` und wurden von der Engine ausdrücklich ausgeschlossen (`WHERE wet_only = 0`), `sprint_weekends_per_season` stand in `race_weekend_formats.csv` und war eine Zahl ohne Wirkung.
+
+### 22.1 `weather_profiles.csv` – Klima je Strecke
+
+Konzept 15.1 nennt `track_id, kalenderwoche, Wahrscheinlichkeiten`. Gepflegt wird nur die **Strecke** (30 Zeilen), die Jahreszeit rechnet die Engine aus der Kalenderwoche in `calendar.csv` dazu – getroffene Entscheidung. Der Charakter einer Strecke steht damit an einer Stelle: Der Bergring Eifel ist wechselhaft, weil er es ist, nicht weil eine Aprilwoche zufällig so gefüllt wurde.
+
+Vier Werte je Strecke: Regenwahrscheinlichkeit, Wechselhaftigkeit, Grundtemperatur, Jahresschwankung. Dazu `southern` – ohne diese Kennzeichnung wäre der australische Kalendersommer der kälteste Termin des Jahres.
+
+Der Wetterverlauf eines Rennens ist bewusst grob: entweder trocken, oder eine nasse Phase mit Aufziehen, Höhepunkt und Abtrocknen. Eine feinere Zeitreihe wäre ohne das Live-Cockpit aus Konzept 11.3 nicht ablesbar.
+
+### 22.2 Reichweite: ausschließlich die Tick-Sim
+
+Wetter und Safety Car wirken **nur** in der rundenweisen Simulation (getroffene Entscheidung). Die Light-Sim, deren Ergebnisverteilung über fünf Meilensteine eingemessen ist, bleibt unangetastet.
+
+Der Preis ist bekannt und benannt: Von 2.600 Rennwochenenden einer 20-Saisons-Welt laufen 28 rundenweise. In Tabellen, Karrieren und Statistik kommt Regen damit nicht vor – er existiert nur dort, wo man ihm beim Entstehen zusehen kann.
+
+### 22.3 Was im Rennen passiert
+
+**Nässe** kostet 8 bis 25 % Rundenzeit (Konzept 12.5), gedämpft durch `wet_skill`. Wer auf der falschen Mischung unterwegs ist, zahlt zusätzlich 0,6 bis 2,8 Sekunden je Runde – das ist die eigentliche Strafe für einen verpassten Wechsel, nicht der Regen selbst.
+
+Der Reifenwechsel bei Wetterumschwung folgt nicht dem Plan, sondern der **Reaktionszeit des Chefstrategen**: Je schlechter er ist, desto länger bleibt das Auto auf der falschen Mischung. Damit hat `w_strategy` aus `staff_roles.csv` zum ersten Mal einen Hebel, der nicht nur die Stopprunde verschiebt.
+
+**Safety Car** entsteht aus `tracks.safety_car_rate`, bei Nässe bis zu 3,5-fach wahrscheinlicher. Während der Phase fährt das Feld neutralisiert, es wird nicht überholt, und das Feld schließt auf den Führenden auf. Der Boxenstopp kostet nur 35 % – der berüchtigte Gratis-Stopp aus Konzept 12.4, der den herausgefahrenen Vorsprung des Führenden vernichtet.
+
+### 22.4 Sprintwochenenden
+
+Sechs pro Saison in Tier 1, gleichmäßig über den Kalender verteilt und deterministisch aus der Rundenzahl gerechnet. Der Sprint ist ein **eigener Lauf** über ein Drittel der Distanz mit eigener, flacherer Wertung (8-7-6-5-4-3-2-1, neues Punktesystem 3) und ohne Pole- oder Rundenbonus. Die Startaufstellung des Hauptrennens ist das Sprintergebnis.
+
+Genutzt wird dafür die `leg`-Mechanik, die für die Doppelrennen in Tier 7 und 8 seit M1 steht – kein neues Konzept, nur ein anderer Zuschnitt.
+
+**Ein Fehler, gemessen und behoben:** Die Tick-Sim rechnet ihre Punkte selbst und kannte die Sprinttabelle zunächst nicht – der Sprintsieger bekam 27 statt 8 Punkten, also mehr als der Sieger des Hauptrennens.
+
+### 22.5 Gemessen
+
+Über 28 rundenweise gefahrene Rennen der Schlusssaison:
+
+| | Anteil |
+| :--- | ---: |
+| Rennen mit Nassreifen | 5 (18 %) |
+| Rennen mit Safety Car | 7 (25 %) |
+| beides zugleich | 2 |
+
+Von 31.602 Rundenzeilen entfallen 1.687 auf Intermediate und Regen. Die beiden Mischungen waren die ersten toten Zeilen des Projekts und sind jetzt in Benutzung.
+
+### 22.6 Was offen bleibt
+
+* **Rote Flagge, Kollisionen und Strafen fehlen.** Konzept 12.4 nennt sie neben dem Safety Car; umgesetzt ist bisher nur die Neutralisierung.
+* **Die Temperatur wird gewürfelt und nirgends gelesen.** Sie steht im Profil und im Wetterobjekt, wirkt aber weder auf Reifenfenster noch auf Zuverlässigkeit.
+* **Sprints gibt es nur in Tier 1.** Die anderen Formate haben `sprint_weekends_per_season = 0`; ob Tier 2 und 3 welche bekommen sollen, ist eine offene Designfrage.
+* **Wetter bleibt für 99 % der Rennen unsichtbar** – die Folge der Entscheidung aus 22.2. Sobald die Light-Sim Wetter bekommen soll, ist ihre Ergebnisverteilung neu einzumessen.
+
+### 22.7 Nachtrag: warum `wet_skill` zunächst nichts bewirkte
+
+Der erste Messlauf ergab für die Frage *„verbessert sich ein Regenspezialist im Regen?"* r = **+0,16** – das falsche Vorzeichen. Der Verdacht lag auf der Stichprobe: fünf Regenrennen sind wenig. Es war aber ein Fehler in der Verkabelung.
+
+`season.ts` führt eine Liste `DRIVER_KEYS`, die bestimmt, welche Fahrerwerte überhaupt aus `driver_state` in die Simulation geladen werden. **`wet_skill` stand nicht darin.** Die Rennsimulation las `entry.attributes.wet_skill ?? 50` – und bekam ausnahmslos den Rückfallwert. Jeder Fahrer war im Regen exakt gleich gut.
+
+Die Liste ist nicht zu verwechseln mit der gleichnamigen in `scoring.ts`: Die entscheidet, was in die Sektorzeit *eingeht*, diese hier, was überhaupt *ankommt*. Ein Wert, der hier fehlt, ist in der Sim schlicht `undefined` – und weil die Formel einen Rückfallwert hatte, fiel es nicht auf.
+
+Mit `wet_skill` in der Liste, gemessen über zehn rundenweise gefahrene Saisons (87 Regenrennen, 51 auswertbare Fahrer, dieselbe Welt und dieselbe Stichprobe):
+
+| | r(`wet_skill`, Platzveränderung im Regen) |
+| :--- | ---: |
+| ohne `wet_skill` in `DRIVER_KEYS` | **+0,19** |
+| mit `wet_skill` | **−0,57** |
+
+In Plätzen: Das untere Drittel der Tier-1-Fahrer (`wet_skill` 69–78) verliert im Regen im Mittel 0,84 Plätze, das obere Drittel (82–92) gewinnt 0,62 – ein Unterschied von **1,47 Plätzen**. Regen ist damit tatsächlich die Chance des Außenseiters, wie Konzept 12.5 es vorsieht.
+
+Die Korrektur verändert **kein einziges Trockenergebnis**: In den Ligen 2 bis 10, die als Light-Sim laufen, sind 0 von 5.008 Positionen der Saison 20 abgewichen. Die Wertung selbst liest weiter nur die sechs Sektorwerte aus `scoring.ts`.
+
+**Lehre für die Liste:** Jeder neue Wert, den eine Formel liest, muss in `DRIVER_KEYS` nachgezogen werden. Ein Rückfallwert macht den fehlenden Eintrag unsichtbar – die Sim rechnet weiter, nur eben mit einer Konstanten.
+
+### 22.8 Nachtrag: die Suche nach weiteren Verkabelungsfehlern
+
+Der `wet_skill`-Fund war Anlass für eine systematische Prüfung: Welche Werte stehen in den Daten und kommen im Code nie an? Zwei Prüfmuster tragen dabei.
+
+**Erstens**, jede CSV-Spalte gegen ihre Verbrauchsstellen. Das Ergebnis ist wenig aussagekräftig, weil viele Spalten dynamisch gelesen werden – `w_${part_key}` findet keine Textsuche. Wer diese Liste auswertet, muss die Template-Zugriffe von Hand ausschließen.
+
+**Zweitens**, und das ist das schärfere: **jeder Zugriff mit Rückfallwert** (`attributes.X ?? 60`) gegen die Liste dessen, was überhaupt geladen wird. Genau dort versteckt sich der Fehler, denn der Rückfallwert lässt die Rechnung weiterlaufen.
+
+Das förderte einen zweiten Fall derselben Art zutage:
+
+**`overtaking` und `defending` fehlten ebenfalls in `DRIVER_KEYS`.** Beide werden nur an einer Stelle gelesen – im Zweikampf der Tick-Sim:
+
+```
+const skill = ((attributes.overtaking ?? 60) - (attributes.defending ?? 60)) / 100;
+```
+
+Beide fielen auf 60 zurück, die Differenz war damit **immer exakt null**. Wer wen überholt, entschied allein die Streckentücke. Beide sind jetzt nachgezogen.
+
+Der Effekt liess sich zunächst nicht nachweisen – aber das lag am Messinstrument, nicht an der Mechanik. Siehe 22.9.
+
+Nicht betroffen sind die Personalwerte (`strategy`, `pit`, `feedback`, `reliability` – ihre Wirkung ist in 19.4 und 19.5 gemessen) und die Anlagenwerte, die über `facility[part_key]` dynamisch gelesen werden. Ohne Leser bleiben allein `w_newgen`, `w_sponsor` und `w_fitness` – alle drei sind in 20.7 und 21.8 bereits als offen vermerkt.
+
+### 22.9 Den Zweikampf messbar machen: `lap_records.rival_id`
+
+Die Frage aus 22.8 – wirkt `overtaking` überhaupt? – war mit den vorhandenen Daten nicht zu beantworten. Die Formel arbeitet mit der **Differenz** aus Angriff und Verteidigung, `lap_records` hielt aber nur fest, *dass* ein Zweikampf stattfand, nicht *gegen wen*:
+
+```
+const skill = (attacker.overtaking − defender.defending) / 100;
+const chance = max(0.05, (1 − overtaking_difficulty) × 0.8 + skill × 0.3);
+```
+
+`lap_records` trägt deshalb jetzt eine Spalte **`rival_id`** – bei den Ereignissen `traffic` und `overtake` der Fahrer, der in dieser Runde vorn lag. Damit ist beides bekannt und die Formel prüfbar.
+
+**Erste Auswertung, 38.811 Zweikämpfe über zehn rundenweise gefahrene Saisons:** r(Differenz, Erfolg) = −0,02, die Erfolgsquote über die Differenzbänder flach. Das sah nach „wirkt nicht" aus – war aber Konfundierung: Die Bänder mischen Strecken, deren Überholbarkeit von 0,22 bis 0,92 reicht und die den Basiswert von 62 % auf 6 % ziehen. Der Streckeneffekt ist zwanzigmal so groß wie der Fahrereffekt und überdeckt ihn vollständig.
+
+**Je Strecke getrennt** wird er sichtbar. Erfolgsquote der Angreifer mit einer Differenz über −10 gegenüber denen darunter:
+
+| Überholbarkeit | Zweikämpfe | Diff ≤ −10 | Diff > −10 | Unterschied |
+| ---: | ---: | ---: | ---: | ---: |
+| 0,22 | 1.151 | 57,5 % | 61,4 % | +4,0 Pp |
+| 0,44 | 1.812 | 39,9 % | 42,1 % | +2,2 Pp |
+| 0,52 | 2.216 | 32,8 % | 36,6 % | +3,7 Pp |
+| 0,82 | 1.619 | 9,3 % | 12,7 % | +3,4 Pp |
+| 0,92 | 2.302 | 5,8 % | 5,6 % | −0,2 Pp |
+
+Über 22 auswertbare Strecken im Mittel **+0,97 Prozentpunkte**, positiv auf 14 davon. **Die Mechanik wirkt** – der Fahrer entscheidet den Zweikampf mit, wenn auch schwach.
+
+Zwei Beobachtungen dazu, beide offen:
+
+* **Schwächer als die Formel nahelegt.** Bei rund acht Punkten Differenz zwischen den Bändern wären nach `skill × 0,3` etwa 2,4 Prozentpunkte zu erwarten, gemessen ist es gut ein Drittel davon. Der Grund liegt vermutlich an der Untergrenze `max(0.05, …)`: Auf schwer überholbaren Strecken wird der Basiswert dagegen gedrückt und der Fahreranteil mit abgeschnitten – bei Überholbarkeit 0,92 ist der Effekt tatsächlich null.
+* **Die Strecke dominiert den Fahrer um das Zwanzigfache.** Der Streckenterm wiegt 0,8, der Fahrerterm 0,3 – und die Differenzen zwischen Tier-1-Fahrern liegen nur zwischen −18 und +14, weil dort alle gut sind. Ob das so gewollt ist, ist eine Balancing-Frage und keine Messfrage.
+
+### 22.10 Balancing des Zweikampfs
+
+Aus 22.9 blieben zwei Beobachtungen offen. Getroffene Entscheidung: **die additive Form behalten und das Fahrergewicht anheben**, statt die Formel umzubauen.
+
+Drei Zahlen sind jetzt benannte Konstanten in `racesim.ts` statt im Ausdruck vergraben:
+
+| | vorher | jetzt |
+| :--- | ---: | ---: |
+| `DUEL_DRIVER_WEIGHT` | 0,3 | **0,9** |
+| `DUEL_MIN_CHANCE` | 0,05 | **0,02** |
+| `DUEL_MAX_CHANCE` | – | 0,92 |
+
+Die Untergrenze war der zweite Teil des Problems: Bei 0,05 schnitt sie auf den schwersten Strecken genau den Fahreranteil ab, den sie sichtbar machen soll – bei Überholbarkeit 0,92 lag der Basiswert schon bei 0,064.
+
+Das Gewicht ist gemessen, nicht gesetzt. Über zehn rundenweise gefahrene Saisons bei sonst gleicher Welt:
+
+| Gewicht | Fahrereffekt | Überholquote | Positionswechsel | Strecken mit Effekt |
+| ---: | ---: | ---: | ---: | :--- |
+| 0,3 | 1,22 Pp | 37,2 % | 2,95 | 15 von 22 |
+| 0,6 | 3,46 Pp | 35,1 % | 2,88 | 21 von 22 |
+| **0,9** | **5,24 Pp** | **32,4 %** | **2,89** | **22 von 22** |
+| 1,2 | 5,88 Pp | 31,2 % | 2,92 | 21 von 22 |
+| 1,6 | 7,72 Pp | 29,0 % | 2,94 | 18 von 18 |
+
+0,9 ist der erste Wert, bei dem der Fahrer auf **jeder** Strecke messbar mitentscheidet; 1,2 kauft dafür kaum noch etwas dazu. Nach Streckentyp:
+
+| Überholbarkeit | Diff ≤ −10 | Diff > −10 | Unterschied |
+| ---: | ---: | ---: | ---: |
+| 0,22 | 53,6 % | 57,3 % | +3,7 Pp |
+| 0,44 | 32,1 % | 41,2 % | +9,1 Pp |
+| 0,52 | 26,2 % | 33,5 % | +7,3 Pp |
+| 0,82 | 4,2 % | 9,8 % | +5,5 Pp |
+| 0,92 | 1,4 % | 2,1 % | +0,7 Pp |
+
+Der Stadtkurs bleibt ein Stadtkurs: Bei Überholbarkeit 0,92 bringt auch ein deutlich besserer Angreifer nur 0,7 Prozentpunkte. Genau das war die Bedingung – den Fahrer spürbar machen, ohne die Strecke zu entwerten.
+
+**Eine Nebenwirkung, bewusst in Kauf genommen:** Die Überholquote insgesamt fällt von 37,2 auf 32,4 Prozent. Der Grund ist eine Schiefe in den Daten – die Differenz aus `overtaking` und `defending` liegt im Mittel bei −7,2, der Term zieht also im Schnitt ab. Auf das Renngeschehen schlägt das nicht durch: Die Positionswechsel gegenüber dem Start bleiben bei 2,89 je Fahrer und Rennen (vorher 2,95). Es verschiebt sich das Verhältnis von gelungenen zu abgewehrten Angriffen, nicht die Bewegung im Feld.
+
+Offen bleibt, **warum die Differenz systematisch negativ ist**. Entweder liegen die `defending`-Werte in `drivers.csv` durchgängig über den `overtaking`-Werten, oder die Paarung ist verzerrt, weil ein Zweikampf nur entsteht, wenn das schnellere Auto hinten liegt. Ungeklärt.
+
+---
+
+## 23. M7 Teil 2: Zwischenfälle
+
+Der Rest von Konzept 12.4 – Fahrfehler, Dreher, Kollisionen, Schäden, Strafen – und die Temperatur, die seit M7 Teil 1 gewürfelt und nirgends gelesen wurde.
+
+### 23.1 Umfang: alles außer der roten Flagge
+
+Getroffene Entscheidung. Die rote Flagge ist der einzige Posten aus 12.4, der nicht gebaut wurde – nicht aus Aufwandsgründen, sondern weil sie **kein Ereignis in der Rundenschleife ist, sondern ein Eingriff in sie**: Sie unterbricht das Rennen, friert die Reihenfolge ein, erlaubt einen Reifenwechsel zum Nulltarif und verschiebt damit die Renndistanz, an der Reifenverschleiß, Spritlast und Stoppplanung eingemessen sind. Alles andere hängt sich an Stellen, die schon stehen.
+
+### 23.2 `tracks.risk` – die Streckentücke als eigene Spalte
+
+Konzept 12.4 nennt die Streckentücke als Faktor des Fahrfehlers, `tracks.csv` hatte sie nicht. Zur Wahl standen eine neue handgepflegte Spalte, eine Ableitung aus `safety_car_rate`/`elevation_change_m`/`overtaking_difficulty` oder `safety_car_rate` direkt. Gewählt: **eigene Spalte**, 30 Werte von Hand.
+
+Der Grund ist nicht Genauigkeit, sondern Einmessbarkeit. Wer die Tücke an die Safety-Car-Rate koppelt, macht beide Größen zu einer: Eine Strecke mit vielen Unterbrechungen und wenigen Ausritten kann es dann nicht mehr geben, und keiner der beiden Werte lässt sich je gegen den anderen kalibrieren.
+
+`risk` beantwortet **nicht**, wie oft ein Fehler passiert, sondern was er kostet. Krakowia steht bei 0,28 („technisch anspruchsvoll, ohne besondere Tücke"), Vieux Port bei 0,88.
+
+### 23.3 Was im Rennen passiert
+
+**Fahrfehler.** Je Runde und Auto, aus `consistency`, `pressure` und der Nässe. Der weit überwiegende Teil ist ein Verbremser (0,35–1,2 s). `SPIN_SHARE`, gedämpft durch `car_control`, macht daraus einen Dreher (4–9 s); `CRASH_SHARE`, gehoben durch `risk`, aus dem Dreher einen Ausritt. Ein Dreher hinterlässt in 45 % der Fälle eine Flatstelle.
+
+**Kollisionen.** Der Zweikampf hat einen dritten Ausgang neben *vorbei* und *hängengeblieben*. Die Wahrscheinlichkeit hängt an der Aggressivität beider Beteiligter, an `risk` und an der Nässe. Folgen: Zeitverlust auf beiden Seiten, Frontflügelschaden beim Angreifer, Reifenschaden beim Vordermann, bei einer schweren Kollision der Ausfall eines oder beider Autos.
+
+**Schäden** kosten jede Runde Zeit (Flügel 1,1 s, Reifen 1,4 s), bis die Box sie repariert – und genau darin liegt die Entscheidung: sofort rein und die Position aufgeben, oder weiterfahren. Der Schaden ist der dritte Anlass für einen Stopp neben Wetter und Plan; er hat Vorrang vor dem Plan, aber nicht vor dem Wetter, weil man beides in einem Stopp erledigt. Der Chefstratege bestimmt, wie schnell die Box reagiert.
+
+**Strafen** wirken erst in der Endwertung. Die Rundenzeiten bleiben unberührt – eine Strafe ist keine verlorene Zeit auf der Strecke, sondern eine Zeile im Ergebnisprotokoll. Drei Quellen: Kollisionsverschulden (5 s, schwer 10 s), Streckenbegrenzung (vierte Verwarnung, 5 s), Boxengassentempo (5 s).
+
+### 23.4 Die Temperatur wirkt in zwei Richtungen
+
+Getroffene Entscheidung: **Reifen und Zuverlässigkeit**. Bezugspunkt ist 22 °C; der Hitzefaktor läuft von −1 bis +1.
+
+* Hitze: Verschleiß × (1 + 0,28 · Hitze), Ausfallrate × (1 + 0,4 · Hitze) – der Hitzefaktor genau wie in Konzept 12.4 formuliert.
+* Kälte: bis zu 0,8 s in der ersten Runde eines Stints, halb so viel in der zweiten.
+
+Der zweite Teil war nicht gefordert, macht die Wirkung aber erst zu einer Entscheidung: Ohne ihn wäre kalt immer besser. So ist ein zusätzlicher Stopp an einem kalten Tag teurer, und beide Enden der Skala kosten etwas.
+
+Gemessen über 420 rundenweise gefahrene Rennen, nach mittlerer Streckentemperatur:
+
+| Temperatur | Starts | Reifenverlust | Stopps |
+| ---: | ---: | ---: | ---: |
+| 16 °C | 1980 | 18,6 s | 1,59 |
+| 20 °C | 3960 | **16,0 s** | 1,50 |
+| 24 °C | 2640 | 22,9 s | 1,69 |
+| 28 °C | 660 | 23,9 s | 2,36 |
+
+Das Minimum liegt am Auslegungspunkt, nicht am kalten Ende – die U-Form ist der Beleg, dass beide Richtungen wirken.
+
+### 23.5 Der Zweikampf fand bis v0.17.0 nur halb statt
+
+Beim Einbau gefunden, kein Teil des Auftrags. Die Rundenschleife läuft in Eintragsreihenfolge über die Autos, der Abstand zum Vordermann wurde aber gegen dessen `totalMs` gerechnet – und das enthielt bereits die laufende Runde, **wenn der Vordermann in der Schleife früher an der Reihe war**. Der Abstand wurde dann negativ, die Bedingung `gapS > 0` scheiterte, der Zweikampf fiel aus.
+
+Betroffen war rund die Hälfte aller Paarungen, und zwar nicht zufällig, sondern nach Eintragsreihenfolge – also systematisch dieselben. Behoben durch eine Momentaufnahme des Rennstands zu Rundenbeginn. Die gemessene Zahl der Zweikämpfe stieg von rund 75 auf rund 148 je Rennen.
+
+Dieselbe Klasse wie die Befunde aus 22.7 und 22.8, aber eine andere Ursache: kein fehlender Wert, sondern ein Wert, der zum Zeitpunkt des Lesens schon veraltet war.
+
+### 23.6 Zwei Messungen, die zunächst das falsche Vorzeichen zeigten
+
+**Streckenbegrenzung, gebaut als Folge des Fahrfehlers: feuerte in 420 Rennen genau einmal.** Es gibt rund sieben Fahrfehler je Rennen im ganzen Feld, und vier davon beim selben Fahrer kommen nie zusammen. Der Aufhänger war falsch: Einen Randstein zu weit mitzunehmen ist kein Fehler, sondern der Normalfall – er kostet nichts, bis er das vierte Mal passiert. Als eigener Wurf je Runde neu gebaut, gewichtet mit `1 − risk` und der Aggressivität.
+
+**Aggressivität gegen Kollisionen: r = −0,52, also genau verkehrt herum.** Ursache war dieselbe wie beim Zweikampf in 22.9 – eine Vermengung. Eine Kollision schrieb zwei identische Zeilen, die des Angreifers und die des Getroffenen. Auf den Angreifer wirkt seine Aggressivität mit vollem Gewicht, auf den Vordermann nur mit einem Drittel; in einer gemeinsamen Zahl heben sich beide auf. Mit `collision` und `collision_hit` getrennt und je Zweikampf statt je Start gemessen:
+
+| Aggressivität | Zweikämpfe | Kollisionen | Quote |
+| ---: | ---: | ---: | ---: |
+| 65 | 3 498 | 55 | 1,57 % |
+| 75 | 25 059 | 364 | 1,45 % |
+| 85 | 14 456 | 249 | 1,72 % |
+| 90 | 2 805 | 51 | 1,82 % |
+
+r = **+0,75**. Der Effekt ist klein – 16 % relativ über die ganze Spanne – aber er hat das richtige Vorzeichen und ist die schwächste der vier Attributwirkungen.
+
+### 23.7 Gemessen über 420 rundenweise gefahrene Rennen
+
+| Ereignis | je Rennen |
+| :--- | ---: |
+| Verkehr | 147,7 |
+| Überholmanöver | 76,4 |
+| Safety Car (Runden) | 25,2 |
+| Boxenstopps gesamt | 35,9 |
+| Fahrfehler | 7,1 |
+| Kollisionen | 3,7 |
+| technische Ausfälle | 1,3 |
+| Ausritte | 1,0 |
+| Strafe Streckenbegrenzung | 0,9 |
+| Dreher | 0,6 |
+
+Zeitstrafen: 3,3 je Rennen, 15,2 % aller Ergebnisse. Attributwirkung, je Start:
+
+| | r | Spanne |
+| :--- | ---: | :--- |
+| `consistency` → Fahrfehler | **−0,93** | 0,434 → 0,311 |
+| `pressure` → Fahrfehler | **−0,97** | 0,448 → 0,342 |
+| `car_control` → Dreher | **−0,75** | 0,080 → 0,063 |
+| `aggression` → Kollisionen | **+0,75** | 1,57 % → 1,82 % je Zweikampf |
+
+Die Streckentücke wirkt monoton über die ganze Spanne, und zwar in beide Richtungen gegenläufig – genau wie vorgesehen:
+
+| `risk` | Ausritte je Start | Streckenbegrenzung je Start |
+| ---: | ---: | ---: |
+| 0,3 | 0,021 | 0,100 |
+| 0,5 | 0,053 | 0,039 |
+| 0,7 | 0,059 | 0,002 |
+| 0,9 | **0,130** | **0,000** |
+
+Auf Vieux Port gibt es keine Track-Limit-Strafen, weil hinter dem Randstein kein Asphalt steht, sondern Beton.
+
+### 23.8 Die Light-Sim musste nachziehen
+
+Die Zwischenfälle hoben die Ausfallquote der Tick-Sim in Tier 1 von 6,1 auf **10,6 %**, während die Light-Sim bei 6,0 % blieb. Vier Wege standen zur Wahl; getroffene Entscheidung: **die Light-Sim anheben**.
+
+Sie fährt keine Runden und kann eine Kollision nicht simulieren – sie bildet nur deren Häufigkeit nach, über einen zweiten Ausfallgrund, der als Gegenwahrscheinlichkeit mit dem technischen verknüpft wird. Er hängt an denselben zwei Größen wie in der Tick-Sim, `risk` und `consistency`. Ein Wert, der nur die Quote trifft, wäre billiger gewesen; er hätte aber bedeutet, dass ein unkonzentrierter Fahrer auf einem Mauerkurs genauso sicher ankommt wie ein konstanter auf einer Piste mit Auslauf – und damit die Aussage des Features in neun von zehn Ligen wieder kassiert.
+
+Ergebnis Tier 1: Light-Sim **10,7 %**, Tick-Sim **10,3 %**. Über alle zehn Ligen steigt die Quote von 15,9 auf 20,4 Prozent und staffelt sich weiter sauber am Ligenniveau (Tier 1: 10,6 %, Tier 10: 26,6 %).
+
+Das ist die erste Änderung dieses Projekts, die die Light-Sim selbst anfasst – bis hierher galt sie als eingemessener Bezugspunkt, den nur die Tick-Sim umkreist. Der Preis ist benannt: Die Kalibrierung aus M1 bis M5 ist an dieser einen Stelle nicht mehr die von damals.
+
+### 23.9 Nebenbefund: der Mobilitätsrückgang aus 21.8 ist behoben
+
+M6 hatte die Zahl der Teams mit einer Ligenspanne von mindestens zwei von 25 auf 15 gedrückt, mit der unbewiesenen Vermutung, dass Sponsoren und Preisgeld beide am Vorjahresergebnis hängen und den Status quo verstärken. Mit den Zwischenfällen:
+
+| | vor M6 | nach M6 | jetzt |
+| :--- | ---: | ---: | ---: |
+| Teams mit Ligenspanne ≥ 2 | 25 | 15 | **25** |
+| Aufstiege über 20 Saisons | 291 | 278 | **287** |
+
+Damit ist die Vermutung aus 21.8 zumindest im Ergebnis bestätigt: Der Rückgang war eine Varianzfrage, keine Strukturfrage. M6 hatte das Rauschen aus den Tabellen genommen, indem es Einnahmen an Ergebnisse koppelte; die Zwischenfälle geben es zurück. Ein Rennen, in dem ein Viertel des Feldes ausfallen kann, lässt sich nicht allein über das Budget gewinnen.
+
+Was das **nicht** beweist: dass die Kopplung von Sponsoren und Preisgeld an das Vorjahr richtig kalibriert ist. Sie ist nur nicht mehr die bindende Schranke.
+
+### 23.10 Was offen bleibt
+
+* **Rote Flagge** – bewusst nicht gebaut (23.1).
+* **Kollisionsstrafen bei Ausfall** verfallen. Eine Startplatzstrafe im nächsten Rennen wäre ein eigenes Regelwerk und gehört nicht in die Rennsimulation.
+* **3,3 Zeitstrafen je Rennen** sind am oberen Rand des Plausiblen. Der Wert hängt fast vollständig an der Kollisionsquote von 3,7; beide sind zusammen zu kalibrieren, wenn sie kalibriert werden.
+* **Die Differenz aus `overtaking` und `defending` ist weiter systematisch −7,2** (22.10). Unverändert ungeklärt.
+* `w_newgen`, `w_sponsor`, `w_fitness`, `w_morale` haben nach wie vor keinen Leser.
+
+---
+
+## 24. M7 Feinschliff: Rekorde und Ruhmeshalle
+
+Die Roadmap führt „Statistik/Rekorde/HoF" unter M7. Die Daten dafür lagen vollständig vor und wurden nirgends ausgewertet: `driver_seasons` (6 679 Zeilen), `team_seasons` (3 340), `race_results` (112 452), `lap_records` (31 178).
+
+### 24.1 Abfrage statt Tabelle
+
+Getroffene Entscheidung: **im Frontend per SQL**, nicht als Tabelle in der Engine oder im Publish-Werkzeug.
+
+Der Grund ist nicht Bequemlichkeit. Alles auf diesen Seiten ist eine Ableitung aus Ergebnissen, die bereits feststehen – eine gespeicherte Kopie davon kann nur eines: veralten. Sobald sich eine Auswertung ändert, müsste ein Schema mitgezogen und die Welt neu gerechnet werden.
+
+Die Entscheidung ist gemessen, nicht geschätzt. Auf der Auslieferdatei, aus der das Publish-Werkzeug die Indizes entfernt hat:
+
+| Abfrage | Ergebnis | Dauer |
+| :--- | ---: | ---: |
+| Siege je Fahrer über `race_results` | 20 Zeilen | 15,3 ms |
+| Schnellste Runde je Strecke über `lap_records` | 22 Zeilen | 17,0 ms |
+| Karrierebilanz aller Fahrer | 861 Zeilen | 6,1 ms |
+
+Unter 20 ms für die schwerste Abfrage – unterhalb dessen, was bei einem Seitenwechsel auffällt.
+
+### 24.2 Keine ligaübergreifende Wertung
+
+Getroffene Entscheidung: **nach Liga getrennt ausweisen**, keine Gewichtung.
+
+Der Spitzenreiter der Gesamtwertung hat 134 Siege in 19 Saisons. Ohne die Trennung bleibt offen, ob das eine große Karriere war oder eine lange in Tier 9. Eine gewichtete Umrechnung – ein Sieg in Tier 1 zählt *n*-mal so viel wie einer in Tier 10 – hätte eine einzige lesbare Rangliste ergeben, aber um den Preis einer erfundenen Zahl, die jede Rangfolge bestimmt und die niemand nachprüfen kann.
+
+Die Rekordseite zeigt deshalb vier Bestenlisten je Liga (Siege, Podeste, Poles, Punkte), zehn Ligen, dazu Streckenrekorde und eine Teambilanz. Zehn aufgeklappte Ligen wären vierzig Tabellen auf einer Seite; Tier 1 steht offen, der Rest auf Abruf.
+
+**Streckenrekorde haben eine engere Grundlage als der Rest**: Rundenzeiten entstehen nur in der rundenweise gerechneten Liga. Die Bestzeiten stammen damit aus einer Saison und einer Liga, nicht aus zwanzig und zehn. Die Ansicht sagt das dazu.
+
+### 24.3 Zwei Aufnahmebedingungen für die Ruhmeshalle
+
+Getroffene Entscheidung: **Titelträger und Aufstiegshelden**.
+
+1. mindestens ein Ligatitel, in welcher Liga auch immer
+2. ein Karriereaufstieg von mindestens drei Ligen
+
+Die zweite Bedingung ist der eigentliche Inhalt. Nur die Tier-1-Meister aufzunehmen hätte neun von zehn Ligen leer ausgehen lassen und ausgerechnet die Pyramide ignoriert, die das Kernfeature ist. Eine Bestenliste ohne Schwelle wiederum wäre nur eine weitere Tabelle gewesen.
+
+**Bezugspunkt des Aufstiegs ist die Liga der ersten Saison**, nicht die schlechteste der Karriere. Sonst wäre ein Fahrer, der von Tier 2 auf Tier 8 durchgereicht wird und dazwischen einmal Tier 5 sieht, ein Aufsteiger.
+
+Gemessen über 20 Saisons: **284 Aufnahmen** – 146 Titelträger, 138 Aufstiegshelden. Die weitesten Wege ohne einen einzigen Titel:
+
+| Fahrer | Weg | Saisons | Siege |
+| :--- | :--- | ---: | ---: |
+| Gianni Ponti | Tier 8 → Tier 1 | 15 | 5 |
+| Runa Steinbeck | Tier 7 → Tier 1 | 12 | 4 |
+| Grace Roydon | Tier 8 → Tier 2 | 13 | 9 |
+
+Genau diese Karrieren sind das, was das Konzept mit „10 Ligen, jede Saison Auf- und Abstieg" behauptet – und sie standen bis hierher nirgends.
+
+### 24.4 Was offen bleibt
+
+* **284 von 861 Fahrern sind aufgenommen, also ein Drittel.** Das ist die Folge der gewählten Bedingungen und der Datenlage: In 20 Saisons werden 200 Titel vergeben, verteilt auf 146 Fahrer. Ob eine Ruhmeshalle mit einem Drittel aller Fahrer noch eine Auszeichnung ist, ist eine Balancing-Frage und keine technische – zu schärfen wäre sie über eine höhere Aufstiegsschwelle oder über mehrere Titel als Bedingung.
+* **Ein Meister mit null Siegen** ist möglich und kam vor (Tier 6, Saison 20, 137 Punkte). Das ist kein Fehler, sondern die Folge eines flachen Punktesystems – aber es ist eine Aussage über das Punktesystem, die bisher niemand getroffen hat.
+* Ein **Editor** ist der letzte offene Posten aus M7 und nicht gebaut.
+
+---
+
+## 25. M7 Feinschliff: Stammdaten-Editor
+
+Der letzte offene Posten aus M7 (Konzept 17). Velos Editor ist ein Backend-Dienst mit REST-API – APEX hat keinen Server. Daraus folgt der gesamte Zuschnitt.
+
+### 25.1 Bearbeitet werden die CSV-Dateien, nicht die Datenbank
+
+Naheliegend wäre gewesen, `apex.db` zu bearbeiten – sie ist ohnehin geladen. Zwei Gründe sprechen dagegen, und beide sind zwingend:
+
+* Die Datenbank kennt die **Gliederungskommentare** der handgepflegten Dateien nicht. `teams.csv` enthält 20 Zeilen der Form `# ---- Tier 1: APEX World Championship (11) ----`, `drivers.csv` 26. Sie sind oft die einzige Stelle, an der eine Entscheidung festgehalten ist.
+* Die Datenbank enthält **928 Fahrer statt 450**, weil die Newgens erst während der Simulation entstehen. Wer dort editierte, bekäme 478 Fahrer angeboten, die in keiner Quelldatei stehen.
+
+Das Publish-Werkzeug kopiert `data/*.csv` deshalb nach `public/data/`. Die Kopie ist Erzeugnis und steht in `.gitignore`; die Wahrheit bleibt `data/`.
+
+### 25.2 Gespeichert wird per Download
+
+Die Seite ist statisch und hat keinen Server, dem sie etwas schicken könnte. Der Weg schließt sich über das Repo: bearbeiten, herunterladen, nach `data/` legen, einchecken – der Pages-Workflow rechnet die Welt beim nächsten Push ohnehin neu.
+
+Das ist keine Notlösung, sondern die Konsequenz aus der Architektur: Wenn die CSV-Dateien die Wahrheit sind, muss eine Änderung durch das Repo, sonst ist sie keine.
+
+**Was der Editor nicht kann: die Welt neu rechnen.** Die Engine hängt an `better-sqlite3` und läuft nicht im Browser. Er prüft deshalb nur, was ohne Simulation prüfbar ist.
+
+### 25.3 Dieselben Regeln wie im Bootstrapper, nicht nachgebaute
+
+`load.ts` vereinte den Dateizugriff und die gesamte dateiinterne Prüfung – Typen, Wertebereiche, Eindeutigkeit, Primärschlüssel, Sortierung. Der reine Teil ist nach `tools/bootstrap/table.ts` gewandert, das **keinen einzigen Node-Import** hat; `load.ts` liest nur noch die Datei und ruft `buildTable(text, spec, findings)`.
+
+Damit prüft der Editor mit demselben Code wie der Bootstrapper. Die Alternative – die Regeln im Frontend nachzubauen – hätte zwei Fassungen derselben Regel ergeben, und zwei Fassungen laufen immer auseinander.
+
+### 25.4 Ein Dokumentmodell, weil Speichern sonst Dateien zerstört
+
+`parseCsv` wirft weg, was der Bootstrapper nicht braucht: Kommentare, Leerzeilen und die Information, welche Felder zitiert waren. Für einen Editor ist genau das die Substanz.
+
+Der erste Serialisierer arbeitete mit minimalem Zitat und nur dem Kommentarblock am Dateikopf. Ein Round-Trip-Test über alle Dateien – einlesen, unverändert zurückschreiben, mit dem Original vergleichen – zeigte das Ergebnis:
+
+| | Dateien |
+| :--- | ---: |
+| byte-identisch | 13 von 21 |
+| verändert, obwohl nichts bearbeitet wurde | **8 von 21** |
+
+Zwei Ursachen: Kommentare mitten in der Datei gingen verloren, und Freitextfelder, die aus Gewohnheit zitiert sind, ohne ein Komma zu enthalten, verloren ihre Anführungszeichen. Beides hätte jeden gespeicherten Diff unlesbar gemacht.
+
+Ersetzt durch ein Dokumentmodell (`parseDocument`/`serializeDocument`), das jede Zeile als Kommentar, Leerzeile, Kopfzeile oder Datenzeile behält und je Feld festhält, ob es zitiert war. Zitiert wird beim Schreiben, wo es nötig ist **oder** wo es in der Quelle schon stand. Ergebnis: **21 von 21 byte-identisch**.
+
+Der Test ist der eigentliche Ertrag dieses Abschnitts. Ohne ihn wäre ein Editor entstanden, der Dateien beschädigt, die niemand angefasst hat – und das wäre erst im Diff eines fremden Commits aufgefallen.
+
+### 25.5 Nebenbefund: `risk` fehlte in der Barrage
+
+Beim Typcheck der Werkzeuge (`npm run typecheck`, nicht `tsc --noEmit` allein) fiel auf, dass `engine/promotion.ts` ebenfalls einen `WeekendContext` baut – für das Barrage-Rennen – und dort die in Abschnitt 23 hinzugefügte Spalte `risk` fehlte.
+
+Folge: In allen 360 Barrage-Läufen war `context.risk` undefiniert, die Zwischenfallquote wurde damit `NaN`, und `rng() < NaN` ist immer falsch. **Ausgerechnet im Entscheidungsrennen um Auf- und Abstieg gab es keine Zwischenfall-Ausfälle.** Behoben.
+
+Der Befund gehört zur Klasse aus 22.8, hat aber eine dritte Ursache: kein fehlender Wert und kein veralteter, sondern eine zweite Aufrufstelle, die beim Erweitern übersehen wurde. Bemerkenswert ist, wie er gefunden wurde – nicht durch Messung, sondern weil ein Typfehler in einem Projekt lag, das der Standard-Typcheck nicht abdeckt.
+
+### 25.6 Was offen bleibt
+
+* **Nur die vier Dateien aus Konzept 17** sind bearbeitbar. Die übrigen 17 Stammdatendateien liest der Editor nicht – die Spaltendefinitionen lägen maschinenlesbar vor, aber eine generische Tabelle kennt keine Zusammenhänge, etwa dass Gewichtsspalten sich auf 1,0 summieren müssen.
+* **Dateiübergreifende Regeln laufen nicht.** `validateWorld` braucht alle Tabellen gleichzeitig; der Editor hat immer nur eine geladen. Ein Fremdschlüssel auf ein gelöschtes Team fällt damit erst beim Bootstrap auf.
+* **Zeilen anlegen und löschen** kann der Editor nicht, nur Werte ändern.

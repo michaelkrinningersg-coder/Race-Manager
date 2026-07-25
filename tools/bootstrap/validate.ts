@@ -11,8 +11,10 @@ import {
   AERO_PART_KEYS,
   CORE_ATTRIBUTES,
   DRIVER_WEIGHT_KEYS,
+  FACILITY_WEIGHT_COLUMNS,
   PART_KEYS,
   PART_WEIGHT_KEYS,
+  STAFF_WEIGHT_COLUMNS,
   TRACK_ARCHETYPES,
 } from './schema.js';
 import type { LoadedTable, Row } from './load.js';
@@ -343,6 +345,30 @@ function checkLicences(context: ValidationContext, findings: Finding[]): void {
   // Kopplung der beiden waere eine Annahme ohne Grundlage.
 }
 
+function checkDriverNames(context: ValidationContext, findings: Finding[]): void {
+  for (const row of rowsOf(context, 'driver_names.csv')) {
+    for (const field of ['first_names', 'last_names']) {
+      const names = String(row.values[field] ?? '')
+        .split('|')
+        .filter((name) => name.trim() !== '');
+      if (names.length < 6) {
+        findings.push(
+          warning(
+            'driver_names.csv',
+            `'${String(row.values.country)}': nur ${names.length} Eintraege in ${field} - zu wenig fuer glaubwuerdige Newgens ueber viele Saisons`,
+            row.line,
+          ),
+        );
+      }
+      if (new Set(names).size !== names.length) {
+        findings.push(
+          error('driver_names.csv', `'${String(row.values.country)}': ${field} enthaelt Doppelungen`, row.line),
+        );
+      }
+    }
+  }
+}
+
 function checkTyres(context: ValidationContext, findings: Finding[]): void {
   const dry = rowsOf(context, 'tyre_compounds.csv').filter((row) => num(row, 'wet_only') === 0);
   if (dry.length === 0) {
@@ -432,6 +458,125 @@ function checkPartTypes(context: ValidationContext, findings: Finding[]): void {
         `carry_over_default der drei Aero-Gruppen weicht ab (${[...carryOver].join(', ')}) - Konzept 5.3 behandelt sie einheitlich`,
       ),
     );
+  }
+}
+
+/**
+ * staff_roles.csv: die Normierung der Wirkungsspalten.
+ *
+ * Jede Spalte summiert sich ueber alle acht Rollen auf genau 1.0. Nur dann ist
+ * der Personalwert einer Wirkung ein gewichteter Mittelwert auf derselben
+ * 0-100-Skala wie die Einzelwerte. Eine Summe von 1.1 saehe in keiner einzelnen
+ * Zahl falsch aus, verschoebe aber jede Entwicklung im Spiel - deshalb Fehler,
+ * keine Warnung, wie bei den Gewichtsprofilen der Strecken.
+ */
+function checkStaffRoles(context: ValidationContext, findings: Finding[]): void {
+  const rows = rowsOf(context, 'staff_roles.csv');
+  if (rows.length === 0) return;
+
+  for (const column of STAFF_WEIGHT_COLUMNS) {
+    const sum = rows.reduce((total, row) => total + num(row, column), 0);
+    if (Math.abs(sum - 1) > 1e-6) {
+      findings.push(
+        error('staff_roles.csv', `Summe ${column} ist ${sum.toFixed(4)}, erwartet ist genau 1.0`),
+      );
+    }
+  }
+
+  // Das Gehaltsbudget wird ueber die tatsaechlich besetzten Stellen verteilt,
+  // nicht ueber die Rollen - der Renningenieur zaehlt doppelt.
+  const salarySum = rows.reduce(
+    (total, row) => total + num(row, 'salary_share') * num(row, 'count_per_team'),
+    0,
+  );
+  if (Math.abs(salarySum - 1) > 1e-6) {
+    findings.push(
+      error(
+        'staff_roles.csv',
+        `Summe salary_share x count_per_team ist ${salarySum.toFixed(4)}, erwartet ist genau 1.0`,
+      ),
+    );
+  }
+
+  // Eine Rolle ohne jede Wirkung waere ein Gehalt ohne Gegenwert. Der
+  // Nachwuchsleiter ist ausgenommen: Seine Wirkung haengt am Scouting, das
+  // bewusst spaeter kommt.
+  for (const row of rows) {
+    const key = String(row.values.role_key);
+    const total = STAFF_WEIGHT_COLUMNS.reduce((sum, column) => sum + num(row, column), 0);
+    if (total <= 0) {
+      findings.push(error('staff_roles.csv', `Rolle ${key} hat auf nichts eine Wirkung`));
+    }
+  }
+
+  const engineers = rows.find((row) => row.values.role_key === 'race_engineer');
+  if (engineers && num(engineers, 'count_per_team') !== 2) {
+    findings.push(
+      warning(
+        'staff_roles.csv',
+        `race_engineer hat count_per_team ${num(engineers, 'count_per_team')} - Konzept 8.1 sieht einen je Auto vor, also 2`,
+      ),
+    );
+  }
+}
+
+/**
+ * facility_types.csv: dieselbe Normierung wie beim Personal, plus die
+ * Rueckbindung an die Lizenzleiter.
+ *
+ * Die vier mit licence_checked = 1 markierten Schluessel muessen genau den
+ * min_*_level-Spalten aus licence_requirements.csv entsprechen. Faellt eine
+ * Anlage aus dieser Menge heraus, prueft die Lizenz gegen ein Niveau, das
+ * kein Team je aufbauen kann - ein Fehler, der erst beim ersten verweigerten
+ * Aufstieg auffiele.
+ */
+function checkFacilityTypes(context: ValidationContext, findings: Finding[]): void {
+  const rows = rowsOf(context, 'facility_types.csv');
+  if (rows.length === 0) return;
+
+  for (const column of FACILITY_WEIGHT_COLUMNS) {
+    const sum = rows.reduce((total, row) => total + num(row, column), 0);
+    if (Math.abs(sum - 1) > 1e-6) {
+      findings.push(
+        error('facility_types.csv', `Summe ${column} ist ${sum.toFixed(4)}, erwartet ist genau 1.0`),
+      );
+    }
+  }
+
+  // Eine Anlage ohne jede Wirkung waere ein Fixkostenposten ohne Gegenwert.
+  // Marketing und Medizin sind nicht ausgenommen: Ihre Spalten w_sponsor und
+  // w_fitness tragen die 1.0 schon, auch wenn sie bis M6/M7 niemand liest.
+  for (const row of rows) {
+    const key = String(row.values.facility_key);
+    const total = FACILITY_WEIGHT_COLUMNS.reduce((sum, column) => sum + num(row, column), 0);
+    if (total <= 0) {
+      findings.push(error('facility_types.csv', `Anlage ${key} hat auf nichts eine Wirkung`));
+    }
+  }
+
+  const checked = new Set(
+    rows.filter((row) => num(row, 'licence_checked') === 1).map((row) => String(row.values.facility_key)),
+  );
+  const required = new Set(['windtunnel', 'dyno', 'simulator', 'factory']);
+  for (const key of required) {
+    if (!checked.has(key)) {
+      findings.push(
+        error(
+          'facility_types.csv',
+          `${key} ist nicht als licence_checked markiert, licence_requirements.csv fordert dafuer aber ein Mindestniveau`,
+        ),
+      );
+    }
+  }
+  for (const key of checked) {
+    if (!required.has(key)) {
+      findings.push(
+        error(
+          'facility_types.csv',
+          `${key} ist als licence_checked markiert, licence_requirements.csv kennt dafuer aber keine min_*_level-Spalte`,
+        ),
+      );
+    }
   }
 }
 
@@ -1018,7 +1163,10 @@ export function validateWorld(context: ValidationContext): Finding[] {
   checkLicences(context, findings);
   checkPayouts(context, findings);
   checkTyres(context, findings);
+  checkDriverNames(context, findings);
   checkPartTypes(context, findings);
+  checkStaffRoles(context, findings);
+  checkFacilityTypes(context, findings);
   checkTeams(context, findings);
   checkEngineSuppliers(context, findings);
   checkWeightProfiles(context, findings);

@@ -363,6 +363,12 @@ code {
   font-variant-numeric: tabular-nums;
 }
 
+/* Selbstverschuldeter Zeitverlust. Hervorgehoben, weil er als einziger Posten
+   der Zerlegung nicht am Auto haengt, sondern am Fahrer. */
+.table .num--incident {
+  color: #ff8f7d;
+}
+
 .table .movement {
   font-size: 0.78rem;
   color: var(--muted);
@@ -514,11 +520,460 @@ code {
   text-align: center;
 }
 
+/* ---------- Ladebildschirm ---------- */
+
+.boot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  min-height: 100vh;
+  padding: 2rem;
+  text-align: center;
+}
+
+.boot__title {
+  margin: 0.4rem 0 0;
+  font-size: 1.3rem;
+  font-weight: 650;
+}
+
+.boot__bar {
+  width: min(420px, 80vw);
+  height: 6px;
+  overflow: hidden;
+  background: var(--bg-elevated);
+  border-radius: 999px;
+}
+
+.boot__fill {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  border-radius: 999px;
+  transition: width 0.2s ease-out;
+}
+
+.boot__hint {
+  margin: 0;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.boot__note {
+  max-width: 46ch;
+  margin: 0.4rem 0 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+/* ---------- Saisonwechsler ---------- */
+
+.season-picker {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.season-picker__label {
+  color: var(--muted);
+  font-size: 0.78rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.season-picker__select {
+  padding: 0.35rem 0.6rem;
+  color: var(--text);
+  font: inherit;
+  font-size: 0.85rem;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+/* ---------- Ligaverlauf ---------- */
+
+.ladder {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 120px;
+  padding: 0.6rem 0.4rem 0;
+  overflow-x: auto;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.ladder__step {
+  display: flex;
+  flex: 1 0 22px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  height: 100%;
+  gap: 0.25rem;
+}
+
+.ladder__bar {
+  width: 100%;
+  height: var(--h);
+  background: linear-gradient(180deg, var(--accent), rgba(255, 90, 31, 0.35));
+  border-radius: 4px 4px 0 0;
+  opacity: 0.55;
+  transition: opacity 0.15s;
+}
+
+.ladder__step:hover .ladder__bar,
+.ladder__step.is-current .ladder__bar {
+  opacity: 1;
+}
+
+.ladder__season {
+  color: var(--muted);
+  font-size: 0.62rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.ladder__step.is-current .ladder__season {
+  color: var(--text);
+  font-weight: 700;
+}
+
+/* ---------- Anlagen ---------- */
+
+.facilities {
+  display: grid;
+  gap: 0.4rem;
+  margin: 0.8rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.facility {
+  display: grid;
+  align-items: center;
+  gap: 0.8rem;
+  grid-template-columns: minmax(190px, 1.3fr) auto 74px minmax(140px, 0.8fr);
+  padding: 0.5rem 0.75rem;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.facility__name {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-weight: 600;
+}
+
+.facility__pips {
+  display: inline-flex;
+  gap: 4px;
+}
+
+.pip {
+  width: 13px;
+  height: 13px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+}
+
+.pip.is-filled {
+  background: var(--accent);
+  border-color: transparent;
+}
+
+.facility__level {
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.facility__cost {
+  color: var(--text);
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+/* ---------- Chronik: Ausbauten, Ereignisse ---------- */
+
+.moves,
+.events,
+.denials {
+  display: grid;
+  gap: 0.3rem;
+  margin: 0.6rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.move,
+.event {
+  display: grid;
+  align-items: baseline;
+  gap: 0.7rem;
+  grid-template-columns: 44px minmax(0, 1fr) auto auto;
+  padding: 0.4rem 0.7rem;
+  background: var(--bg-elevated);
+  border-left: 3px solid var(--border);
+  border-radius: 0 8px 8px 0;
+  font-size: 0.86rem;
+}
+
+.event {
+  grid-template-columns: 44px 130px minmax(0, 1fr);
+}
+
+.move--built {
+  border-left-color: var(--promotion);
+}
+
+.move--forced_sale {
+  border-left-color: var(--relegation);
+}
+
+.move__season,
+.event__season {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.move__label,
+.event__label {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.move__amount {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.event__detail {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.denials li {
+  padding: 0.45rem 0.7rem;
+  background: var(--bg-elevated);
+  border-left: 3px solid var(--barrage);
+  border-radius: 0 8px 8px 0;
+  font-size: 0.86rem;
+}
+
+.denial-reason {
+  display: block;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+/* ---------- Marken ---------- */
+
+.tag {
+  padding: 0.08rem 0.4rem;
+  border-radius: 999px;
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.tag--newgen {
+  background: rgba(52, 209, 127, 0.16);
+  color: var(--promotion);
+}
+
+.tag--licence {
+  background: rgba(255, 90, 31, 0.16);
+  color: var(--accent);
+}
+
+.tag--pole {
+  background: rgba(60, 130, 255, 0.18);
+  color: #7fb0ff;
+}
+
+.tag--met {
+  background: rgba(52, 209, 127, 0.16);
+  color: var(--promotion);
+}
+
+.tag--missed {
+  background: rgba(239, 74, 74, 0.16);
+  color: var(--relegation);
+}
+
+.tag--fl {
+  background: rgba(186, 104, 255, 0.18);
+  color: #c79bff;
+}
+
+/* Zeitstrafe. Bewusst dieselbe Farbfamilie wie ein Zwischenfall in der
+   Verlaufskurve - beide erzaehlen dieselbe Geschichte. */
+.tag--penalty {
+  background: rgba(255, 107, 87, 0.18);
+  color: #ff8f7d;
+}
+
+/* ---------- Rennen ---------- */
+
+.race-chips {
+  display: grid;
+  gap: 0.4rem;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  margin-top: 0.7rem;
+}
+
+.race-chip {
+  display: grid;
+  align-items: center;
+  gap: 0.1rem 0.6rem;
+  grid-template-areas: 'round track' 'round country';
+  grid-template-columns: 28px minmax(0, 1fr);
+  padding: 0.45rem 0.6rem;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  font-size: 0.82rem;
+}
+
+.race-chip:hover {
+  border-color: var(--accent);
+}
+
+.race-chip__round {
+  grid-area: round;
+  color: var(--accent);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.race-chip__track {
+  grid-area: track;
+  overflow: hidden;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.race-chip__country {
+  grid-area: country;
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+.leg-switch {
+  display: inline-flex;
+  gap: 0.3rem;
+  margin-bottom: 0.9rem;
+  padding: 0.2rem;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+}
+
+.leg-switch__item {
+  padding: 0.25rem 0.8rem;
+  border-radius: 999px;
+  font-size: 0.82rem;
+}
+
+.leg-switch__item.is-active {
+  background: var(--accent);
+  color: #10141c;
+  font-weight: 700;
+}
+
+.row--dnf td {
+  color: var(--muted);
+}
+
+.row--denied {
+  background: rgba(244, 192, 47, 0.07);
+}
+
+.gain--up {
+  color: var(--promotion);
+}
+
+.gain--down {
+  color: var(--relegation);
+}
+
+/* ---------- Positionsverlauf ---------- */
+
+.chart-scroll {
+  overflow-x: auto;
+  margin-top: 0.7rem;
+  padding: 0.6rem;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.chart {
+  display: block;
+  min-width: 620px;
+  width: 100%;
+  color: var(--muted);
+}
+
+.chart__tick {
+  fill: currentColor;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.chart__tick--x {
+  text-anchor: middle;
+}
+
+.lapline path {
+  transition: opacity 0.12s;
+}
+
+.chart:hover .lapline path {
+  opacity: 0.3;
+}
+
+.chart .lapline:hover path {
+  opacity: 1;
+  stroke-width: 2.6;
+}
+
+/* ---------- Kompakte Tabelle ---------- */
+
+.table--compact th,
+.table--compact td {
+  padding: 0.35rem 0.5rem;
+  font-size: 0.82rem;
+}
+
+.table tbody tr.is-current {
+  background: rgba(255, 90, 31, 0.1);
+}
+
 /* ---------- Responsiv ---------- */
 
 @media (max-width: 860px) {
   .layout {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  /* Rasterkinder duerfen nicht breiter werden als die Spalte. Ohne min-width: 0
+     erzwingt der breiteste Inhalt - hier die Ligaleiste - die Breite der
+     gesamten Seite, und das Layout laeuft waagerecht ueber. */
+  .layout > * {
+    min-width: 0;
   }
 
   .sidebar {
@@ -548,4 +1003,605 @@ code {
   .part__value {
     text-align: left;
   }
+
+  .facility {
+    grid-template-columns: 1fr auto;
+    gap: 0.3rem 0.6rem;
+  }
+
+  .facility__cost {
+    text-align: left;
+  }
+
+  .move,
+  .event {
+    grid-template-columns: 40px minmax(0, 1fr);
+  }
+
+  .topbar {
+    flex-wrap: wrap;
+    gap: 0.6rem;
+  }
+}
+
+/* ---------- Rekorde ---------- */
+
+/* Die Meisterliste ist nach Jahrgang gruppiert, nicht nach Liga: In jeder
+   Saison wird zehnmal ein Titel vergeben, und der Jahrgang ist die Geschichte. */
+.champion-years {
+  display: grid;
+  gap: 1.1rem;
+  margin: 0.8rem 0 1.6rem;
+}
+
+.champion-year h3 {
+  margin: 0 0 0.45rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.champion-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.champion {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-areas: 'tier name' 'tier team' 'tier stat';
+  gap: 0 0.6rem;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.02);
+  min-width: 0;
+}
+
+.champion__tier {
+  grid-area: tier;
+  align-self: center;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.champion__name {
+  grid-area: name;
+  font-weight: 600;
+  min-width: 0;
+}
+
+.champion__team,
+.champion__stat {
+  font-size: 0.76rem;
+  color: var(--muted);
+  min-width: 0;
+}
+
+.champion__team {
+  grid-area: team;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.champion__stat {
+  grid-area: stat;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Zehn Ligen, vier Bestenlisten je Liga - aufgeklappt waeren das vierzig
+   Tabellen auf einer Seite. Tier 1 steht offen, der Rest auf Abruf. */
+.record-league {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  margin-bottom: 0.5rem;
+  background: rgba(255, 255, 255, 0.015);
+}
+
+.record-league > summary {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.65rem 0.8rem;
+  cursor: pointer;
+  font-weight: 600;
+  list-style: none;
+}
+
+.record-league > summary::-webkit-details-marker {
+  display: none;
+}
+
+.record-league > summary::after {
+  content: '▾';
+  margin-left: auto;
+  color: var(--muted);
+  transition: transform 0.15s ease;
+}
+
+.record-league[open] > summary::after {
+  transform: rotate(180deg);
+}
+
+.record-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 0.9rem;
+  padding: 0 0.8rem 0.9rem;
+}
+
+.record-grid > * {
+  min-width: 0;
+}
+
+.record-grid h4 {
+  margin: 0 0 0.35rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+/* ---------- Ruhmeshalle ---------- */
+
+.hof-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 0.6rem;
+  margin: 0.6rem 0 1.6rem;
+}
+
+.hof-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.75rem 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.02);
+  min-width: 0;
+}
+
+.hof-card__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.hof-card__name {
+  font-weight: 600;
+  color: inherit;
+  text-decoration: none;
+  min-width: 0;
+}
+
+.hof-card__name:hover {
+  color: var(--accent);
+}
+
+.hof-card__country {
+  font-size: 0.72rem;
+  color: var(--muted);
+  flex: none;
+}
+
+/* Der Aufnahmegrund steht bewusst gross und vor den Zahlen: Er ist die
+   Aussage der Karte, die Statistik nur ihr Beleg. */
+.hof-card__reason {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--accent);
+}
+
+.hof-card__stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.3rem;
+  margin: 0;
+}
+
+.hof-card__stats div {
+  min-width: 0;
+}
+
+.hof-card__stats dt {
+  font-size: 0.66rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.hof-card__stats dd {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.hof-card__path {
+  margin: 0;
+  font-size: 0.74rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Editor ---------- */
+
+.editor-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 1rem 0 0.9rem;
+}
+
+.editor-tab {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  padding: 0.45rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  color: var(--muted);
+  font-weight: 600;
+  font-size: 0.86rem;
+}
+
+.editor-tab:hover {
+  background: var(--bg-elevated);
+  color: var(--text);
+}
+
+.editor-tab.is-active {
+  background: rgba(255, 90, 31, 0.13);
+  border-color: rgba(255, 90, 31, 0.4);
+  color: var(--text);
+}
+
+.editor-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.8rem;
+}
+
+.editor-filter {
+  flex: 1 1 200px;
+  min-width: 0;
+  padding: 0.45rem 0.65rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.25);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.86rem;
+}
+
+.editor-button {
+  padding: 0.45rem 0.9rem;
+  border: 1px solid rgba(255, 90, 31, 0.45);
+  border-radius: 8px;
+  background: rgba(255, 90, 31, 0.16);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.84rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.editor-button:hover:not(:disabled) {
+  background: rgba(255, 90, 31, 0.26);
+}
+
+.editor-button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.editor-button--ghost {
+  border-color: var(--border);
+  background: transparent;
+}
+
+.editor-dirty {
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+/* Der Prüfbericht steht ÜBER der Tabelle und nicht darunter: Er ist der Grund,
+   warum man den Editor benutzt, und nicht eine Fußnote dazu. */
+.editor-status {
+  padding: 0.55rem 0.75rem;
+  border-radius: 9px;
+  font-size: 0.85rem;
+  margin-bottom: 0.7rem;
+}
+
+.editor-status--ok {
+  background: rgba(52, 209, 127, 0.13);
+  border: 1px solid rgba(52, 209, 127, 0.3);
+  color: var(--promotion);
+}
+
+.editor-status--warn {
+  background: rgba(244, 192, 47, 0.12);
+  border: 1px solid rgba(244, 192, 47, 0.3);
+  color: var(--barrage);
+}
+
+.editor-status--error {
+  background: rgba(239, 74, 74, 0.13);
+  border: 1px solid rgba(239, 74, 74, 0.32);
+  color: var(--relegation);
+}
+
+.editor-findings {
+  margin: 0 0 0.9rem;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.25rem;
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.editor-finding {
+  padding: 0.35rem 0.6rem;
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.03);
+  font-size: 0.82rem;
+}
+
+.editor-finding--error {
+  box-shadow: inset 3px 0 0 var(--relegation);
+}
+
+.editor-finding--warning {
+  box-shadow: inset 3px 0 0 var(--barrage);
+}
+
+.editor-finding__line {
+  display: inline-block;
+  margin-right: 0.5rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.editor-scroll {
+  max-height: 60vh;
+  overflow: auto;
+}
+
+.editor-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: #10141c;
+}
+
+.editor-table td {
+  padding: 0.15rem 0.2rem;
+}
+
+.editor-rownum {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 400;
+  text-align: right;
+}
+
+.editor-req {
+  color: var(--accent);
+  margin-left: 0.15rem;
+}
+
+.editor-cell {
+  width: 100%;
+  min-width: 5.5rem;
+  padding: 0.25rem 0.4rem;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 0.82rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.editor-cell:hover {
+  border-color: var(--border);
+}
+
+.editor-cell:focus {
+  outline: none;
+  border-color: rgba(255, 90, 31, 0.6);
+  background: rgba(0, 0, 0, 0.3);
+}
+
+.editor-row--bad {
+  box-shadow: inset 3px 0 0 var(--relegation);
+}
+
+/* ---------- Karriere ---------- */
+
+.career-tier {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  margin-bottom: 0.5rem;
+  background: rgba(255, 255, 255, 0.015);
+}
+
+.career-tier > summary {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.6rem 0.8rem;
+  cursor: pointer;
+  font-weight: 600;
+  list-style: none;
+}
+
+.career-tier > summary::-webkit-details-marker { display: none; }
+
+.career-teams {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 0.4rem;
+  padding: 0 0.8rem 0.8rem;
+}
+
+.career-team {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-areas: 'chip name' 'chip meta';
+  gap: 0 0.5rem;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.02);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  min-width: 0;
+}
+
+.career-team:hover {
+  border-color: rgba(255, 90, 31, 0.55);
+  background: rgba(255, 90, 31, 0.08);
+}
+
+.career-team .chip { grid-area: chip; align-self: center; }
+.career-team__name { grid-area: name; font-weight: 600; min-width: 0; }
+.career-team__meta { grid-area: meta; font-size: 0.74rem; color: var(--muted); }
+
+.career-resume,
+.career-import {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  padding: 0.65rem 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  margin-bottom: 0.7rem;
+  font-size: 0.88rem;
+}
+
+.career-actions { display: flex; gap: 0.4rem; }
+
+.career-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 1rem 0;
+}
+
+.career-busy {
+  font-size: 0.8rem;
+  color: var(--accent);
+}
+
+.career-areas {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 0.4rem;
+  margin: 0.6rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Wer entschieden hat, ist die Aussage - deshalb die Farbe am eigenen Bereich
+   und nicht am uebernommenen. */
+.career-area {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  padding: 0.5rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.career-area.is-own {
+  border-color: rgba(52, 209, 127, 0.4);
+  background: rgba(52, 209, 127, 0.08);
+}
+
+.career-area__name { font-weight: 600; font-size: 0.9rem; }
+.career-area__who { font-size: 0.74rem; color: var(--muted); }
+
+/* ---------- Entscheidungsmasken ---------- */
+
+.focus-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 0.35rem;
+  margin: 0.6rem 0;
+}
+
+.focus-row {
+  display: grid;
+  grid-template-columns: 8rem 1fr 3rem;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.02);
+  min-width: 0;
+}
+
+.focus-row__name { font-size: 0.84rem; min-width: 0; }
+.focus-row__value {
+  font-size: 0.82rem;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent);
+}
+.focus-slider { width: 100%; min-width: 0; accent-color: var(--accent); }
+
+.build-grid {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0.6rem 0;
+}
+
+.build-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.45rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.build-row__name { font-weight: 600; font-size: 0.88rem; min-width: 0; }
+.build-row__level,
+.build-row__cost {
+  font-size: 0.8rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.build-button { padding: 0.3rem 0.7rem; font-size: 0.8rem; }
+
+@media (max-width: 620px) {
+  .build-row { grid-template-columns: 1fr auto; }
+  .focus-row { grid-template-columns: 6.5rem 1fr 3rem; }
 }

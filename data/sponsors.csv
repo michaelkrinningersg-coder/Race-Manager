@@ -1,0 +1,55 @@
+# HANDGEPFLEGT - Sponsoren als Typdefinition (Konzept 9.1, Datei aus 15.1).
+#
+# Kein Vertragsbestand - der entsteht zur Laufzeit in `team_sponsors`, genau wie
+# beim Personal und bei den Anlagen. Diese Datei legt fest, WER am Markt ist und
+# WAS er verlangt, nicht wer ihn bekommt.
+#
+# sort_order  Reihenfolge der Datei: erst die Hauptvertraege von oben nach
+#   unten durch die Pyramide, dann die Nebenvertraege. Wie bei staff_roles.csv
+#   und facility_types.csv traegt eine eigene Spalte die Reihenfolge, damit sie
+#   fachlich lesbar bleibt und nicht dem Alphabet folgen muss.
+# slot        title = Hauptvertrag, einer je Team. side = Nebensponsor, vier bis
+#   sechs Slots je Team. Ein Sponsor tritt nur in einem der beiden Slots auf.
+# tier_min/tier_max  In welchen Ligen dieser Sponsor ueberhaupt auftritt. Ein
+#   Weltkonzern taucht im Rookie Cup nicht auf, ein Regionalbetrieb nicht in der
+#   Weltmeisterschaft.
+# value_pct   Grundwert als Anteil am Kostendeckel der Liga. Damit skaliert der
+#   Sponsorenmarkt automatisch ueber die Pyramide, ohne dass es je Liga eigene
+#   Zeilen braucht.
+# term_min/term_max  Laufzeit in Saisons (Konzept 9.1: ein bis drei Jahre).
+#
+# ZIELVORGABEN. objective_type und objective_value gehoeren zusammen:
+#   rank      Endplatz in der Liga besser oder gleich objective_value.
+#   podiums   Mindestens objective_value Podien.
+#   wins      Mindestens objective_value Siege.
+#   finishes  Mindestens objective_value Prozent der Starts im Ziel.
+#   improve   Mindestens objective_value Plaetze besser als im Vorjahr.
+# Podest- und Siegvorgaben skaliert die Engine mit der Kalenderlaenge, Bezug
+# sind 16 Rennen - drei Podien in einer 22-Rennen-Saison sind eine andere
+# Forderung als in einer mit acht.
+#
+# Groessenordnung: Der Hauptvertrag traegt 16 bis 30 Prozent des Deckels, die
+# vier bis sechs Nebenvertraege zusammen rund 12. Waeren die Nebenslots so
+# wertvoll wie zunaechst angesetzt (0.05 bis 0.10 je Slot), waere der Nebenmarkt
+# groesser als der Hauptvertrag - und der Titelsponsor aus Konzept 9.1 eine
+# Randnotiz.
+#
+# bonus_pct   Aufschlag auf den Grundwert bei erfuelltem Ziel.
+# malus_pct   Abzug bei verfehltem Ziel. Beide als Anteil des Grundwerts.
+sponsor_key,name,sort_order,industry,slot,tier_min,tier_max,value_pct,term_min,term_max,objective_type,objective_value,bonus_pct,malus_pct,flavour
+meridian_bank,Meridian Bank,1,Finanzen,title,1,3,0.30,2,3,rank,4,0.25,0.20,"Zahlt puenktlich, fragt jede Woche nach Zahlen und versteht von Rennsport nichts."
+helion_energy,Helion Energy,2,Energie,title,1,4,0.28,2,3,podiums,6,0.30,0.20,Will auf jedem Podium stehen. Der Vertrag nennt die Zahl ausdruecklich.
+avanti_telecom,Avanti Telecom,3,Telekommunikation,title,1,5,0.26,1,3,wins,2,0.35,0.15,"Bezahlt Siege, nicht Teilnahme. Ein sieglose Saison kostet spuerbar."
+nordwerk_stahl,Nordwerk Stahl,4,Industrie,title,2,6,0.24,2,3,rank,6,0.20,0.15,"Seit vierzig Jahren im Sport. Hat schon drei Teams ueberlebt, die ihn verloren haben."
+casa_verde,Casa Verde,5,Getraenke,title,3,7,0.22,1,3,improve,2,0.30,0.20,Sucht die Geschichte vom Aufstieg und zahlt genau dafuer.
+trailhead_gear,Trailhead Gear,6,Ausruestung,title,4,8,0.20,1,2,podiums,3,0.25,0.15,Kleiner Ausruester mit grossem Namen in der Szene. Kennt jeden Mechaniker beim Vornamen.
+hafen_logistik,Hafen Logistik,7,Logistik,title,5,9,0.18,2,3,finishes,80,0.20,0.25,"Interessiert sich nicht fuer Siege, sondern dafuer, dass beide Autos ankommen."
+regio_druck,Regio Druck,8,Handwerk,title,7,10,0.16,1,2,finishes,70,0.15,0.20,Der Inhaber steht an jedem Rennwochenende selbst an der Box.
+kestrel_oil,Kestrel Oil,9,Schmierstoffe,side,1,5,0.035,2,3,finishes,85,0.20,0.20,"Liefert das Oel und will wissen, warum der Motor trotzdem stehenblieb."
+vantara_reisen,Vantara Reisen,10,Tourismus,side,1,6,0.030,1,3,podiums,4,0.25,0.10,Bucht die Fluege des Teams und schaltet dafuer das Logo auf dem Heckfluegel.
+silbermark,Silbermark,11,Uhren,side,1,4,0.040,2,3,wins,1,0.40,0.10,"Ueberreicht dem Sieger eine Uhr und rechnet fest damit, das oft tun zu duerfen."
+polaris_chem,Polaris Chemie,12,Chemie,side,2,7,0.028,2,3,rank,8,0.15,0.15,"Unauffaellig, verlaesslich, seit Jahren derselbe Ansprechpartner."
+brekker_werkzeug,Brekker Werkzeug,13,Werkzeuge,side,3,8,0.024,1,3,finishes,75,0.15,0.15,Ruestet die Boxencrew aus und misst den Erfolg an der Ausfallquote.
+lumen_medien,Lumen Medien,14,Medien,side,2,6,0.030,1,2,improve,1,0.30,0.15,Sucht Aufmerksamkeit und zahlt fuer jede Verbesserung gegenueber dem Vorjahr.
+talstrom,Talstrom,15,Versorger,side,5,10,0.024,2,3,finishes,70,0.15,0.20,"Regionalversorger. Zahlt wenig, kuendigt nie."
+holzer_bau,Holzer Bau,16,Bau,side,6,10,0.020,1,3,rank,10,0.20,0.15,Der Bauunternehmer aus dem Nachbarort. Sein Sohn faehrt Kart.

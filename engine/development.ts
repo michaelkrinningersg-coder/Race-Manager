@@ -15,6 +15,10 @@
 
 import type { Database } from './savegame.js';
 import { createRng, gaussian, seedFrom } from './rng.js';
+import { loadStaffValues } from './staff.js';
+import { facilityValues, loadFacilityTypes, loadLevels } from './facilities.js';
+import { atrPenalties } from './costcap.js';
+import { scopeTeams } from './player.js';
 
 /**
  * Ein Team ganz ohne Fortschrittsbremse gewinnt hoechstens diesen Anteil des
@@ -22,6 +26,14 @@ import { createRng, gaussian, seedFrom } from './rng.js';
  * herunter - nahe am Deckel bleibt fast nichts uebrig.
  */
 const SEASON_GAIN = 0.2;
+
+/**
+ * Anschubhilfe fuer den Aufsteiger in seiner ersten Saison in der neuen Liga.
+ * Er entwickelt gegen den hoeheren Deckel dieser Liga - der Saettigungsterm
+ * laesst ihm dort ohnehin mehr Luft als den Etablierten, der Faktor
+ * beschleunigt nur, wie schnell er sie nutzt.
+ */
+const PROMOTION_CATCH_UP = 1.6;
 
 /** Aggregiertes Wochenrauschen: Mittel leicht ueber 1, Streuung schmal. */
 const NOISE_MEAN = 1.025;
@@ -63,6 +75,14 @@ export function developParts(
   db: Database,
   fromSeason: number,
   toSeason: number,
+  /** Nur dieses Team rechnen - der Weg der Voreinstellung im Karrieremodus. */
+  onlyTeam?: number,
+  /**
+   * Schwerpunkt des Spielers je Bauteilgruppe (Konzept 14.2). Ersetzt den
+   * Archetyp-Schwerpunkt der KI - dieselbe Stellschraube, nur von Hand
+   * gesetzt. 1.0 ist neutral, darueber wird bevorzugt entwickelt.
+   */
+  focusOverride?: Partial<Record<string, number>>,
 ): DevelopmentSummary {
   const worldSeed = (db.prepare('SELECT world_seed FROM game_state WHERE id = 1').get() as {
     world_seed: number;
@@ -89,7 +109,7 @@ export function developParts(
   // und Ressourcenterm.
   const previous = db
     .prepare(
-      `SELECT ts.team_id, ts.tier, ts.final_rank, t.ai_archetype,
+      `SELECT ts.team_id, ts.tier, ts.final_rank, ts.movement, t.ai_archetype,
               COALESCE(f.payout, 0) AS payout
        FROM team_seasons ts
        JOIN teams t ON t.team_id = ts.team_id
@@ -98,6 +118,15 @@ export function developParts(
     )
     .all(fromSeason) as Record<string, number | string>[];
 
+  // Das Spielerteam entwickelt nicht die KI (Konzept 14.2): Es faellt aus der
+  // Liste, die die Entwicklungsschleife unten abarbeitet. Sein Auto bleibt
+  // damit stehen, bis der Spieler seine Ressourcen verteilt hat.
+  const developing = scopeTeams(
+    previous as unknown as { team_id: number }[],
+    db,
+    onlyTeam,
+  ) as unknown as Record<string, number | string>[];
+
   const target = new Map(
     (db.prepare('SELECT team_id, tier FROM team_seasons WHERE season = ?').all(toSeason) as {
       team_id: number;
@@ -105,14 +134,30 @@ export function developParts(
     }[]).map((row) => [row.team_id, row.tier]),
   );
 
-  // Fahrer-Feedback des Teams: Mittel der beiden Stammfahrer.
+  // Personalwerte der Vorsaison: Ueber den Winter entwickeln die Leute, die im
+  // vergangenen Jahr im Amt waren.
+  const staffValues = loadStaffValues(db, fromSeason);
+
+  // Anlagen der Vorsaison, aus demselben Grund: Gebaut wird im Winter mit den
+  // Hallen, die im vergangenen Jahr standen. Ein Ausbau wirkt erst ein Jahr
+  // spaeter - die Verzoegerung ist gewollt und macht den Ausbau zur Wette.
+  const facilityTypes = loadFacilityTypes(db);
+  const facilityLevels = loadLevels(db, fromSeason);
+
+  // Windkanalkuerzung aus einem Deckelverstoss der Vorsaison (Konzept 9.3).
+  // Sie greift genau dort an, wo das Reglement ohnehin regelt: an der ATR.
+  const atrCuts = atrPenalties(db, fromSeason);
+
+  // Fahrer-Feedback des Teams: Mittel der beiden Stammfahrer der Vorsaison -
+  // entwickelt wird mit den Rueckmeldungen der Fahrer, die das Auto kannten.
   const feedback = new Map(
     (db
       .prepare(
-        `SELECT start_team_id AS team_id, AVG(feedback) AS f FROM drivers
-         WHERE start_role = 'race' GROUP BY start_team_id`,
+        `SELECT team_id, AVG(feedback) AS f FROM driver_state
+         WHERE season = ? AND role = 'race' AND retired = 0 AND team_id IS NOT NULL
+         GROUP BY team_id`,
       )
-      .all() as { team_id: number; f: number }[]).map((row) => [row.team_id, row.f]),
+      .all(fromSeason) as { team_id: number; f: number }[]).map((row) => [row.team_id, row.f]),
   );
 
   const insert = db.prepare(
@@ -130,7 +175,7 @@ export function developParts(
   const run = db.transaction(() => {
     db.prepare('DELETE FROM car_parts WHERE season = ?').run(toSeason);
 
-    for (const row of previous) {
+    for (const row of developing) {
       const teamId = row.team_id as number;
       const oldTier = row.tier as number;
       const newTier = target.get(teamId);
@@ -142,7 +187,9 @@ export function developParts(
       if (!oldRegulation || !newRegulation || !payoutRule) continue;
 
       const rank = (row.final_rank as number) ?? 10;
-      const atr = atrFactor(oldRegulation.atr_base, oldRegulation.atr_step, rank);
+      const atr =
+        atrFactor(oldRegulation.atr_base, oldRegulation.atr_step, rank) *
+        (1 - (atrCuts.get(teamId) ?? 0));
 
       // Ressourcen: Was das Team letzte Saison eingenommen hat, gemessen am
       // Kostendeckel seiner Liga. Der Deckel ist die Obergrenze - wer ihn
@@ -150,19 +197,36 @@ export function developParts(
       const budget = Math.min(row.payout as number, oldRegulation.cost_cap);
       const resourceTerm = Math.pow(Math.max(0, budget) / oldRegulation.cost_cap, 0.7);
 
-      // Personalwert bis M5 abgeleitet - allein aus der Ligastufe.
+      // Personalwert je Bauteilgruppe (Konzept 8.1). Bis M5 war das eine reine
+      // Ligafunktion und damit fuer jedes Team einer Liga identisch - es gab
+      // innerhalb einer Liga schlicht keinen personellen Unterschied. Jetzt
+      // entscheidet, wen ein Team tatsaechlich beschaeftigt.
       //
       // Bewusst OHNE Prestige: Das ist nur ein Startwert fuer Saison 1. Waere
       // es hier drin, bliebe die Rangfolge einer Liga fuer immer eingefroren -
       // gemessen wuchs ein Aufsteiger dann um 24 Punkte, waehrend seine neue
       // Liga um 50 zulegte, und rutschte von Platz 2 auf Platz 13 durch.
-      // Unterschiede innerhalb einer Liga entstehen jetzt aus Geld (Platz der
-      // Vorsaison) und ATR (ebenfalls Platz, aber gegenlaeufig).
-      const staff = 68 - (oldTier - 1) * 4.5;
-      const staffTerm = 0.4 + 0.6 * (staff / 100);
+      const staff = staffValues.get(teamId);
 
-      const feedbackTerm = 0.9 + 0.25 * ((feedback.get(teamId) ?? 60) / 100);
-      const focus = ARCHETYPE_FOCUS[row.ai_archetype as string] ?? {};
+      // Infrastrukturwert je Bauteilgruppe (Konzept 8.2). Gleiche Bauart wie
+      // der Personalwert und bewusst schwaecher gewichtet: Der Multiplikator
+      // laeuft von 0.80 (keine Anlagen) bis 1.20 (alles auf Stufe 5), liegt
+      // fuer einen Weltmeisterschaftsteilnehmer mit dem Startbestand also bei
+      // rund 0.96. Personal und Ressourcen bleiben damit die staerkeren Hebel -
+      // die Halle entscheidet nicht das Rennen, sie verschiebt es.
+      const facility = facilityValues(
+        facilityTypes,
+        facilityLevels.get(teamId) ?? new Map<string, number>(),
+      );
+
+      // Der Renningenieur verwertet, was der Fahrer meldet: Ein schwacher
+      // Ingenieur macht auch aus gutem Feedback wenig (Konzept 8.1). Der
+      // Simulator ist die Halle dazu - ohne ihn bleibt die Rueckmeldung eine
+      // Erzaehlung, die niemand nachstellen kann.
+      const feedbackQuality = ((feedback.get(teamId) ?? 60) * (staff?.feedback ?? 55)) / 100;
+      const feedbackTerm =
+        (0.9 + 0.25 * (feedbackQuality / 100)) * (0.9 + 0.2 * (facility.feedback / 100));
+      const focus = focusOverride ?? ARCHETYPE_FOCUS[row.ai_archetype as string] ?? {};
 
       // Homologationshilfe fuer den Aufsteiger (Konzept 6.5). Absteiger
       // behalten ihre Werte unveraendert, wie dort beschrieben.
@@ -176,6 +240,33 @@ export function developParts(
       // Fassungen verfehlen das Ziel aus Konzept 18, also braucht es hier eine
       // Designentscheidung, keine weitere Justierung.
       const homologation = newTier < oldTier ? 1.08 : 1;
+
+      // Aufsteiger-Bonus (getroffene Entscheidung).
+      //
+      // Ein Aufsteiger kommt mit einem Auto an, das unter dem Deckel seiner
+      // alten Liga gebaut wurde, und trifft dort auf Autos am neuen Deckel. Er
+      // haelt sich, aber er gewinnt nicht - gemessen erreichte in zwanzig
+      // Saisons kein einziges Team einen Netto-Aufstieg von zwei Stufen, und
+      // 44 von 167 Teams bewegten sich ueberhaupt nicht. Der Bonus gilt genau
+      // eine Saison, naemlich die erste in der neuen Liga, und laeuft danach
+      // von selbst aus - er ist kein zweiter Deckel, sondern eine Anschubhilfe.
+      const promoted = row.movement === 'promoted' || row.movement === 'promoted_barrage';
+      const catchUp = promoted ? PROMOTION_CATCH_UP : 1;
+
+      // Ein Aufsteiger entwickelt gegen den Deckel der Liga, in der sein Auto
+      // *fahren* wird, nicht gegen den, unter dem es gebaut wurde. Am alten
+      // Deckel gemessen bliebe ihm kein Spielraum - sein Saettigungsterm waere
+      // nahe null, ausgerechnet in der Saison, in der er aufholen muss. Das war
+      // der strukturelle Grund, warum kein Team je zweimal hintereinander
+      // aufstieg.
+      //
+      // Fuer Absteiger und Verbleibende bleibt der alte Deckel massgeblich.
+      // Auch den Absteiger am neuen, niedrigeren Deckel zu messen, wurde
+      // ausprobiert und verworfen: Er entwickelte dann gar nicht mehr weiter,
+      // war mit seinem gekappten Auto unten trotzdem ueberlegen, und die Quote
+      // der direkten Wiederaufstiege stieg ueber 20 Saisons von 60 auf 71
+      // Prozent.
+      const capRegulation = newTier < oldTier ? newRegulation : oldRegulation;
 
       const rng = createRng(seedFrom(worldSeed, toSeason, teamId));
       teams += 1;
@@ -202,7 +293,7 @@ export function developParts(
           continue;
         }
 
-        const cap = oldRegulation[`cap_${type.part_key}`];
+        const cap = capRegulation[`cap_${type.part_key}`];
         const headroom = Math.max(0, 1 - existing.performance / cap);
         const saturation = Math.pow(headroom, 1.3);
 
@@ -210,6 +301,13 @@ export function developParts(
         // hin - gewichtet mit der Handschrift des Archetyps.
         const allocation = (0.5 + headroom) * (focus[type.part_key] ?? 1);
         const noise = Math.max(0.85, NOISE_MEAN + gaussian(rng) * NOISE_SD);
+        // Personal ist Multiplikator, nicht Ersatz (Konzept 6.3).
+        const staffTerm = 0.4 + 0.6 * ((staff?.[type.part_key as never] ?? 55) / 100);
+        // Die Anlagen wirken gruppenspezifisch: Windkanal und CFD auf die drei
+        // Aero-Gruppen, Pruefstand auf Antrieb und ERS, Fertigung auf alles,
+        // was gebaut statt umstroemt wird. Welche Halle worauf zahlt, steht in
+        // facility_types.csv - nicht hier.
+        const facilityTerm = 0.8 + 0.4 * ((facility[type.part_key] ?? 0) / 100);
 
         const delta =
           cap *
@@ -218,9 +316,11 @@ export function developParts(
           allocation *
           resourceTerm *
           staffTerm *
+          facilityTerm *
           atr *
           feedbackTerm *
           saturation *
+          catchUp *
           noise;
 
         const performance = Math.round((existing.performance + delta) * homologation);
@@ -231,9 +331,17 @@ export function developParts(
           season: toSeason,
           part_key: type.part_key,
           performance,
-          // Reife steigt mit den gefahrenen Kilometern: die Zuverlaessigkeit
-          // naehert sich langsam 95 an.
-          reliability: Math.round(existing.reliability + (95 - existing.reliability) * 0.12),
+          // Standfestigkeit waechst mit den gefahrenen Kilometern und naehert
+          // sich langsam 95 an - wie schnell, entscheiden der Antriebschef und
+          // die beiden Hallen, die Schwaechen ueberhaupt erst sichtbar machen:
+          // der Pruefstand findet sie, die Fertigung baut sie weg.
+          reliability: Math.round(
+            existing.reliability +
+              (95 - existing.reliability) *
+                0.12 *
+                (0.5 + ((staff?.reliability ?? 55) / 100)) *
+                (0.8 + 0.4 * (facility.reliability / 100)),
+          ),
           spec_version: existing.spec_version + 1,
           source: 'developed',
         });

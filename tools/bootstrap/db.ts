@@ -23,6 +23,7 @@ CREATE TABLE race_weekend_formats (
   race_distance_pct          REAL    NOT NULL,
   reverse_grid_top_n         INTEGER NOT NULL,
   sprint_weekends_per_season INTEGER NOT NULL,
+  sprint_points_system_id    INTEGER,
   flavour                    TEXT    NOT NULL
 );
 
@@ -54,6 +55,9 @@ CREATE TABLE tracks (
   abrasion              REAL    NOT NULL,
   downforce_level       REAL    NOT NULL,
   first_used_year       INTEGER NOT NULL,
+  logistics_factor      REAL    NOT NULL DEFAULT 1,
+  -- Streckentuecke (Konzept 12.4): was ein Fahrfehler hier kostet.
+  risk                  REAL    NOT NULL DEFAULT 0.45 CHECK (risk BETWEEN 0 AND 1),
   flavour               TEXT    NOT NULL
 );
 
@@ -79,12 +83,41 @@ CREATE TABLE engine_suppliers (
 );
 
 CREATE TABLE league_payouts (
-  tier            INTEGER PRIMARY KEY REFERENCES leagues(tier),
-  tv_fixed        INTEGER NOT NULL,
-  tv_variable_top INTEGER NOT NULL,
-  expense_ratio   REAL    NOT NULL,
-  parachute_pct_1 REAL    NOT NULL,
-  parachute_pct_2 REAL    NOT NULL
+  tier                INTEGER PRIMARY KEY REFERENCES leagues(tier),
+  tv_fixed            INTEGER NOT NULL,
+  tv_variable_top     INTEGER NOT NULL,
+  expense_ratio       REAL    NOT NULL,
+  parachute_pct_1     REAL    NOT NULL,
+  parachute_pct_2     REAL    NOT NULL,
+  prize_pool_per_race INTEGER NOT NULL DEFAULT 0,
+  logistics_base      INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE weather_profiles (
+  track_id         INTEGER PRIMARY KEY REFERENCES tracks(track_id),
+  rain_probability REAL    NOT NULL,
+  changeability    REAL    NOT NULL,
+  base_temp_c      INTEGER NOT NULL,
+  temp_swing_c     INTEGER NOT NULL,
+  southern         INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE sponsors (
+  sponsor_key     TEXT    PRIMARY KEY,
+  name            TEXT    NOT NULL UNIQUE,
+  sort_order      INTEGER NOT NULL UNIQUE,
+  industry        TEXT    NOT NULL,
+  slot            TEXT    NOT NULL CHECK (slot IN ('title','side')),
+  tier_min        INTEGER NOT NULL,
+  tier_max        INTEGER NOT NULL,
+  value_pct       REAL    NOT NULL,
+  term_min        INTEGER NOT NULL,
+  term_max        INTEGER NOT NULL,
+  objective_type  TEXT    NOT NULL CHECK (objective_type IN ('rank','podiums','wins','finishes','improve')),
+  objective_value INTEGER NOT NULL,
+  bonus_pct       REAL    NOT NULL,
+  malus_pct       REAL    NOT NULL,
+  flavour         TEXT    NOT NULL
 );
 
 CREATE TABLE leagues (
@@ -185,6 +218,55 @@ CREATE TABLE car_part_types (
   supplied_by_engine  INTEGER NOT NULL DEFAULT 0
 );
 
+CREATE TABLE staff_roles (
+  role_key       TEXT    PRIMARY KEY,
+  name           TEXT    NOT NULL,
+  sort_order     INTEGER NOT NULL UNIQUE,
+  count_per_team INTEGER NOT NULL,
+  w_chassis      REAL    NOT NULL,
+  w_front_wing   REAL    NOT NULL,
+  w_rear_wing    REAL    NOT NULL,
+  w_floor        REAL    NOT NULL,
+  w_powertrain   REAL    NOT NULL,
+  w_ers          REAL    NOT NULL,
+  w_gearbox      REAL    NOT NULL,
+  w_suspension   REAL    NOT NULL,
+  w_brakes       REAL    NOT NULL,
+  w_reliability  REAL    NOT NULL,
+  w_strategy     REAL    NOT NULL,
+  w_pit          REAL    NOT NULL,
+  w_feedback     REAL    NOT NULL,
+  w_morale       REAL    NOT NULL,
+  w_newgen       REAL    NOT NULL,
+  salary_share   REAL    NOT NULL,
+  flavour        TEXT    NOT NULL
+);
+
+CREATE TABLE facility_types (
+  facility_key    TEXT    PRIMARY KEY,
+  name            TEXT    NOT NULL,
+  sort_order      INTEGER NOT NULL UNIQUE,
+  licence_checked INTEGER NOT NULL DEFAULT 0,
+  upkeep_base     INTEGER NOT NULL,
+  build_factor    REAL    NOT NULL,
+  w_chassis       REAL    NOT NULL,
+  w_front_wing    REAL    NOT NULL,
+  w_rear_wing     REAL    NOT NULL,
+  w_floor         REAL    NOT NULL,
+  w_powertrain    REAL    NOT NULL,
+  w_ers           REAL    NOT NULL,
+  w_gearbox       REAL    NOT NULL,
+  w_suspension    REAL    NOT NULL,
+  w_brakes        REAL    NOT NULL,
+  w_reliability   REAL    NOT NULL,
+  w_feedback      REAL    NOT NULL,
+  w_driver_dev    REAL    NOT NULL,
+  w_newgen        REAL    NOT NULL,
+  w_sponsor       REAL    NOT NULL,
+  w_fitness       REAL    NOT NULL,
+  flavour         TEXT    NOT NULL
+);
+
 CREATE TABLE teams (
   team_id            INTEGER PRIMARY KEY,
   name               TEXT    NOT NULL UNIQUE,
@@ -241,6 +323,13 @@ CREATE TABLE drivers (
   contract_until_season INTEGER,
   salary                INTEGER NOT NULL DEFAULT 0,
   pay_driver_budget     INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE driver_names (
+  country     TEXT    PRIMARY KEY,
+  weight      INTEGER NOT NULL,
+  first_names TEXT    NOT NULL,
+  last_names  TEXT    NOT NULL
 );
 
 CREATE TABLE calendar (
@@ -336,6 +425,8 @@ CREATE UNIQUE INDEX idx_driver_seat ON drivers(start_team_id, start_seat)
 const INSERT_ORDER = [
   'points_systems.csv',
   'car_part_types.csv',
+  'staff_roles.csv',
+  'facility_types.csv',
   'race_weekend_formats.csv',
   'tyre_compounds.csv',
   'tracks.csv',
@@ -346,8 +437,11 @@ const INSERT_ORDER = [
   'promotion_rules.csv',
   'licence_requirements.csv',
   'league_payouts.csv',
+  'weather_profiles.csv',
+  'sponsors.csv',
   'teams.csv',
   'engine_suppliers.csv',
+  'driver_names.csv',
   'calendar.csv',
   'drivers.csv',
 ];

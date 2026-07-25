@@ -1,0 +1,51 @@
+# HANDGEPFLEGT - Klimaprofil je Strecke (Konzept 12.5, Datei aus 15.1).
+#
+# Konzept 15.1 nennt track_id, Kalenderwoche und Wahrscheinlichkeiten. Gepflegt
+# wird hier nur die Strecke, die Jahreszeit rechnet die Engine aus der
+# Kalenderwoche in calendar.csv dazu (getroffene Entscheidung). Dreissig Zeilen
+# statt mehrerer hundert, und der Charakter einer Strecke steht an einer Stelle:
+# Der Bergring Eifel ist wechselhaft, weil er es ist, nicht weil eine Woche im
+# April zufaellig so gefuellt wurde.
+#
+# rain_probability  Wahrscheinlichkeit, dass es an diesem Wochenende ueberhaupt
+#   regnet. Bezugswert vor dem Jahreszeitfaktor.
+# changeability     Wie stark die Bedingungen waehrend eines Rennens wandern.
+#   0 = was am Start liegt, liegt am Ende noch; 1 = die Strecke trocknet ab oder
+#   ein Schauer zieht durch.
+# base_temp_c       Mittlere Lufttemperatur zur ueblichen Rennzeit.
+# temp_swing_c      Spannweite ueber das Jahr. Traegt den Jahreszeitfaktor: Eine
+#   Wuestenpiste schwankt wenig, ein Kontinentalklima stark.
+#
+# southern          1 = Suedhalbkugel. Dort dreht der Jahreszeitfaktor sich um,
+#   sonst waere der australische Kalendersommer der kaelteste Termin des Jahres.
+track_id,rain_probability,changeability,base_temp_c,temp_swing_c,southern
+300001,0.18,0.30,26,9,0
+300002,0.24,0.40,20,8,0
+300003,0.46,0.80,16,9,0
+300004,0.38,0.65,18,8,0
+300005,0.20,0.45,22,7,0
+300006,0.44,0.85,17,9,0
+300007,0.30,0.55,28,5,1
+300008,0.42,0.50,30,2,0
+300009,0.22,0.35,21,7,0
+300010,0.34,0.45,24,10,0
+300011,0.14,0.25,27,9,0
+300012,0.30,0.55,19,11,0
+300013,0.16,0.30,25,9,0
+300014,0.28,0.50,22,13,0
+300015,0.36,0.60,18,11,0
+300016,0.12,0.30,20,7,1
+300017,0.26,0.45,21,4,0
+300018,0.18,0.35,26,10,0
+300019,0.08,0.20,29,6,1
+300020,0.16,0.30,27,8,1
+300021,0.40,0.70,16,8,0
+300022,0.17,0.30,25,8,0
+300023,0.42,0.65,15,10,0
+300024,0.32,0.55,19,12,0
+300025,0.36,0.50,23,10,0
+300026,0.30,0.55,20,14,0
+300027,0.20,0.35,24,10,0
+300028,0.34,0.55,14,13,0
+300029,0.24,0.45,23,8,1
+300030,0.10,0.25,24,12,0

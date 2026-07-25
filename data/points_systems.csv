@@ -24,3 +24,11 @@ points_system_id,system_name,position,points,bonus_pole,bonus_fastest_lap,fastes
 2,Flache Skala,8,3,1,1,10,0.75
 2,Flache Skala,9,2,1,1,10,0.75
 2,Flache Skala,10,1,1,1,10,0.75
+3,Sprintwertung,1,8,0,0,8,0.75
+3,Sprintwertung,2,7,0,0,8,0.75
+3,Sprintwertung,3,6,0,0,8,0.75
+3,Sprintwertung,4,5,0,0,8,0.75
+3,Sprintwertung,5,4,0,0,8,0.75
+3,Sprintwertung,6,3,0,0,8,0.75
+3,Sprintwertung,7,2,0,0,8,0.75
+3,Sprintwertung,8,1,0,0,8,0.75

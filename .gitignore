@@ -6,3 +6,11 @@ dist/
 build/
 *.local
 .DS_Store
+
+# Auslieferdatei der Webansicht - entsteht aus "npm run world"
+public/apex.db
+# Kopie der Stammdaten fuer den Editor - Erzeugnis von 'npm run publish'.
+# Die Wahrheit steht in data/*.csv.
+public/data/
+public/world_data.db
+public/sql-wasm.wasm

@@ -10,8 +10,20 @@ import type { Database } from './savegame.js';
 import { loadTrackProfiles } from './scoring.js';
 import { simulateWeekend, type Entry, type ResultRow, type WeekendContext } from './lightsim.js';
 import { nextTier, type Movement } from './promotion.js';
-import { loadPayoutRules, parachuteFor, payoutFor } from './finance.js';
+import {
+  costBasisFor,
+  leaseCost,
+  loadPayoutRules,
+  logisticsCost,
+  parachuteFor,
+  payoutFor,
+  prizeShares,
+} from './finance.js';
+import { sponsorIncome } from './sponsors.js';
 import { simulateRace, type Compound, type RaceContext, type RaceEntry } from './racesim.js';
+import { loadStaffValues } from './staff.js';
+import { loadFacilityTypes, loadLevels, upkeepTotal } from './facilities.js';
+import { drawWeather, loadWeatherProfiles } from './weather.js';
 
 const PART_KEYS = [
   'chassis',
@@ -25,6 +37,17 @@ const PART_KEYS = [
   'brakes',
 ];
 
+/**
+ * Fahrerwerte, die in die Simulation geladen werden.
+ *
+ * Nicht zu verwechseln mit der Liste in scoring.ts: Die entscheidet, was in die
+ * Sektorzeit eingeht. Diese hier entscheidet, was ueberhaupt ankommt - und ein
+ * Wert, der hier fehlt, ist in der Sim schlicht `undefined`.
+ *
+ * `wet_skill` hat genau das passieren lassen: Mit M7 kam die Regenwertung dazu,
+ * die Spalte blieb aber aussen vor, und jeder Fahrer fuhr im Regen mit dem
+ * Rueckfallwert 50. Gemessen war die Wirkung von wet_skill deshalb exakt null.
+ */
 const DRIVER_KEYS = [
   'pace',
   'qualifying',
@@ -34,6 +57,17 @@ const DRIVER_KEYS = [
   'starts',
   'tyre_management',
   'consistency',
+  'wet_skill',
+  // Zweikampf in der Tick-Sim. Fehlten beide bis v0.16.1 und fielen auf 60
+  // zurueck - die Differenz war damit immer exakt null, und wer wen ueberholt,
+  // entschied allein die Streckentuecke.
+  'overtaking',
+  'defending',
+  // Zwischenfaelle (Konzept 12.4). Vor dem Eintragen hier gepruefte Regel: Wer
+  // in racesim.ts ein Attribut mit ?? liest, muss es in dieser Liste stehen
+  // haben - sonst rechnet die Sim stillschweigend mit dem Rueckfallwert weiter.
+  'pressure',
+  'aggression',
 ];
 
 export interface SeasonSummary {
@@ -47,14 +81,16 @@ interface Roster {
 }
 
 function loadRosters(db: Database, season: number): Map<number, Roster> {
+  // Ab M5 kommen die Fahrer aus driver_state, nicht mehr aus drivers: Nur dort
+  // steht, wer in *dieser* Saison fuer wen faehrt.
   const drivers = db
     .prepare(
-      `SELECT d.driver_id, d.start_team_id AS team_id, ts.tier AS tier,
-              ${DRIVER_KEYS.map((key) => `d.${key}`).join(', ')}
-       FROM drivers d
-       JOIN team_seasons ts ON ts.team_id = d.start_team_id AND ts.season = ?
-       WHERE d.start_role = 'race'
-       ORDER BY ts.tier, d.start_team_id, d.start_seat`,
+      `SELECT ds.driver_id, ds.team_id AS team_id, ts.tier AS tier,
+              ${DRIVER_KEYS.map((key) => `ds.${key}`).join(', ')}
+       FROM driver_state ds
+       JOIN team_seasons ts ON ts.team_id = ds.team_id AND ts.season = ds.season
+       WHERE ds.season = ? AND ds.role = 'race' AND ds.retired = 0
+       ORDER BY ts.tier, ds.team_id, ds.seat`,
     )
     .all(season) as Record<string, number>[];
 
@@ -106,12 +142,13 @@ function loadRosters(db: Database, season: number): Map<number, Roster> {
 }
 
 /**
- * Laedt die Reifenmischungen. Regenmischungen bleiben aussen vor, solange es
- * kein Wetter gibt (M7).
+ * Laedt alle Reifenmischungen einschliesslich der Regenmischungen. Bis M7 waren
+ * die beiden Nassmischungen ausgeschlossen, weil es kein Wetter gab - sie waren
+ * die ersten toten Zeilen des Projekts und jetzt die letzten, die aufwachen.
  */
 function loadCompounds(db: Database): Compound[] {
   return (db
-    .prepare('SELECT * FROM tyre_compounds WHERE wet_only = 0 ORDER BY compound_id')
+    .prepare('SELECT * FROM tyre_compounds ORDER BY compound_id')
     .all() as Record<string, number | string>[]).map((row) => ({
     compoundId: row.compound_id as number,
     shortName: String(row.short_name),
@@ -119,6 +156,7 @@ function loadCompounds(db: Database): Compound[] {
     wearRate: row.wear_rate as number,
     cliffWearPct: row.cliff_wear_pct as number,
     minStintLaps: row.min_stint_laps as number,
+    wetOnly: row.wet_only === 1,
   }));
 }
 
@@ -159,19 +197,23 @@ export function runSeason(db: Database, season: number, tickTier = 0): SeasonSum
     ]),
   );
   const compounds = loadCompounds(db);
+  // Wetterprofile je Strecke (Konzept 12.5). Nur die Tick-Sim liest sie.
+  const weatherProfiles = loadWeatherProfiles(db);
+  // Strategen- und Crewqualitaet kommen jetzt aus dem Personalbestand.
+  const staffValues = loadStaffValues(db, season);
 
   const insertLap = db.prepare(
-    `INSERT INTO lap_records (season, tier, round, leg, lap, driver_id, position, lap_time_ms, gap_to_leader_ms, compound, tyre_wear, fuel_kg, event)
-     VALUES (@season, @tier, @round, @leg, @lap, @driver_id, @position, @lap_time_ms, @gap_to_leader_ms, @compound, @tyre_wear, @fuel_kg, @event)`,
+    `INSERT INTO lap_records (season, tier, round, leg, lap, driver_id, position, lap_time_ms, gap_to_leader_ms, compound, tyre_wear, fuel_kg, event, rival_id)
+     VALUES (@season, @tier, @round, @leg, @lap, @driver_id, @position, @lap_time_ms, @gap_to_leader_ms, @compound, @tyre_wear, @fuel_kg, @event, @rival_id)`,
   );
   const insertAnalysis = db.prepare(
-    `INSERT INTO race_analysis (season, tier, round, leg, driver_id, stops, best_lap_ms, total_ms, lost_tyres_s, lost_fuel_s, lost_traffic_s, lost_pits_s)
-     VALUES (@season, @tier, @round, @leg, @driver_id, @stops, @best_lap_ms, @total_ms, @lost_tyres_s, @lost_fuel_s, @lost_traffic_s, @lost_pits_s)`,
+    `INSERT INTO race_analysis (season, tier, round, leg, driver_id, stops, best_lap_ms, total_ms, lost_tyres_s, lost_fuel_s, lost_traffic_s, lost_pits_s, lost_incidents_s)
+     VALUES (@season, @tier, @round, @leg, @driver_id, @stops, @best_lap_ms, @total_ms, @lost_tyres_s, @lost_fuel_s, @lost_traffic_s, @lost_pits_s, @lost_incidents_s)`,
   );
 
   const insert = db.prepare(
-    `INSERT INTO race_results (season, tier, round, leg, driver_id, team_id, grid, position, status, points, pole, fastest_lap)
-     VALUES (@season, @tier, @round, @leg, @driver_id, @team_id, @grid, @position, @status, @points, @pole, @fastest_lap)`,
+    `INSERT INTO race_results (season, tier, round, leg, driver_id, team_id, grid, position, status, points, pole, fastest_lap, penalty_s)
+     VALUES (@season, @tier, @round, @leg, @driver_id, @team_id, @grid, @position, @status, @points, @pole, @fastest_lap, @penalty_s)`,
   );
 
   let weekends = 0;
@@ -191,10 +233,29 @@ export function runSeason(db: Database, season: number, tickTier = 0): SeasonSum
         .prepare('SELECT * FROM calendar WHERE season = 1 AND tier = ? ORDER BY round')
         .all(tier) as Record<string, number>[];
 
+      // Sprintwochenenden gleichmaessig ueber den Kalender verteilt
+      // (Konzept 11.1: sechs pro Saison in Tier 1). Deterministisch aus der
+      // Rundenzahl gerechnet, damit derselbe Seed dieselben Termine ergibt.
+      const sprintRounds = new Set<number>();
+      const firstFormat = formats.get(calendar[0]?.format_id);
+      const sprintCount = (firstFormat?.sprint_weekends_per_season as number) ?? 0;
+      if (sprintCount > 0 && calendar.length > 0) {
+        for (let i = 0; i < sprintCount; i += 1) {
+          sprintRounds.add(Math.round(((i + 1) * calendar.length) / (sprintCount + 1)));
+        }
+      }
+
       for (const round of calendar) {
         const format = formats.get(round.format_id);
         const profile = profiles.get(round.track_id);
         if (!format || !profile) continue;
+
+        const isSprintWeekend = sprintRounds.has(round.round);
+        const sprintSystem = isSprintWeekend
+          ? pointsBySystem.get(format.sprint_points_system_id as number)
+          : undefined;
+        // Am Sprintwochenende faehrt die Liga zwei Laeufe statt einem.
+        const legCount = isSprintWeekend ? format.race_count + 1 : format.race_count;
 
         const context: WeekendContext = {
           worldSeed,
@@ -204,8 +265,13 @@ export function runSeason(db: Database, season: number, tickTier = 0): SeasonSum
           profile,
           overtakingDifficulty: tracks.get(round.track_id) ?? 0.5,
           dnfBaseRate: league.dnf_base_rate,
-          legCount: format.race_count,
-          reverseGridTopN: format.reverse_grid_top_n,
+          risk: (trackData.get(round.track_id)?.risk as number) ?? 0.45,
+          legCount,
+          // Kein Umkehrgitter am Sprintwochenende: Die Startaufstellung des
+          // Hauptrennens ist das Sprintergebnis, unveraendert.
+          reverseGridTopN: isSprintWeekend ? 0 : format.reverse_grid_top_n,
+          sprintLeg: isSprintWeekend ? 1 : undefined,
+          sprintPoints: sprintSystem,
           points: system,
           bonusPole: systemMeta?.bonus_pole ?? 0,
           bonusFastestLap: systemMeta?.bonus_fastest_lap ?? 0,
@@ -228,15 +294,18 @@ export function runSeason(db: Database, season: number, tickTier = 0): SeasonSum
           );
           rows = [];
 
-          for (let leg = 1; leg <= format.race_count; leg += 1) {
-            const raceEntries: RaceEntry[] = roster.entries.map((entry) => ({
-              ...entry,
-              // Strategen- und Crewqualitaet bis M5 aus der Ligastufe
-              // abgeleitet - dieselbe Kruecke wie beim uebrigen Personal.
-              strategy: 68 - (tier - 1) * 4.5,
-              crew: 68 - (tier - 1) * 4.5,
-              grid: gridOf.get(entry.driverId) ?? roster.entries.length,
-            }));
+          for (let leg = 1; leg <= legCount; leg += 1) {
+            // Der Sprint geht ueber ein Drittel der Renndistanz.
+            const distance = isSprintWeekend && leg === 1 ? 0.34 : format.race_distance_pct;
+            const raceEntries: RaceEntry[] = roster.entries.map((entry) => {
+              const staff = staffValues.get(entry.teamId);
+              return {
+                ...entry,
+                strategy: staff?.strategy ?? 55,
+                crew: staff?.pit ?? 55,
+                grid: gridOf.get(entry.driverId) ?? roster.entries.length,
+              };
+            });
 
             const raceContext: RaceContext = {
               worldSeed,
@@ -246,12 +315,24 @@ export function runSeason(db: Database, season: number, tickTier = 0): SeasonSum
               leg,
               profile,
               trackLengthM: track?.length_m ?? 4500,
-              laps: Math.max(8, Math.round((track?.laps ?? 55) * format.race_distance_pct)),
+              laps: Math.max(8, Math.round((track?.laps ?? 55) * distance)),
               abrasion: track?.abrasion ?? 0.6,
               pitLossS: track?.pit_loss_s ?? 20,
               overtakingDifficulty: tracks.get(round.track_id) ?? 0.5,
               dnfBaseRate: league.dnf_base_rate,
               compounds,
+              safetyCarRate: track?.safety_car_rate ?? 0.2,
+              risk: track?.risk ?? 0.45,
+              weather: drawWeather(
+                weatherProfiles.get(round.track_id),
+                Math.max(8, Math.round((track?.laps ?? 55) * distance)),
+                round.week as number,
+                worldSeed,
+                season,
+                tier,
+                round.round,
+                leg,
+              ),
             };
 
             const race = simulateRace(raceEntries, raceContext);
@@ -270,6 +351,7 @@ export function runSeason(db: Database, season: number, tickTier = 0): SeasonSum
                 tyre_wear: record.tyreWear,
                 fuel_kg: record.fuelKg,
                 event: record.event,
+                rival_id: record.rivalId,
               });
             }
 
@@ -298,16 +380,23 @@ export function runSeason(db: Database, season: number, tickTier = 0): SeasonSum
                 lost_fuel_s: outcome.lostToFuel,
                 lost_traffic_s: outcome.lostToTraffic,
                 lost_pits_s: outcome.lostToPits,
+                lost_incidents_s: outcome.lostToIncidents,
               });
             }
 
             const poleDriver = leg === 1 ? (light[0]?.driverId ?? null) : null;
             rows.push(
               ...race.outcomes.map((outcome) => {
-                let points = outcome.position ? system.get(outcome.position) ?? 0 : 0;
+                // Der Sprint zaehlt nach eigener, flacherer Skala und vergibt
+                // weder Pole- noch Rundenbonus - beides gehoert dem Hauptrennen.
+                // Ohne diese Fallunterscheidung bekam der Sprintsieger in der
+                // Tick-Sim die volle Wertung, gemessen 27 statt 8 Punkte.
+                const sprintLeg = isSprintWeekend && leg === 1;
+                const table = sprintLeg ? (sprintSystem ?? system) : system;
+                let points = outcome.position ? table.get(outcome.position) ?? 0 : 0;
                 const isPole = outcome.driverId === poleDriver;
-                const isFastest = outcome.driverId === fastest;
-                if (isPole) points += systemMeta?.bonus_pole ?? 0;
+                const isFastest = !sprintLeg && outcome.driverId === fastest;
+                if (isPole && !sprintLeg) points += systemMeta?.bonus_pole ?? 0;
                 if (isFastest) points += systemMeta?.bonus_fastest_lap ?? 0;
                 return {
                   leg,
@@ -319,6 +408,7 @@ export function runSeason(db: Database, season: number, tickTier = 0): SeasonSum
                   points,
                   pole: isPole,
                   fastestLap: isFastest,
+                  penaltyS: outcome.penaltyS,
                 };
               }),
             );
@@ -339,6 +429,7 @@ export function runSeason(db: Database, season: number, tickTier = 0): SeasonSum
             points: row.points,
             pole: row.pole ? 1 : 0,
             fastest_lap: row.fastestLap ? 1 : 0,
+            penalty_s: row.penaltyS ?? 0,
           });
           results += 1;
           if (row.status === 'dnf') dnfs += 1;
@@ -434,12 +525,25 @@ export function prepareSeason(db: Database, season: number): void {
 }
 
 /**
- * Bucht Ausschuettung, Fallschirm und Ausgaben einer Saison.
+ * Bucht die vollstaendige Bilanz einer Saison (Konzept 9).
  *
- * Muss nach buildStandings laufen: Der variable Anteil haengt am Tabellenplatz.
+ * Muss nach buildStandings und settleSponsors laufen: Ausschuettung, Preisgeld
+ * und Sponsorenbonus haengen am Saisonergebnis.
+ *
+ * Jeder Posten steht einzeln. Das ist kein Ordnungsfimmel - erst dadurch laesst
+ * sich beantworten, WORAN ein Team zugrunde geht, statt nur DASS es das tut.
+ * Was `expenses` noch abdeckt, ist der Rest: Entwicklung und Fertigung.
  */
 export function applyFinances(db: Database, season: number): void {
   const rules = loadPayoutRules(db);
+  const facilityTypes = loadFacilityTypes(db);
+  const facilityLevels = loadLevels(db, season);
+  const investments = new Map(
+    (db.prepare(
+      `SELECT team_id, SUM(amount) invested FROM team_facility_moves
+       WHERE season = ? AND reason = 'built' GROUP BY team_id`,
+    ).all(season) as Record<string, number>[]).map((row) => [row.team_id, row.invested]),
+  );
   const costCaps = new Map(
     (db.prepare('SELECT tier, cost_cap FROM league_regulations WHERE season = 1').all() as Record<
       string,
@@ -449,6 +553,91 @@ export function applyFinances(db: Database, season: number): void {
   const teamCounts = new Map(
     (db.prepare('SELECT tier, COUNT(*) n FROM team_seasons WHERE season = ? GROUP BY tier')
       .all(season) as Record<string, number>[]).map((row) => [row.tier, row.n]),
+  );
+
+  // --- Einnahmen jenseits der Ausschuettung -------------------------------
+
+  const sponsors = sponsorIncome(db, season);
+
+  // Preisgeld: je Rennen der Topf der Liga, nach Zielplatzierung verteilt.
+  const prizeMoney = new Map<number, number>();
+  const prizeRows = db
+    .prepare(
+      `SELECT tier, round, leg, team_id, position FROM race_results
+        WHERE season = ? AND position IS NOT NULL`,
+    )
+    .all(season) as { tier: number; round: number; leg: number; team_id: number; position: number }[];
+  const shareCache = new Map<number, number[]>();
+  const fieldSize = new Map<string, number>();
+  for (const row of prizeRows) {
+    const key = `${row.tier}|${row.round}|${row.leg}`;
+    fieldSize.set(key, Math.max(fieldSize.get(key) ?? 0, row.position));
+  }
+  for (const row of prizeRows) {
+    const rule = rules.get(row.tier);
+    if (!rule) continue;
+    const field = fieldSize.get(`${row.tier}|${row.round}|${row.leg}`) ?? 1;
+    let shares = shareCache.get(field);
+    if (!shares) {
+      shares = prizeShares(field);
+      shareCache.set(field, shares);
+    }
+    const amount = Math.round(rule.prizePoolPerRace * (shares[row.position - 1] ?? 0));
+    prizeMoney.set(row.team_id, (prizeMoney.get(row.team_id) ?? 0) + amount);
+  }
+
+  // Mitgift der Pay-Driver (Konzept 9.1). Steht seit M5 in driver_state und
+  // senkte bisher nur den Preis im Fahrermarkt, ohne je in der Kasse zu landen.
+  const payDrivers = new Map(
+    (db
+      .prepare(
+        `SELECT team_id, COALESCE(SUM(pay_driver_budget), 0) total FROM driver_state
+          WHERE season = ? AND role = 'race' AND retired = 0 AND team_id IS NOT NULL
+          GROUP BY team_id`,
+      )
+      .all(season) as { team_id: number; total: number }[]).map((row) => [row.team_id, row.total]),
+  );
+
+  // --- Ausgaben jenseits der Pauschale ------------------------------------
+
+  const driverWages = new Map(
+    (db
+      .prepare(
+        `SELECT team_id, COALESCE(SUM(salary), 0) total FROM driver_state
+          WHERE season = ? AND retired = 0 AND team_id IS NOT NULL GROUP BY team_id`,
+      )
+      .all(season) as { team_id: number; total: number }[]).map((row) => [row.team_id, row.total]),
+  );
+  const staffWages = new Map(
+    (db
+      .prepare(
+        `SELECT team_id, COALESCE(SUM(salary), 0) total FROM staff_state
+          WHERE season = ? AND retired = 0 AND team_id IS NOT NULL GROUP BY team_id`,
+      )
+      .all(season) as { team_id: number; total: number }[]).map((row) => [row.team_id, row.total]),
+  );
+
+  // Logistik: Summe der Streckenfaktoren des eigenen Kalenders.
+  const logisticsByTier = new Map<number, number>();
+  for (const row of db
+    .prepare(
+      `SELECT c.tier, COALESCE(SUM(t.logistics_factor), 0) total
+         FROM calendar c JOIN tracks t ON t.track_id = c.track_id
+        WHERE c.season = 1 GROUP BY c.tier`,
+    )
+    .all() as { tier: number; total: number }[]) {
+    logisticsByTier.set(row.tier, row.total);
+  }
+
+  const topCap = costCaps.get(1) ?? 0;
+  const leaseByTeam = new Map(
+    (db
+      .prepare(
+        `SELECT t.team_id, e.lease_cost_customer base
+           FROM teams t JOIN engine_suppliers e ON e.supplier_id = t.engine_supplier_id
+          WHERE t.is_works_team = 0`,
+      )
+      .all() as { team_id: number; base: number }[]).map((row) => [row.team_id, row.base]),
   );
 
   const standings = db
@@ -481,9 +670,22 @@ export function applyFinances(db: Database, season: number): void {
   const history = new Map<string, number>();
   for (const row of historyRows) history.set(`${row.team_id}|${row.season}`, row.tier);
 
+  // Betriebsniveau der Vorsaison - Grundlage der nachlaufenden Kostenbasis.
+  const previousBasis = new Map(
+    (db.prepare('SELECT team_id, cost_basis FROM team_finances WHERE season = ?').all(
+      season - 1,
+    ) as Record<string, number>[]).map((row) => [row.team_id, row.cost_basis]),
+  );
+
   const insert = db.prepare(
-    `INSERT INTO team_finances (team_id, season, tier, opening, payout, parachute, expenses, closing)
-     VALUES (@team_id, @season, @tier, @opening, @payout, @parachute, @expenses, @closing)`,
+    `INSERT INTO team_finances
+       (team_id, season, tier, opening, payout, parachute, prize_money, sponsors, pay_drivers,
+        expenses, cost_basis, facility_cost, driver_wages, staff_wages, engine_lease, logistics,
+        investment, closing)
+     VALUES
+       (@team_id, @season, @tier, @opening, @payout, @parachute, @prize_money, @sponsors, @pay_drivers,
+        @expenses, @cost_basis, @facility_cost, @driver_wages, @staff_wages, @engine_lease, @logistics,
+        @investment, @closing)`,
   );
 
   const run = db.transaction(() => {
@@ -503,8 +705,39 @@ export function applyFinances(db: Database, season: number): void {
         }
       }
 
-      const expenses = Math.round(rule.expenseRatio * (costCaps.get(team.tier) ?? 0));
+      const cap = costCaps.get(team.tier) ?? 0;
+
+      // Betrieb: nicht am Deckel der aktuellen Liga, sondern am nachlaufenden
+      // Betriebsniveau - ein Absteiger traegt seine alte Mannschaft noch mit.
+      // Mit COST_BASIS_DECAY = 0.5 ist das heute fast folgenlos; die Groesse
+      // steht als eigener Bilanzposten fuer M6 bereit. Warum sie bewusst nicht
+      // schaerfer gestellt ist, steht in finance.ts.
+      const basis = costBasisFor(
+        cap,
+        previousBasis.get(team.team_id),
+      );
+      const expenses = Math.round(rule.expenseRatio * basis);
+      // Fixkosten der Anlagen - absolut und unabhaengig von der Liga, in der
+      // das Team gerade faehrt. Genau hier schnappt die Falle aus Konzept 8.2
+      // zu: Der Deckel faellt beim Abstieg, die Rechnung nicht.
+      const facilityCost = upkeepTotal(
+        facilityTypes,
+        facilityLevels.get(team.team_id) ?? new Map<string, number>(),
+      );
+      const investment = investments.get(team.team_id) ?? 0;
+      const prize = prizeMoney.get(team.team_id) ?? 0;
+      const sponsorMoney = sponsors.get(team.team_id) ?? 0;
+      const mitgift = payDrivers.get(team.team_id) ?? 0;
+      const wagesDrivers = driverWages.get(team.team_id) ?? 0;
+      const wagesStaff = staffWages.get(team.team_id) ?? 0;
+      const lease = leaseCost(leaseByTeam.get(team.team_id) ?? 0, cap, topCap);
+      const logistics = logisticsCost(rule, [logisticsByTier.get(team.tier) ?? 0]);
+
       const start = opening.get(team.team_id) ?? 0;
+      const income = payout + parachute + prize + sponsorMoney + mitgift;
+      const outgo =
+        expenses + facilityCost + wagesDrivers + wagesStaff + lease + logistics + investment;
+
       insert.run({
         team_id: team.team_id,
         season,
@@ -512,8 +745,18 @@ export function applyFinances(db: Database, season: number): void {
         opening: start,
         payout,
         parachute,
+        prize_money: prize,
+        sponsors: sponsorMoney,
+        pay_drivers: mitgift,
         expenses,
-        closing: start + payout + parachute - expenses,
+        cost_basis: basis,
+        facility_cost: facilityCost,
+        driver_wages: wagesDrivers,
+        staff_wages: wagesStaff,
+        engine_lease: lease,
+        logistics,
+        investment,
+        closing: start + income - outgo,
       });
     }
   });
