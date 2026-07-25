@@ -91,6 +91,11 @@ CREATE TABLE lap_records (
   tyre_wear   REAL    NOT NULL,
   fuel_kg     REAL    NOT NULL,
   event       TEXT,
+  -- Gegner des Zweikampfs bei event 'traffic' und 'overtake': der Fahrer, der
+  -- in dieser Runde vorn lag. Ohne ihn laesst sich die Formel nicht pruefen -
+  -- sie arbeitet mit der DIFFERENZ aus Angriff und Verteidigung, und wer der
+  -- Verteidiger war, stand bis v0.16.2 nirgends.
+  rival_id    INTEGER REFERENCES drivers(driver_id),
   PRIMARY KEY (season, tier, round, leg, lap, driver_id)
 );
 

@@ -198,8 +198,8 @@ export function runSeason(db: Database, season: number, tickTier = 0): SeasonSum
   const staffValues = loadStaffValues(db, season);
 
   const insertLap = db.prepare(
-    `INSERT INTO lap_records (season, tier, round, leg, lap, driver_id, position, lap_time_ms, gap_to_leader_ms, compound, tyre_wear, fuel_kg, event)
-     VALUES (@season, @tier, @round, @leg, @lap, @driver_id, @position, @lap_time_ms, @gap_to_leader_ms, @compound, @tyre_wear, @fuel_kg, @event)`,
+    `INSERT INTO lap_records (season, tier, round, leg, lap, driver_id, position, lap_time_ms, gap_to_leader_ms, compound, tyre_wear, fuel_kg, event, rival_id)
+     VALUES (@season, @tier, @round, @leg, @lap, @driver_id, @position, @lap_time_ms, @gap_to_leader_ms, @compound, @tyre_wear, @fuel_kg, @event, @rival_id)`,
   );
   const insertAnalysis = db.prepare(
     `INSERT INTO race_analysis (season, tier, round, leg, driver_id, stops, best_lap_ms, total_ms, lost_tyres_s, lost_fuel_s, lost_traffic_s, lost_pits_s)
@@ -344,6 +344,7 @@ export function runSeason(db: Database, season: number, tickTier = 0): SeasonSum
                 tyre_wear: record.tyreWear,
                 fuel_kg: record.fuelKg,
                 event: record.event,
+                rival_id: record.rivalId,
               });
             }
 

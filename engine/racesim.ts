@@ -89,6 +89,8 @@ export interface LapRecord {
   tyreWear: number;
   fuelKg: number;
   event: string | null;
+  /** Gegner des Zweikampfs - nur bei 'traffic' und 'overtake' gesetzt. */
+  rivalId: number | null;
 }
 
 export interface RaceOutcome {
@@ -264,6 +266,7 @@ export function simulateRace(
           tyreWear: Math.round(car.wear * 10) / 10,
           fuelKg: Math.round(car.fuel * 10) / 10,
           event: 'dnf',
+          rivalId: null,
         });
         continue;
       }
@@ -299,6 +302,7 @@ export function simulateRace(
       car.lostToFuel += fuelLoss;
 
       let event: string | null = null;
+      let rivalId: number | null = null;
 
       // Verkehr: Wer dicht hinter einem Vordermann liegt, kommt nur vorbei,
       // wenn Tempo und Streckencharakter es hergeben.
@@ -311,6 +315,7 @@ export function simulateRace(
             ((car.entry.attributes.overtaking ?? 60) - (ahead.entry.attributes.defending ?? 60)) /
             100;
           const chance = Math.max(0.05, (1 - context.overtakingDifficulty) * 0.8 + skill * 0.3);
+          rivalId = ahead.entry.driverId;
           if (rng() > chance) {
             const stuck = Math.min(0.9, 0.25 + context.overtakingDifficulty * 0.7);
             lapS += stuck;
@@ -392,6 +397,7 @@ export function simulateRace(
         tyreWear: Math.round(car.wear * 10) / 10,
         fuelKg: Math.round(car.fuel * 10) / 10,
         event,
+        rivalId,
       });
     }
 

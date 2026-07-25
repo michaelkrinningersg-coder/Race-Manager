@@ -1500,10 +1500,36 @@ const skill = ((attributes.overtaking ?? 60) - (attributes.defending ?? 60)) / 1
 
 Beide fielen auf 60 zurück, die Differenz war damit **immer exakt null**. Wer wen überholt, entschied allein die Streckentücke. Beide sind jetzt nachgezogen.
 
-**Der Effekt ist allerdings nicht nachgewiesen.** Über zehn rundenweise gefahrene Saisons liegt die Korrelation zwischen `overtaking` und dem Positionsgewinn gegenüber dem Start bei r = 0,06, und die Erfolgsquote im Zweikampf ist über die `overtaking`-Bänder flach (37,1 % / 37,6 % / 34,5 %).
-
-Das ist kein Beleg dafür, dass die Mechanik nicht wirkt – es ist ein **stumpfes Messinstrument**. Die Formel arbeitet mit der *Differenz* zum Vordermann, die Messung kennt nur den Absolutwert des Angreifers, und `lap_records` speichert nicht, gegen wen der Zweikampf lief. Solange der Gegner nicht mitgeschrieben wird, lässt sich die Frage nicht beantworten.
-
-Was dagegen feststeht: Vorher konnte die Mechanik gar nicht wirken, jetzt kann sie es. Ob sie es spürbar tut, bleibt **offen**.
+Der Effekt liess sich zunächst nicht nachweisen – aber das lag am Messinstrument, nicht an der Mechanik. Siehe 22.9.
 
 Nicht betroffen sind die Personalwerte (`strategy`, `pit`, `feedback`, `reliability` – ihre Wirkung ist in 19.4 und 19.5 gemessen) und die Anlagenwerte, die über `facility[part_key]` dynamisch gelesen werden. Ohne Leser bleiben allein `w_newgen`, `w_sponsor` und `w_fitness` – alle drei sind in 20.7 und 21.8 bereits als offen vermerkt.
+
+### 22.9 Den Zweikampf messbar machen: `lap_records.rival_id`
+
+Die Frage aus 22.8 – wirkt `overtaking` überhaupt? – war mit den vorhandenen Daten nicht zu beantworten. Die Formel arbeitet mit der **Differenz** aus Angriff und Verteidigung, `lap_records` hielt aber nur fest, *dass* ein Zweikampf stattfand, nicht *gegen wen*:
+
+```
+const skill = (attacker.overtaking − defender.defending) / 100;
+const chance = max(0.05, (1 − overtaking_difficulty) × 0.8 + skill × 0.3);
+```
+
+`lap_records` trägt deshalb jetzt eine Spalte **`rival_id`** – bei den Ereignissen `traffic` und `overtake` der Fahrer, der in dieser Runde vorn lag. Damit ist beides bekannt und die Formel prüfbar.
+
+**Erste Auswertung, 38.811 Zweikämpfe über zehn rundenweise gefahrene Saisons:** r(Differenz, Erfolg) = −0,02, die Erfolgsquote über die Differenzbänder flach. Das sah nach „wirkt nicht" aus – war aber Konfundierung: Die Bänder mischen Strecken, deren Überholbarkeit von 0,22 bis 0,92 reicht und die den Basiswert von 62 % auf 6 % ziehen. Der Streckeneffekt ist zwanzigmal so groß wie der Fahrereffekt und überdeckt ihn vollständig.
+
+**Je Strecke getrennt** wird er sichtbar. Erfolgsquote der Angreifer mit einer Differenz über −10 gegenüber denen darunter:
+
+| Überholbarkeit | Zweikämpfe | Diff ≤ −10 | Diff > −10 | Unterschied |
+| ---: | ---: | ---: | ---: | ---: |
+| 0,22 | 1.151 | 57,5 % | 61,4 % | +4,0 Pp |
+| 0,44 | 1.812 | 39,9 % | 42,1 % | +2,2 Pp |
+| 0,52 | 2.216 | 32,8 % | 36,6 % | +3,7 Pp |
+| 0,82 | 1.619 | 9,3 % | 12,7 % | +3,4 Pp |
+| 0,92 | 2.302 | 5,8 % | 5,6 % | −0,2 Pp |
+
+Über 22 auswertbare Strecken im Mittel **+0,97 Prozentpunkte**, positiv auf 14 davon. **Die Mechanik wirkt** – der Fahrer entscheidet den Zweikampf mit, wenn auch schwach.
+
+Zwei Beobachtungen dazu, beide offen:
+
+* **Schwächer als die Formel nahelegt.** Bei rund acht Punkten Differenz zwischen den Bändern wären nach `skill × 0,3` etwa 2,4 Prozentpunkte zu erwarten, gemessen ist es gut ein Drittel davon. Der Grund liegt vermutlich an der Untergrenze `max(0.05, …)`: Auf schwer überholbaren Strecken wird der Basiswert dagegen gedrückt und der Fahreranteil mit abgeschnitten – bei Überholbarkeit 0,92 ist der Effekt tatsächlich null.
+* **Die Strecke dominiert den Fahrer um das Zwanzigfache.** Der Streckenterm wiegt 0,8, der Fahrerterm 0,3 – und die Differenzen zwischen Tier-1-Fahrern liegen nur zwischen −18 und +14, weil dort alle gut sind. Ob das so gewollt ist, ist eine Balancing-Frage und keine Messfrage.
