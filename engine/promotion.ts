@@ -128,9 +128,9 @@ function runBarrage(
     (rule.barrage_track_id as number | null) ?? trackIds[Math.floor(rng() * trackIds.length)];
 
   const profile = loadTrackProfiles(db).get(trackId);
-  const overtaking = (db
-    .prepare('SELECT overtaking_difficulty d FROM tracks WHERE track_id = ?')
-    .get(trackId) as { d: number }).d;
+  const track = db
+    .prepare('SELECT overtaking_difficulty d, risk FROM tracks WHERE track_id = ?')
+    .get(trackId) as { d: number; risk: number };
 
   const pointsTable = new Map<number, number>();
   for (const row of db
@@ -152,8 +152,9 @@ function runBarrage(
     tier: 100 + boundaryTier,
     round: 1,
     profile: profile ?? [],
-    overtakingDifficulty: overtaking,
+    overtakingDifficulty: track.d,
     dnfBaseRate: league.dnf_base_rate,
+    risk: track.risk,
     legCount: (rule.barrage_leg_count as number) ?? 2,
     reverseGridTopN: 0,
     points: pointsTable,
