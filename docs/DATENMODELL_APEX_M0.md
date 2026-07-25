@@ -26,6 +26,10 @@
 14. [Bootstrapper & Validierung](#14-bootstrapper--validierung)
 15. [Autorenleitfaden für die handgepflegten Bestände](#15-autorenleitfaden-für-die-handgepflegten-bestände)
 16. [Wert-Entscheidungen](#16-wert-entscheidungen)
+17. [Zweite Datei-Runde: Strecken, Kalender, Motoren](#17-zweite-datei-runde-strecken-kalender-motoren)
+18. [M5: Fahrerkarrieren](#18-m5-fahrerkarrieren)
+19. [M5 Teil 2: Personal](#19-m5-teil-2-personal)
+20. [M5 Teil 3: Infrastruktur](#20-m5-teil-3-infrastruktur)
 
 ---
 
@@ -1184,3 +1188,98 @@ Ein Fehler, der dabei auffiel und behoben ist: Teams griffen nach jedem freien K
 * **Gehälter werden weiterhin nicht verbucht** – weder die der Fahrer noch die des Personals. `applyFinances` rechnet Ausgaben pauschal als `expense_ratio × cost_cap`. Gehört nach M6.
 * `w_morale` und `w_newgen` sind ohne Wirkung: Die Fahrermoral wird geführt, aber nirgends gelesen, und der Nachwuchsleiter wartet auf das Scouting.
 * Infrastruktur (Konzept 8.2, Level 0–5) ist nicht angefasst.
+
+---
+
+## 20. M5 Teil 3: Infrastruktur
+
+Konzept 8.2 nennt acht Anlagen mit Level 0–5. Bis hierher gab es sie nur als Ableitung: `facilities.ts` rechnete im Moment der Lizenzprüfung aus Liga und Prestige einen Wert aus und warf ihn danach weg. Kein Bestand, keine Kosten, keine Wirkung.
+
+Vier Entscheidungen prägen die Umsetzung.
+
+### 20.1 Alle acht anlegen, fünf verkabeln
+
+`facility_types.csv` hält alle acht Anlagen aus Konzept 8.2 – dasselbe Muster wie bei den Regenmischungen und beim Nachwuchsleiter: Bestand jetzt, Wirkung wenn der Abnehmer existiert. Marketing wartet auf die Sponsoren aus M6, Medizin auf die Verletzungen aus M7.
+
+Die Datei legt fest, *was* eine Anlage bewirkt und *was* sie kostet, nicht *wer* sie besitzt. Der Bestand steht in `team_facilities`, eine Zeile je Team, Saison und Anlage. Wie bei `staff_roles.csv` ist **jede Wirkungsspalte über alle acht Anlagen auf genau 1.0 normiert**, hart geprüft; der Infrastrukturwert einer Wirkung ist damit ein gewichteter Mittelwert auf derselben 0–100-Skala wie der Personalwert.
+
+Zusätzlich prüft der Validator die Rückbindung an die Lizenzleiter: Genau die vier Schlüssel mit `licence_checked = 1` müssen den `min_*_level`-Spalten aus `licence_requirements.csv` entsprechen. Fiele eine Anlage aus dieser Menge, prüfte die Lizenz gegen ein Niveau, das kein Team je aufbauen kann – ein Fehler, der erst beim ersten verweigerten Aufstieg aufgefallen wäre.
+
+### 20.2 Gruppenspezifische Wirkung
+
+Jede Anlage wirkt dort, wo das Konzept sie verortet: Windkanal und CFD auf die drei Aero-Gruppen, Prüfstand auf Antrieb, ERS und Zuverlässigkeit, Fertigung auf alles, was gebaut statt umströmt wird, Simulator auf Feedback-Verwertung und Fahrerentwicklung. Der Multiplikator in der Entwicklungsformel läuft von 0,80 (nichts) bis 1,20 (alles auf Stufe 5) und liegt für einen Weltmeisterschaftsteilnehmer mit Startbestand bei rund 0,96 – Personal und Ressourcen bleiben die stärkeren Hebel.
+
+Ein flacher Mittelwert über alle Anlagen wäre der bequemere Weg gewesen und genau der Fehler, den 19.4 beim Personal beheben musste.
+
+**`w_newgen` bleibt ohne Wirkung.** Newgens entstehen als Free Agents ohne Team; eine Akademie kann dort nichts verbessern, solange das Scouting fehlt. Derselbe Blocker wie beim Nachwuchsleiter. Die Akademie ist deshalb trotzdem nicht wirkungslos – sie zahlt über `w_driver_dev` auf die Fahrerentwicklung ein.
+
+### 20.3 Die Deckelung des Startbestands
+
+Der Startbestand wird beim Bootstrap abgeleitet, damit sich Saison 1 unverändert verhält. Die alte Formel – Ligaminimum plus bis zu zwei Stufen nach Prestige – musste dafür aber **gedeckelt** werden: Der Schritt reicht jetzt höchstens bis zum Mindestniveau der nächsthöheren Liga.
+
+Solange Anlagen nichts kosteten, war der ungedeckelte Schritt harmlos. Mit echten Fixkosten ist er tödlich: Ein Tier-10-Team mit Prestige bekam einen Windkanal auf Stufe 2 und damit **518 % seines Kostendeckels** allein an Hallenkosten.
+
+Die Deckelung ändert nachweislich kein Lizenzurteil der Saison 1 – geprüft wird gegen genau das Minimum, an dem gedeckelt wird, sie kappt also ausschließlich Stufen, die ohnehin über der Anforderung lagen.
+
+Die vier Anlagen ohne Lizenzanker starten bei **null**. Die Lizenzleiter ist der einzige Anhaltspunkt dafür, wie die Infrastruktur einer Liga aussieht, und sie sagt zu CFD, Akademie, Marketing und Medizin nichts. Ein erfundener Startwert wäre keine Ableitung gewesen, sondern eine Setzung – und eine teure.
+
+### 20.4 Die Kostenleiter ist gemessen, nicht gesetzt
+
+Level 0–5 sind flach, das Geld spannt über die Pyramide um den Faktor 558 (145 Mio gegen 260 Tsd Deckel). Eine lineare Leiter kann beides nicht bedienen. Die Fixkosten folgen deshalb `upkeep_base × [0, 1, 4, 16, 60, 200]` und sind **absolut**, nicht am Deckel der aktuellen Liga bemessen – genau darin liegt die Fixkostenfalle.
+
+Der Vervierfacher je Stufe steht am Ende von neun gemessenen Kombinationen aus Leiter und Ausgabenquote:
+
+| Leiter | `expense_ratio` | Aufstiege | Spannweite ≥ 2 | Verschiedene Meister |
+| :--- | ---: | ---: | ---: | ---: |
+| ohne Infrastruktur | 0,58 | 255 | 23 | 7 |
+| 1-6-34-150-520 | 0,48 | 149 | 2 | 2 |
+| 1-6-34-150-520 | 0,36 | 273 | 14 | 4 |
+| **1-4-16-60-200** | **0,36** | **285** | **25** | **6** |
+| 1-3-9-27-81 | 0,36 | 285 | 19 | 6 |
+
+Die steile Leiter macht schon den Schritt von Stufe 1 auf 2 teurer, als der Jahresüberschuss einer Mittelfeldliga hergibt; die flache nimmt der Fixkostenfalle den Zahn.
+
+### 20.5 Nicht die Fixkosten waren die Bremse, sondern die Marge
+
+Der erste Lauf war ein Desaster: Aufstiege von 255 auf 149, Teams mit Ligaspannweite ≥ 2 von 23 auf **2**. Zwei Ursachen, beide in der Umsetzung, nicht im Konzept.
+
+**Die Investitionsprüfung war einjährig.** Ein Team baute, sobald es einmal genug Geld gesehen hatte, und verkaufte die Halle im nächsten Winter mit 40 % Verlust wieder – 578 Ausbauten gegen 461 Zwangsverkäufe. Die Bausumme fällt einmal an, die Fixkosten jedes Jahr danach; geprüft wird jetzt beides, und der laufende Überschuss muss die neue Stufe dauerhaft tragen. Zudem lag die Rücklage gegen den eigenen, kleineren Deckel statt gegen den der Zielliga – Teams bauten sich ihre eigene Liquiditätsprüfung weg (188 von 494 Verweigerungen).
+
+**Die eigentliche Bremse war aber `expense_ratio`.** Bei 0,58 blieben einem Tier-5-Team rund 0,69 Mio im Jahr, während eine Windkanalstufe 0,75 Mio jährlich kostet. Investieren war rechnerisch unmöglich. Der Wert liegt jetzt bei **0,36** und deckt ausdrücklich alles außer der Infrastruktur – sie steht mit `facility_cost`, `investment` und `asset_sales` als eigene Posten in `team_finances`.
+
+Das ist ein tiefer Eingriff und der Preis ist bekannt: Die Gesamtlast fällt anfangs von 58 % auf rund 40 % des Deckels, das Tabellenende zehrt nicht mehr an der Substanz. Über zwanzig Saisons holt der Ausbau das aber wieder ein – in Saison 20 liegen Betrieb und Fixkosten zusammen bei 62–68 % des Deckels.
+
+### 20.6 Gemessen über 20 Saisons
+
+Infrastrukturwert (Mittel über die neun Bauteilgruppen):
+
+| | Saison 1 | Saison 20 | Streuung S20 |
+| :--- | ---: | ---: | :--- |
+| Tier 1 | 48,1 | 78,1 | SD 5,1 (68,7 – 84,8) |
+| Tier 4 | 30,1 | 45,9 | SD 4,3 (40,0 – 60,0) |
+| Tier 7 | 13,8 | 17,8 | SD 6,4 (5,4 – 31,9) |
+| Tier 10 | 0,0 | 0,4 | SD 0,8 (0,0 – 3,6) |
+
+Die Pyramide hält. Der Zusammenhang zwischen Infrastrukturwert und Tabellenplatz liegt im Mittel der Saisons 10–20 bei **r = −0,59 (Tier 1)**, −0,34 (Tier 4), −0,59 (Tier 7) und −0,56 (Tier 10) – und damit erstmals **gleichmäßig über die Pyramide**. Die Tier-4-Anomalie des Personals (r = −0,02, siehe 19.6) wiederholt sich hier nicht.
+
+**Und die Mobilität bewegt sich.** Zum ersten Mal seit M5:
+
+| | ohne Infrastruktur | mit Infrastruktur |
+| :--- | ---: | ---: |
+| Aufstiege (Saison 2–20) | 255 | **285** |
+| Lizenz verweigert | 337 | **289** |
+| Teams mit Ligaspannweite ≥ 2 | 23 | **25** |
+| Völlig unbewegte Teams | 46 | **41** |
+| Netto ≥ 2 Ligen gestiegen | 0 | **1** |
+| Verschiedene Tier-1-Meister | 7 | 6 |
+
+Der Befund aus 18.10 und 19.6 – *netto steigt kein Team zwei Ligen* – ist damit erstmals gebrochen, wenn auch von einem einzigen Team.
+
+### 20.7 Was offen bleibt
+
+* **Die Fixkostenfalle schnappt nicht zu.** Genau **1 von 112** Zwangsverkäufen folgt einem Abstieg der letzten zwei Saisons. Der Kern von Konzept 8.2 – wer auf Tier-2-Niveau ausbaut und nach Tier 5 durchgereicht wird, muss verkaufen – findet praktisch nicht statt. Zwei Gründe liegen nahe: Der Fallschirm federt den Abstieg zu gut ab, und die neue Überschussprüfung verhindert das Überbauen von vornherein. Die Falle ist gebaut, aber niemand läuft hinein.
+* **Teams kaufen billig statt richtig.** Gebaut werden vor allem CFD (306) und Simulator (225), kaum Windkanal (51) und Fertigung (55) – obwohl genau die beiden lizenzrelevant sind. Die Überschussprüfung blockiert die teuren Anlagen, und die Wunschliste fällt auf die billigen durch. Infrastruktur ist damit schwächer Aufstiegshebel, als sie sein könnte.
+* **Marketing und Medizin werden nie gebaut** – 0 Ausbauten in 20 Saisons. Erwartbar, solange sie keine Wirkung haben, aber es heißt: Die beiden existieren bisher nur als Typzeile, nicht als Bestand.
+* **`w_newgen` bleibt ohne Abnehmer**, zusammen mit `staff_roles.w_newgen`. Beide warten auf dasselbe Scouting.
+* **Gehälter werden weiterhin nicht verbucht.** Der Befund aus 19.6 steht; `expense_ratio` deckt sie pauschal mit. Mit 0,36 ist die Ausgabenseite jetzt allerdings dünner als zuvor – M6 hat entsprechend mehr aufzufüllen.
+* **Die Belegschaftsstärke wird weiter abgeleitet.** Sie ist keine Anlage und bleibt außerhalb von `team_facilities`; mit 207 von 289 Verweigerungen ist sie inzwischen der mit Abstand häufigste Ablehnungsgrund.

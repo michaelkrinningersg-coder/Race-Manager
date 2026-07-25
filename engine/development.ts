@@ -16,6 +16,7 @@
 import type { Database } from './savegame.js';
 import { createRng, gaussian, seedFrom } from './rng.js';
 import { loadStaffValues } from './staff.js';
+import { facilityValues, loadFacilityTypes, loadLevels } from './facilities.js';
 
 /**
  * Ein Team ganz ohne Fortschrittsbremse gewinnt hoechstens diesen Anteil des
@@ -118,6 +119,12 @@ export function developParts(
   // vergangenen Jahr im Amt waren.
   const staffValues = loadStaffValues(db, fromSeason);
 
+  // Anlagen der Vorsaison, aus demselben Grund: Gebaut wird im Winter mit den
+  // Hallen, die im vergangenen Jahr standen. Ein Ausbau wirkt erst ein Jahr
+  // spaeter - die Verzoegerung ist gewollt und macht den Ausbau zur Wette.
+  const facilityTypes = loadFacilityTypes(db);
+  const facilityLevels = loadLevels(db, fromSeason);
+
   // Fahrer-Feedback des Teams: Mittel der beiden Stammfahrer der Vorsaison -
   // entwickelt wird mit den Rueckmeldungen der Fahrer, die das Auto kannten.
   const feedback = new Map(
@@ -176,10 +183,24 @@ export function developParts(
       // Liga um 50 zulegte, und rutschte von Platz 2 auf Platz 13 durch.
       const staff = staffValues.get(teamId);
 
+      // Infrastrukturwert je Bauteilgruppe (Konzept 8.2). Gleiche Bauart wie
+      // der Personalwert und bewusst schwaecher gewichtet: Der Multiplikator
+      // laeuft von 0.80 (keine Anlagen) bis 1.20 (alles auf Stufe 5), liegt
+      // fuer einen Weltmeisterschaftsteilnehmer mit dem Startbestand also bei
+      // rund 0.96. Personal und Ressourcen bleiben damit die staerkeren Hebel -
+      // die Halle entscheidet nicht das Rennen, sie verschiebt es.
+      const facility = facilityValues(
+        facilityTypes,
+        facilityLevels.get(teamId) ?? new Map<string, number>(),
+      );
+
       // Der Renningenieur verwertet, was der Fahrer meldet: Ein schwacher
-      // Ingenieur macht auch aus gutem Feedback wenig (Konzept 8.1).
+      // Ingenieur macht auch aus gutem Feedback wenig (Konzept 8.1). Der
+      // Simulator ist die Halle dazu - ohne ihn bleibt die Rueckmeldung eine
+      // Erzaehlung, die niemand nachstellen kann.
       const feedbackQuality = ((feedback.get(teamId) ?? 60) * (staff?.feedback ?? 55)) / 100;
-      const feedbackTerm = 0.9 + 0.25 * (feedbackQuality / 100);
+      const feedbackTerm =
+        (0.9 + 0.25 * (feedbackQuality / 100)) * (0.9 + 0.2 * (facility.feedback / 100));
       const focus = ARCHETYPE_FOCUS[row.ai_archetype as string] ?? {};
 
       // Homologationshilfe fuer den Aufsteiger (Konzept 6.5). Absteiger
@@ -257,6 +278,11 @@ export function developParts(
         const noise = Math.max(0.85, NOISE_MEAN + gaussian(rng) * NOISE_SD);
         // Personal ist Multiplikator, nicht Ersatz (Konzept 6.3).
         const staffTerm = 0.4 + 0.6 * ((staff?.[type.part_key as never] ?? 55) / 100);
+        // Die Anlagen wirken gruppenspezifisch: Windkanal und CFD auf die drei
+        // Aero-Gruppen, Pruefstand auf Antrieb und ERS, Fertigung auf alles,
+        // was gebaut statt umstroemt wird. Welche Halle worauf zahlt, steht in
+        // facility_types.csv - nicht hier.
+        const facilityTerm = 0.8 + 0.4 * ((facility[type.part_key] ?? 0) / 100);
 
         const delta =
           cap *
@@ -265,6 +291,7 @@ export function developParts(
           allocation *
           resourceTerm *
           staffTerm *
+          facilityTerm *
           atr *
           feedbackTerm *
           saturation *
@@ -279,13 +306,16 @@ export function developParts(
           season: toSeason,
           part_key: type.part_key,
           performance,
-          // Reife steigt mit den gefahrenen Kilometern: die Zuverlaessigkeit
-          // naehert sich langsam 95 an.
-          // Standfestigkeit waechst mit den gefahrenen Kilometern - wie schnell,
-          // entscheidet der Antriebschef.
+          // Standfestigkeit waechst mit den gefahrenen Kilometern und naehert
+          // sich langsam 95 an - wie schnell, entscheiden der Antriebschef und
+          // die beiden Hallen, die Schwaechen ueberhaupt erst sichtbar machen:
+          // der Pruefstand findet sie, die Fertigung baut sie weg.
           reliability: Math.round(
             existing.reliability +
-              (95 - existing.reliability) * 0.12 * (0.5 + ((staff?.reliability ?? 55) / 100)),
+              (95 - existing.reliability) *
+                0.12 *
+                (0.5 + ((staff?.reliability ?? 55) / 100)) *
+                (0.8 + 0.4 * (facility.reliability / 100)),
           ),
           spec_version: existing.spec_version + 1,
           source: 'developed',

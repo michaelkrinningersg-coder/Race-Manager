@@ -1,0 +1,56 @@
+# HANDGEPFLEGT - Die acht Anlagen als Typdefinition (Konzept 8.2).
+#
+# Kein Anlagenbestand - der entsteht zur Laufzeit in `team_facilities`, genau
+# wie der Personalbestand erst in `staff` entsteht. Diese Datei legt fest, WAS
+# eine Anlage bewirkt und WAS sie kostet, nicht WER sie besitzt.
+#
+# Alle Gewichtsspalten sind spaltenweise auf 1.0 normiert: Ueber alle acht
+# Anlagen hinweg summiert sich jede einzelne Wirkung zu genau 1. Der Validator
+# prueft das hart, wie bei staff_roles.csv. Damit ist der Infrastrukturwert
+# einer Wirkung ein sauberer gewichteter Mittelwert auf der 0-100-Skala.
+#
+# w_chassis .. w_brakes  Wirkung auf die Entwicklung der neun Bauteilgruppen.
+# w_reliability          Wachstum der Standfestigkeit ueber die Saison.
+# w_feedback             Verwertung des Fahrer-Feedbacks in der Entwicklung.
+# w_driver_dev           Tempo, mit dem sich ein Fahrer seinem Potenzial naehert.
+# w_newgen               Qualitaet des eigenen Nachwuchses.
+# w_sponsor              Sponsorenwert. Ohne Wirkung, bis M6 die Sponsoren
+#   bringt - die Spalte existiert, damit dafuer keine Schemaaenderung noetig
+#   ist (wie bei den Regenmischungen und beim Nachwuchsleiter).
+# w_fitness              Verletzungen und Fahrerfitness. Ohne Wirkung bis M7.
+#
+# licence_checked  Ob licence_requirements.csv ein Mindestniveau fordert. Die
+#   vier gepruefften Schluessel entsprechen genau den min_*_level-Spalten dort.
+#
+# KOSTEN. Level 0-5, aber Geld spannt ueber die Pyramide um den Faktor 558
+# (Tier 1: 145 Mio Deckel, Tier 10: 260 Tsd). Eine lineare Leiter kann beides
+# nicht bedienen - ein Level-1-Windkanal muss in Tier 7 bezahlbar sein, ein
+# Level-5-Windkanal auch fuer Tier 1 unerreichbar bleiben. Die Stufenleiter
+# waechst deshalb geometrisch und steht in facilities.ts als UPKEEP_LADDER:
+#
+#   Level      0     1     2     3      4      5
+#   Faktor     0     1     4    16     60    200
+#
+# Der Vervierfacher je Stufe ist gemessen, nicht gesetzt. Eine steilere Leiter
+# (1-6-34-150-520) macht schon den Schritt von Stufe 1 auf 2 teurer als der
+# Jahresueberschuss einer Mittelfeldliga hergibt: Die Aufstiege fielen ueber
+# zwanzig Saisons von 255 auf 149, die Teams mit Ligaspannweite >= 2 von 23 auf
+# 2. Eine flachere (1-3-9-27-81) macht Stufe 5 zur Selbstverstaendlichkeit und
+# nimmt der Fixkostenfalle den Zahn.
+#
+# upkeep_base  Jaehrliche Fixkosten auf Level 1. Die Kosten eines Levels sind
+#   upkeep_base * Faktor - und sie sind ABSOLUT, nicht am Deckel der aktuellen
+#   Liga bemessen. Genau darin liegt die Fixkostenfalle aus Konzept 8.2: Wer
+#   auf Tier-2-Niveau ausbaut und nach Tier 5 durchgereicht wird, zahlt weiter
+#   den Tier-2-Preis.
+# build_factor  Der Ausbau auf ein Level kostet einmalig das build_factor-fache
+#   seiner Fixkosten. Beim Verkauf fliessen davon 60 % zurueck (Konzept 9.4).
+facility_key,name,sort_order,licence_checked,upkeep_base,build_factor,w_chassis,w_front_wing,w_rear_wing,w_floor,w_powertrain,w_ers,w_gearbox,w_suspension,w_brakes,w_reliability,w_feedback,w_driver_dev,w_newgen,w_sponsor,w_fitness,flavour
+windtunnel,Windkanal,1,1,150000,5.0,0.00,0.60,0.60,0.55,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,"Läuft rund um die Uhr, weil Stillstand teurer ist als Strom. Das Reglement rationiert die Stunden, nicht das Gebäude."
+cfd,CFD-Cluster,2,0,90000,3.0,0.35,0.40,0.40,0.45,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,"Rechnet nachts, was tagsüber niemand messen darf. Wird alle drei Jahre komplett ersetzt und ist trotzdem die billigste Anlage im Haus."
+dyno,Motorenprüfstand,3,1,110000,4.5,0.00,0.00,0.00,0.00,0.80,0.80,0.30,0.00,0.00,0.45,0.00,0.00,0.00,0.00,0.00,"Hier stirbt ein Motor, damit am Sonntag keiner stirbt. Der Prüfstand kennt jede Schwäche zwei Monate vor der Rennstrecke."
+simulator,Fahrsimulator,4,1,80000,4.0,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.25,0.30,0.00,1.00,0.70,0.00,0.00,0.00,"Der einzige Ort, an dem ein Fahrer eine Strecke lernen darf, bevor er sie sieht. Und der einzige, an dem ein Testtag nichts kostet."
+factory,Fertigung,5,1,130000,5.0,0.65,0.00,0.00,0.00,0.20,0.20,0.70,0.75,0.70,0.55,0.00,0.00,0.00,0.00,0.00,"Entscheidet, wie oft ein Team ein neues Teil bauen kann - und ob der Ersatzteilsatz nach einem Unfall am Mittwoch schon wieder steht."
+academy,Akademie,6,0,50000,3.5,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.30,1.00,0.00,0.00,"Karts, ein Formel-Nachwuchsprogramm und ein Internat. Zahlt sich frühestens nach acht Jahren aus, dafür dann doppelt."
+marketing,Marketing und Hospitality,7,0,60000,3.0,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,1.00,0.00,"Die Motorhome-Flotte kostet so viel wie ein Bauteilupdate und bringt den Titelsponsor, der drei davon bezahlt."
+medical,Medizin und Fitness,8,0,40000,3.0,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,1.00,"Physiotherapie, Höhenkammer, Reha. Die billigste Anlage im Haus - bis der Stammfahrer im Juni ausfällt."

@@ -82,6 +82,21 @@ export const STAFF_WEIGHT_COLUMNS = [
   'w_newgen',
 ];
 
+/**
+ * Die Wirkungsspalten von facility_types.csv. Dieselbe Normierung wie beim
+ * Personal: jede Spalte summiert sich ueber alle acht Anlagen auf genau 1.0,
+ * damit der Infrastrukturwert einer Wirkung auf der 0-100-Skala bleibt.
+ */
+export const FACILITY_WEIGHT_COLUMNS = [
+  ...PART_KEYS.map((key) => `w_${key}`),
+  'w_reliability',
+  'w_feedback',
+  'w_driver_dev',
+  'w_newgen',
+  'w_sponsor',
+  'w_fitness',
+];
+
 /** Die 17 Fahrerattribute, je 0-100. */
 export const DRIVER_ATTRIBUTES = [
   'pace',
@@ -217,6 +232,29 @@ export const TABLES: TableSpec[] = [
         max: 1,
       })),
       { name: 'salary_share', type: 'real', required: true, min: 0, max: 1 },
+      { name: 'flavour', type: 'text', required: true },
+    ],
+  },
+  {
+    file: 'facility_types.csv',
+    table: 'facility_types',
+    primaryKey: ['facility_key'],
+    expectedRows: 8,
+    sortBy: ['sort_order'],
+    columns: [
+      { name: 'facility_key', type: 'text', required: true, unique: true },
+      { name: 'name', type: 'text', required: true, unique: true },
+      { name: 'sort_order', type: 'int', required: true, min: 1, max: 8, unique: true },
+      { name: 'licence_checked', type: 'int', required: true, min: 0, max: 1 },
+      { name: 'upkeep_base', type: 'int', required: true, min: 0 },
+      { name: 'build_factor', type: 'real', required: true, min: 1, max: 10 },
+      ...FACILITY_WEIGHT_COLUMNS.map((name) => ({
+        name,
+        type: 'real' as const,
+        required: true,
+        min: 0,
+        max: 1,
+      })),
       { name: 'flavour', type: 'text', required: true },
     ],
   },

@@ -4,20 +4,46 @@
 # also Fixanteil fuer alle plus variabler Anteil nach Vorjahresplatz. Der
 # Ligadurchschnitt liegt damit bei 60 % des Kostendeckels.
 #
-# expense_ratio: Anteil des Kostendeckels, den ein Team pro Saison ausgibt.
-# Knapp unter dem Durchschnittsertrag - wer vorne steht, legt zu, wer hinten
-# steht, zehrt von der Substanz. Genau die Schere, die Konzept 9.4 braucht.
+# expense_ratio: Anteil des Kostendeckels, den ein Team pro Saison ausgibt -
+# ALLES AUSSER DER INFRASTRUKTUR. Bis zur Umsetzung von Konzept 8.2 stand hier
+# 0.58 und deckte auch die Hallen mit ab; seit die Anlagen als eigener Posten
+# in team_finances gebucht werden, waere das eine doppelte Buchung.
+#
+# 0.36 statt 0.58, und zwar einheitlich ueber alle zehn Ligen. Die tatsaechliche
+# Infrastrukturlast des Startbestands schwankt zwischen 0 % (Tier 9/10, die gar
+# keine Anlagen brauchen) und rund 8 % des Deckels - sie haengt daran, wo die
+# Stufen der Lizenzleiter fallen. Diese Zacken in den expense_ratio zu spiegeln
+# haette den Artefakt zur Designgroesse gemacht. Einheitlich gesenkt heisst
+# dagegen: Der Rest des Betriebs kostet in jeder Liga denselben Anteil, und der
+# Unterschied zwischen zwei Teams entsteht aus dem, was sie besitzen.
+#
+# Warum so tief. Nicht die Fixkosten waren die Bremse, sondern die Marge: Bei
+# 0.58 blieb einem Tier-5-Team rund 0,69 Mio im Jahr, waehrend eine Stufe am
+# Windkanal 0,75 Mio jaehrlich kostet. Investieren war damit rechnerisch
+# unmoeglich, und die Aufstiege fielen ueber zwanzig Saisons von 255 auf 149.
+# Gemessen ueber neun Kombinationen aus Kostenleiter und Ausgabenquote traegt
+# erst 0.36 einen Ausbau: 285 Aufstiege und 25 Teams mit Ligaspannweite >= 2,
+# gegen 255 und 23 im Stand ohne Infrastruktur.
+#
+# Die Gesamtlast liegt damit bei rund 40 % statt 58 % des Deckels. Der Preis
+# ist bekannt und bewusst in Kauf genommen: Das Tabellenende zehrt nicht mehr
+# an der Substanz, sondern haelt sich knapp ueber Wasser. Die Schere aus
+# Konzept 9.4 bleibt als Richtung erhalten, ist aber schwaecher - bis M6 die
+# Gehaelter verbucht und die Ausgabenseite wieder fuellt.
+#
+# Wer vorne steht, legt zu, wer hinten steht, zehrt von der Substanz. Genau die
+# Schere, die Konzept 9.4 braucht.
 #
 # parachute_pct_1/2: Anteil der Ausschuettungsdifferenz zur alten Liga, den ein
 # Absteiger in der ersten bzw. zweiten Saison danach erhaelt.
 tier,tv_fixed,tv_variable_top,expense_ratio,parachute_pct_1,parachute_pct_2
-1,60000000,54000000,0.58,0.60,0.30
-2,29000000,26000000,0.58,0.60,0.30
-3,14000000,12800000,0.58,0.60,0.30
-4,7000000,6400000,0.58,0.60,0.30
-5,3700000,3400000,0.58,0.60,0.30
-6,1850000,1700000,0.58,0.60,0.30
-7,900000,840000,0.58,0.60,0.30
-8,450000,420000,0.58,0.60,0.30
-9,225000,210000,0.58,0.60,0.30
-10,107000,98000,0.58,0.60,0.30
+1,60000000,54000000,0.36,0.60,0.30
+2,29000000,26000000,0.36,0.60,0.30
+3,14000000,12800000,0.36,0.60,0.30
+4,7000000,6400000,0.36,0.60,0.30
+5,3700000,3400000,0.36,0.60,0.30
+6,1850000,1700000,0.36,0.60,0.30
+7,900000,840000,0.36,0.60,0.30
+8,450000,420000,0.36,0.60,0.30
+9,225000,210000,0.36,0.60,0.30
+10,107000,98000,0.36,0.60,0.30

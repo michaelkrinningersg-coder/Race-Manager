@@ -11,6 +11,7 @@ import {
   AERO_PART_KEYS,
   CORE_ATTRIBUTES,
   DRIVER_WEIGHT_KEYS,
+  FACILITY_WEIGHT_COLUMNS,
   PART_KEYS,
   PART_WEIGHT_KEYS,
   STAFF_WEIGHT_COLUMNS,
@@ -516,6 +517,66 @@ function checkStaffRoles(context: ValidationContext, findings: Finding[]): void 
         `race_engineer hat count_per_team ${num(engineers, 'count_per_team')} - Konzept 8.1 sieht einen je Auto vor, also 2`,
       ),
     );
+  }
+}
+
+/**
+ * facility_types.csv: dieselbe Normierung wie beim Personal, plus die
+ * Rueckbindung an die Lizenzleiter.
+ *
+ * Die vier mit licence_checked = 1 markierten Schluessel muessen genau den
+ * min_*_level-Spalten aus licence_requirements.csv entsprechen. Faellt eine
+ * Anlage aus dieser Menge heraus, prueft die Lizenz gegen ein Niveau, das
+ * kein Team je aufbauen kann - ein Fehler, der erst beim ersten verweigerten
+ * Aufstieg auffiele.
+ */
+function checkFacilityTypes(context: ValidationContext, findings: Finding[]): void {
+  const rows = rowsOf(context, 'facility_types.csv');
+  if (rows.length === 0) return;
+
+  for (const column of FACILITY_WEIGHT_COLUMNS) {
+    const sum = rows.reduce((total, row) => total + num(row, column), 0);
+    if (Math.abs(sum - 1) > 1e-6) {
+      findings.push(
+        error('facility_types.csv', `Summe ${column} ist ${sum.toFixed(4)}, erwartet ist genau 1.0`),
+      );
+    }
+  }
+
+  // Eine Anlage ohne jede Wirkung waere ein Fixkostenposten ohne Gegenwert.
+  // Marketing und Medizin sind nicht ausgenommen: Ihre Spalten w_sponsor und
+  // w_fitness tragen die 1.0 schon, auch wenn sie bis M6/M7 niemand liest.
+  for (const row of rows) {
+    const key = String(row.values.facility_key);
+    const total = FACILITY_WEIGHT_COLUMNS.reduce((sum, column) => sum + num(row, column), 0);
+    if (total <= 0) {
+      findings.push(error('facility_types.csv', `Anlage ${key} hat auf nichts eine Wirkung`));
+    }
+  }
+
+  const checked = new Set(
+    rows.filter((row) => num(row, 'licence_checked') === 1).map((row) => String(row.values.facility_key)),
+  );
+  const required = new Set(['windtunnel', 'dyno', 'simulator', 'factory']);
+  for (const key of required) {
+    if (!checked.has(key)) {
+      findings.push(
+        error(
+          'facility_types.csv',
+          `${key} ist nicht als licence_checked markiert, licence_requirements.csv fordert dafuer aber ein Mindestniveau`,
+        ),
+      );
+    }
+  }
+  for (const key of checked) {
+    if (!required.has(key)) {
+      findings.push(
+        error(
+          'facility_types.csv',
+          `${key} ist als licence_checked markiert, licence_requirements.csv kennt dafuer aber keine min_*_level-Spalte`,
+        ),
+      );
+    }
   }
 }
 
@@ -1105,6 +1166,7 @@ export function validateWorld(context: ValidationContext): Finding[] {
   checkDriverNames(context, findings);
   checkPartTypes(context, findings);
   checkStaffRoles(context, findings);
+  checkFacilityTypes(context, findings);
   checkTeams(context, findings);
   checkEngineSuppliers(context, findings);
   checkWeightProfiles(context, findings);

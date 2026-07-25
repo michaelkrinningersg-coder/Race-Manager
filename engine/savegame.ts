@@ -110,15 +110,22 @@ CREATE TABLE race_analysis (
   PRIMARY KEY (season, tier, round, leg, driver_id)
 );
 
+-- facility_cost, investment und asset_sales stehen bewusst als eigene Posten
+-- neben expenses: Nur so ist in der Bilanz ablesbar, woran ein Team zugrunde
+-- geht. expenses deckt seit der Infrastruktur den Rest, expense_ratio wurde
+-- dafuer je Liga gesenkt (league_payouts.csv).
 CREATE TABLE team_finances (
-  team_id   INTEGER NOT NULL REFERENCES teams(team_id),
-  season    INTEGER NOT NULL,
-  tier      INTEGER NOT NULL,
-  opening   INTEGER NOT NULL,
-  payout    INTEGER NOT NULL DEFAULT 0,
-  parachute INTEGER NOT NULL DEFAULT 0,
-  expenses  INTEGER NOT NULL DEFAULT 0,
-  closing   INTEGER NOT NULL,
+  team_id       INTEGER NOT NULL REFERENCES teams(team_id),
+  season        INTEGER NOT NULL,
+  tier          INTEGER NOT NULL,
+  opening       INTEGER NOT NULL,
+  payout        INTEGER NOT NULL DEFAULT 0,
+  parachute     INTEGER NOT NULL DEFAULT 0,
+  expenses      INTEGER NOT NULL DEFAULT 0,
+  facility_cost INTEGER NOT NULL DEFAULT 0,
+  investment    INTEGER NOT NULL DEFAULT 0,
+  asset_sales   INTEGER NOT NULL DEFAULT 0,
+  closing       INTEGER NOT NULL,
   PRIMARY KEY (team_id, season)
 );
 
@@ -216,6 +223,30 @@ CREATE TABLE driver_history (
   team_id     INTEGER REFERENCES teams(team_id),
   detail      TEXT,
   PRIMARY KEY (driver_id, season, event)
+);
+
+-- Anlagenbestand je Team und Saison (Konzept 8.2). Der Bestand wandert beim
+-- Auf- und Abstieg unveraendert mit - die Fixkosten damit auch.
+CREATE TABLE team_facilities (
+  team_id      INTEGER NOT NULL REFERENCES teams(team_id),
+  season       INTEGER NOT NULL,
+  facility_key TEXT    NOT NULL REFERENCES facility_types(facility_key),
+  level        INTEGER NOT NULL CHECK (level BETWEEN 0 AND 5),
+  PRIMARY KEY (team_id, season, facility_key)
+);
+
+-- Chronik der Ausbauten und Zwangsverkaeufe. Aus den Bestandszeilen allein
+-- waere spaeter nicht mehr rekonstruierbar, ob ein Team eine Stufe freiwillig
+-- gebaut oder unter Zwang abgegeben hat.
+CREATE TABLE team_facility_moves (
+  team_id      INTEGER NOT NULL REFERENCES teams(team_id),
+  season       INTEGER NOT NULL,
+  facility_key TEXT    NOT NULL REFERENCES facility_types(facility_key),
+  from_level   INTEGER NOT NULL,
+  to_level     INTEGER NOT NULL,
+  amount       INTEGER NOT NULL,
+  reason       TEXT    NOT NULL CHECK (reason IN ('built','forced_sale')),
+  PRIMARY KEY (team_id, season, facility_key, from_level, to_level)
 );
 
 CREATE TABLE licence_denials (

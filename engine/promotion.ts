@@ -11,8 +11,9 @@ import { createRng, seedFrom } from './rng.js';
 import { loadTrackProfiles } from './scoring.js';
 import { simulateWeekend, type Entry, type WeekendContext } from './lightsim.js';
 import {
-  deriveFacilities,
+  derivedStaffCount,
   loadFacilityMinimums,
+  loadLevels,
   prestigeSpans,
   relativePrestige,
 } from './facilities.js';
@@ -275,6 +276,12 @@ export function resolveMovements(db: Database, season: number): MovementSummary 
     >[]).map((row) => [row.team_id, row.closing]),
   );
 
+  // Anlagenbestand der laufenden Saison. Seit Konzept 8.2 als echter Bestand
+  // umgesetzt wird hier nichts mehr abgeleitet: Geprueft wird, was das Team
+  // tatsaechlich besitzt und bezahlt. Nur die Belegschaftsstaerke haengt
+  // weiterhin an Liga und Prestige - sie ist keine Anlage.
+  const facilityLevels = loadLevels(db, season);
+
   const movement = new Map<number, Movement>();
   for (const row of standings) movement.set(row.teamId, 'stay');
 
@@ -286,12 +293,19 @@ export function resolveMovements(db: Database, season: number): MovementSummary 
     if (!requirement || !meta || !minimum) return true;
 
     const rel = relativePrestige((meta.prestige as number) ?? 50, realSpans.get(team.tier));
+    const owned = facilityLevels.get(team.teamId) ?? new Map<string, number>();
     const verdict = checkLicence(
       {
         teamId: team.teamId,
         name: String(meta.name),
         balance: balances.get(team.teamId) ?? 0,
-        facilities: deriveFacilities(minimum, rel),
+        facilities: {
+          windtunnel: owned.get('windtunnel') ?? 0,
+          dyno: owned.get('dyno') ?? 0,
+          simulator: owned.get('simulator') ?? 0,
+          factory: owned.get('factory') ?? 0,
+          staff: derivedStaffCount(minimum, rel),
+        },
         hasEngineContract: meta.engine_supplier_id !== null,
         licencePoints: 12,
       },

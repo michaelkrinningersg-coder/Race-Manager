@@ -13,6 +13,7 @@
 import type { Database } from './savegame.js';
 import { createRng, gaussian, seedFrom } from './rng.js';
 import { loadPayoutRules, payoutFor } from './finance.js';
+import { facilityValues, loadFacilityTypes, loadLevels } from './facilities.js';
 
 /** Anteil der Ausschuettung, den ein Team in seine beiden Stammfahrer steckt. */
 const DRIVER_BUDGET_SHARE = 0.12;
@@ -231,6 +232,17 @@ export function ageAndDevelop(db: Database, fromSeason: number, toSeason: number
     )
     .all(fromSeason) as Record<string, number | string | null>[];
 
+  // Simulator und Akademie des abgelaufenen Jahres: Wo ein Fahrer Runden
+  // drehen kann, ohne dass ein Auto dabei kaputtgeht, kommt er schneller an
+  // sein Potenzial heran (Konzept 8.2). Wirkt nur auf den Zuwachs, nicht auf
+  // den Abbau - keine Halle haelt einen 36-Jaehrigen jung.
+  const facilityTypes = loadFacilityTypes(db);
+  const facilityLevels = loadLevels(db, fromSeason);
+  const driverDev = new Map<number, number>();
+  for (const [teamId, levels] of facilityLevels) {
+    driverDev.set(teamId, facilityValues(facilityTypes, levels).driver_dev);
+  }
+
   const columns = [...ATTRIBUTES, 'potential', 'ego', 'adaptability', 'marketability'];
   const insert = db.prepare(
     `INSERT INTO driver_state (driver_id, season, team_id, role, seat, contract_until, salary,
@@ -249,8 +261,13 @@ export function ageAndDevelop(db: Database, fromSeason: number, toSeason: number
 
       const tier = (row.tier as number | null) ?? 10;
       const hasSeat = row.role === 'race';
-      // Eine haertere Liga entwickelt schneller, ein Fahrer ohne Cockpit kaum.
-      const leagueFactor = (1.16 - (tier - 1) * 0.04) * (hasSeat ? 1 : 0.35);
+      // Eine haertere Liga entwickelt schneller, ein Fahrer ohne Cockpit kaum -
+      // und ein Team mit Simulator und Akademie schneller als eines ohne.
+      const teamId = row.team_id as number | null;
+      const facilityFactor =
+        0.88 + 0.24 * ((teamId === null ? 0 : (driverDev.get(teamId) ?? 0)) / 100);
+      const leagueFactor =
+        (1.16 - (tier - 1) * 0.04) * (hasSeat ? 1 : 0.35) * facilityFactor;
 
       const values: Record<string, number> = {};
       const potential = row.potential as number;

@@ -13,6 +13,7 @@ import { nextTier, type Movement } from './promotion.js';
 import { loadPayoutRules, parachuteFor, payoutFor } from './finance.js';
 import { simulateRace, type Compound, type RaceContext, type RaceEntry } from './racesim.js';
 import { loadStaffValues } from './staff.js';
+import { loadFacilityTypes, loadLevels, upkeepTotal } from './facilities.js';
 
 const PART_KEYS = [
   'chassis',
@@ -440,12 +441,25 @@ export function prepareSeason(db: Database, season: number): void {
 }
 
 /**
- * Bucht Ausschuettung, Fallschirm und Ausgaben einer Saison.
+ * Bucht Ausschuettung, Fallschirm, Ausgaben und Infrastruktur einer Saison.
  *
  * Muss nach buildStandings laufen: Der variable Anteil haengt am Tabellenplatz.
+ *
+ * Die Infrastruktur steht mit drei eigenen Posten in der Bilanz: `facility_cost`
+ * fuer die laufenden Fixkosten, `investment` fuer den in dieser Saison bezahlten
+ * Ausbau und `asset_sales` fuer den Zwangsverkauf, den forceSales anschliessend
+ * nachtraegt. Nur getrennt ist ablesbar, woran ein Team zugrunde geht.
  */
 export function applyFinances(db: Database, season: number): void {
   const rules = loadPayoutRules(db);
+  const facilityTypes = loadFacilityTypes(db);
+  const facilityLevels = loadLevels(db, season);
+  const investments = new Map(
+    (db.prepare(
+      `SELECT team_id, SUM(amount) invested FROM team_facility_moves
+       WHERE season = ? AND reason = 'built' GROUP BY team_id`,
+    ).all(season) as Record<string, number>[]).map((row) => [row.team_id, row.invested]),
+  );
   const costCaps = new Map(
     (db.prepare('SELECT tier, cost_cap FROM league_regulations WHERE season = 1').all() as Record<
       string,
@@ -488,8 +502,10 @@ export function applyFinances(db: Database, season: number): void {
   for (const row of historyRows) history.set(`${row.team_id}|${row.season}`, row.tier);
 
   const insert = db.prepare(
-    `INSERT INTO team_finances (team_id, season, tier, opening, payout, parachute, expenses, closing)
-     VALUES (@team_id, @season, @tier, @opening, @payout, @parachute, @expenses, @closing)`,
+    `INSERT INTO team_finances
+       (team_id, season, tier, opening, payout, parachute, expenses, facility_cost, investment, closing)
+     VALUES
+       (@team_id, @season, @tier, @opening, @payout, @parachute, @expenses, @facility_cost, @investment, @closing)`,
   );
 
   const run = db.transaction(() => {
@@ -510,6 +526,14 @@ export function applyFinances(db: Database, season: number): void {
       }
 
       const expenses = Math.round(rule.expenseRatio * (costCaps.get(team.tier) ?? 0));
+      // Fixkosten der Anlagen - absolut und unabhaengig von der Liga, in der
+      // das Team gerade faehrt. Genau hier schnappt die Falle aus Konzept 8.2
+      // zu: Der Deckel faellt beim Abstieg, die Rechnung nicht.
+      const facilityCost = upkeepTotal(
+        facilityTypes,
+        facilityLevels.get(team.team_id) ?? new Map<string, number>(),
+      );
+      const investment = investments.get(team.team_id) ?? 0;
       const start = opening.get(team.team_id) ?? 0;
       insert.run({
         team_id: team.team_id,
@@ -519,7 +543,9 @@ export function applyFinances(db: Database, season: number): void {
         payout,
         parachute,
         expenses,
-        closing: start + payout + parachute - expenses,
+        facility_cost: facilityCost,
+        investment,
+        closing: start + payout + parachute - expenses - facilityCost - investment,
       });
     }
   });

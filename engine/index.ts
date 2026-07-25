@@ -27,6 +27,7 @@ import {
   seedDriverState,
 } from './careers.js';
 import { ageStaff, retireStaff, runStaffMarket, seedStaff } from './staff.js';
+import { carryFacilities, forceSales, planInvestments, seedFacilities } from './facilities.js';
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -141,6 +142,10 @@ function main(): void {
     let overBudget = 0;
     let poached = 0;
     let hired = 0;
+    let upgrades = 0;
+    let invested = 0;
+    let sales = 0;
+    let recovered = 0;
 
     for (let season = 1; season <= options.seasons; season += 1) {
       prepareSeason(db, season);
@@ -150,10 +155,17 @@ function main(): void {
         seedCarParts(db, season);
         seedDriverState(db);
         seedStaff(db);
+        seedFacilities(db, season);
       } else {
-        // Entwicklung zuerst: Sie rechnet mit dem Personal der Vorsaison, das
-        // bis hierher unangetastet in der Datenbank steht.
+        // Entwicklung zuerst: Sie rechnet mit dem Personal UND den Anlagen der
+        // Vorsaison, die bis hierher unangetastet in der Datenbank stehen.
         developParts(db, season - 1, season);
+        // Erst danach wandert der Anlagenbestand weiter und wird ausgebaut -
+        // eine neue Halle wirkt fruehestens auf die Entwicklung des Folgejahrs.
+        carryFacilities(db, season - 1, season);
+        const built = planInvestments(db, season);
+        upgrades += built.upgrades;
+        invested += built.invested;
         ageStaff(db, season - 1, season);
         const staffMarket = runStaffMarket(db, season);
         poached += staffMarket.poached;
@@ -172,6 +184,13 @@ function main(): void {
       const summary = runSeason(db, season, options.tickTier);
       buildStandings(db, season);
       applyFinances(db, season);
+      // Zwangsverkauf direkt nach der Bilanz und noch vor der Lizenzpruefung:
+      // Wer im Minus steht, geht ohne die verkaufte Anlage in die Pruefung -
+      // und faellt genau dann durch, wenn er sich aus der Not heraus unter das
+      // Ligaminimum verkauft hat (Konzept 9.4).
+      const sold = forceSales(db, season);
+      sales += sold.sales;
+      recovered += sold.recovered;
       // Superlizenzpunkte vor den Ruecktritten: Wer aufhoert, hat sie sich in
       // dieser Saison trotzdem verdient - und sie zaehlen fuer die Statistik.
       awardSuperlicence(db, season);
@@ -205,6 +224,12 @@ function main(): void {
     console.log(`  Ueber Budget besetzt:   ${overBudget}`);
     console.log(`  Personal verpflichtet:  ${hired}`);
     console.log(`  davon abgeworben:       ${poached}`);
+    console.log(
+      `  Anlagen ausgebaut:      ${upgrades} (${(invested / 1e6).toFixed(1)} Mio investiert)`,
+    );
+    console.log(
+      `  Zwangsverkaeufe:        ${sales} (${(recovered / 1e6).toFixed(1)} Mio erloest)`,
+    );
     console.log(`  Rechenzeit:             ${ms.toFixed(0)} ms`);
 
     if (!options.quiet) {
