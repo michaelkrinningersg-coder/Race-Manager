@@ -4,8 +4,10 @@ import { openWorld, type LoadProgress } from './data/db';
 import { leagues, worldInfo, type League, type WorldInfo } from './data/queries';
 import { renderConcept } from './views/concept';
 import { renderDriver } from './views/driver';
+import { renderHall } from './views/hall';
 import { renderLeague } from './views/league';
 import { renderPyramid } from './views/pyramid';
+import { renderRecords } from './views/records';
 import { renderRace } from './views/race';
 import { renderTeam } from './views/team';
 import { escapeHtml, withSeason } from './ui/format';
@@ -32,6 +34,8 @@ type Route =
   | { view: 'team'; teamId: number }
   | { view: 'driver'; driverId: number }
   | { view: 'race'; tier: number; round: number; leg: number }
+  | { view: 'records' }
+  | { view: 'hall' }
   | { view: 'concept' };
 
 function parseHash(hash: string): { parts: string[]; query: URLSearchParams } {
@@ -65,6 +69,8 @@ function parseRoute(parts: string[]): Route {
       return { view: 'race', tier, round, leg: Number.isInteger(leg) ? leg : 1 };
     }
   }
+  if (head === 'rekorde') return { view: 'records' };
+  if (head === 'ruhmeshalle') return { view: 'hall' };
   if (head === 'konzept') return { view: 'concept' };
   return { view: 'pyramid' };
 }
@@ -93,6 +99,10 @@ function renderSidebar(context: Context, route: Route): string {
       <a class="nav-item nav-item--wide${route.view === 'pyramid' ? ' is-active' : ''}"
          href="${withSeason('#/', context.season)}">Pyramide</a>
       ${items}
+      <a class="nav-item nav-item--wide${route.view === 'records' ? ' is-active' : ''}"
+         href="${withSeason('#/rekorde', context.season)}">Rekorde</a>
+      <a class="nav-item nav-item--wide${route.view === 'hall' ? ' is-active' : ''}"
+         href="${withSeason('#/ruhmeshalle', context.season)}">Ruhmeshalle</a>
       <a class="nav-item nav-item--wide${route.view === 'concept' ? ' is-active' : ''}"
          href="${withSeason('#/konzept', context.season)}">Konzept</a>
     </nav>`;
@@ -136,6 +146,10 @@ function renderMain(context: Context, route: Route): string {
         route.leg,
         context.info,
       );
+    case 'records':
+      return renderRecords(context.db, context.season, context.info);
+    case 'hall':
+      return renderHall(context.db, context.season, context.info);
     case 'concept':
       return renderConcept();
     case 'pyramid':

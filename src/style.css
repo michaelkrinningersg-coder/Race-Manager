@@ -1023,3 +1023,214 @@ code {
     gap: 0.6rem;
   }
 }
+
+/* ---------- Rekorde ---------- */
+
+/* Die Meisterliste ist nach Jahrgang gruppiert, nicht nach Liga: In jeder
+   Saison wird zehnmal ein Titel vergeben, und der Jahrgang ist die Geschichte. */
+.champion-years {
+  display: grid;
+  gap: 1.1rem;
+  margin: 0.8rem 0 1.6rem;
+}
+
+.champion-year h3 {
+  margin: 0 0 0.45rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.champion-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.champion {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-areas: 'tier name' 'tier team' 'tier stat';
+  gap: 0 0.6rem;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.02);
+  min-width: 0;
+}
+
+.champion__tier {
+  grid-area: tier;
+  align-self: center;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.champion__name {
+  grid-area: name;
+  font-weight: 600;
+  min-width: 0;
+}
+
+.champion__team,
+.champion__stat {
+  font-size: 0.76rem;
+  color: var(--muted);
+  min-width: 0;
+}
+
+.champion__team {
+  grid-area: team;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.champion__stat {
+  grid-area: stat;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Zehn Ligen, vier Bestenlisten je Liga - aufgeklappt waeren das vierzig
+   Tabellen auf einer Seite. Tier 1 steht offen, der Rest auf Abruf. */
+.record-league {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  margin-bottom: 0.5rem;
+  background: rgba(255, 255, 255, 0.015);
+}
+
+.record-league > summary {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.65rem 0.8rem;
+  cursor: pointer;
+  font-weight: 600;
+  list-style: none;
+}
+
+.record-league > summary::-webkit-details-marker {
+  display: none;
+}
+
+.record-league > summary::after {
+  content: '▾';
+  margin-left: auto;
+  color: var(--muted);
+  transition: transform 0.15s ease;
+}
+
+.record-league[open] > summary::after {
+  transform: rotate(180deg);
+}
+
+.record-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 0.9rem;
+  padding: 0 0.8rem 0.9rem;
+}
+
+.record-grid > * {
+  min-width: 0;
+}
+
+.record-grid h4 {
+  margin: 0 0 0.35rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+/* ---------- Ruhmeshalle ---------- */
+
+.hof-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 0.6rem;
+  margin: 0.6rem 0 1.6rem;
+}
+
+.hof-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.75rem 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.02);
+  min-width: 0;
+}
+
+.hof-card__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.hof-card__name {
+  font-weight: 600;
+  color: inherit;
+  text-decoration: none;
+  min-width: 0;
+}
+
+.hof-card__name:hover {
+  color: var(--accent);
+}
+
+.hof-card__country {
+  font-size: 0.72rem;
+  color: var(--muted);
+  flex: none;
+}
+
+/* Der Aufnahmegrund steht bewusst gross und vor den Zahlen: Er ist die
+   Aussage der Karte, die Statistik nur ihr Beleg. */
+.hof-card__reason {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--accent);
+}
+
+.hof-card__stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.3rem;
+  margin: 0;
+}
+
+.hof-card__stats div {
+  min-width: 0;
+}
+
+.hof-card__stats dt {
+  font-size: 0.66rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.hof-card__stats dd {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.hof-card__path {
+  margin: 0;
+  font-size: 0.74rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}

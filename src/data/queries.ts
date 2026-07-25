@@ -753,3 +753,167 @@ export function raceAnalysis(
     [season, tier, round, leg],
   );
 }
+
+// ---------------------------------------------------------------------------
+// Rekorde, Karrierebilanzen und Ruhmeshalle (Konzept 19, M7 Feinschliff)
+//
+// Bewusst als Abfrage und nicht als Tabelle (getroffene Entscheidung). Alles
+// hier ist eine Ableitung aus Ergebnissen, die schon feststehen - eine zweite
+// Kopie davon koennte nur veralten. Gemessen liegt die schwerste dieser
+// Abfragen bei 17 ms auf der Auslieferdatei, also unterhalb dessen, was beim
+// Seitenwechsel ueberhaupt auffaellt.
+//
+// Alle Bestenlisten sind NACH LIGA GETRENNT (getroffene Entscheidung). Der
+// Spitzenreiter der Gesamtwertung hatte 134 Siege - ohne die Trennung bleibt
+// offen, ob das eine grosse Karriere war oder eine lange in Tier 9.
+// ---------------------------------------------------------------------------
+
+export interface CareerRow {
+  driver_id: number;
+  name: string;
+  country: string;
+  seasons: number;
+  starts: number;
+  wins: number;
+  podiums: number;
+  poles: number;
+  points: number;
+  titles: number;
+  best_tier: number;
+  worst_tier: number;
+  first_season: number;
+  last_season: number;
+  /** Liga der ersten Saison - Bezugspunkt des Karriereaufstiegs. */
+  first_tier: number;
+}
+
+/**
+ * Karrierebilanz aller Fahrer.
+ *
+ * `driver_seasons` fasst je Saison zusammen, was `race_results` im Detail
+ * haelt - die Bilanz ist deshalb eine Summe ueber 6.679 Zeilen statt ueber
+ * 112.452. Die Starts kommen trotzdem aus den Ergebnissen: Eine Saison ohne
+ * Cockpit steht in `driver_seasons` nicht, ein Fahrer ohne Punkte schon.
+ */
+export function careers(db: Database, tier?: number): CareerRow[] {
+  const filter = tier ? 'WHERE ds.tier = ?' : '';
+  return rows<CareerRow>(
+    db,
+    `SELECT ds.driver_id, d.first_name || ' ' || d.last_name AS name, d.country,
+            COUNT(*) AS seasons,
+            (SELECT COUNT(*) FROM race_results rr WHERE rr.driver_id = ds.driver_id) AS starts,
+            SUM(ds.wins) AS wins, SUM(ds.podiums) AS podiums, SUM(ds.poles) AS poles,
+            SUM(ds.points) AS points,
+            SUM(CASE WHEN ds.final_rank = 1 THEN 1 ELSE 0 END) AS titles,
+            MIN(ds.tier) AS best_tier, MAX(ds.tier) AS worst_tier,
+            MIN(ds.season) AS first_season, MAX(ds.season) AS last_season,
+            (SELECT ds0.tier FROM driver_seasons ds0
+              WHERE ds0.driver_id = ds.driver_id
+              ORDER BY ds0.season LIMIT 1) AS first_tier
+       FROM driver_seasons ds
+       JOIN drivers d ON d.driver_id = ds.driver_id
+       ${filter}
+      GROUP BY ds.driver_id`,
+    tier ? [tier] : [],
+  );
+}
+
+export interface TitleRow {
+  season: number;
+  tier: number;
+  league: string;
+  driver_id: number;
+  name: string;
+  team_id: number;
+  team: string;
+  colour_primary: string;
+  points: number;
+  wins: number;
+}
+
+/** Alle Meister aller Ligen, jüngste Saison zuerst. */
+export function champions(db: Database, tier?: number): TitleRow[] {
+  const filter = tier ? 'AND ds.tier = ?' : '';
+  return rows<TitleRow>(
+    db,
+    `SELECT ds.season, ds.tier, l.short_name AS league, ds.driver_id,
+            d.first_name || ' ' || d.last_name AS name,
+            ds.team_id, t.short_name AS team, t.colour_primary, ds.points, ds.wins
+       FROM driver_seasons ds
+       JOIN drivers d ON d.driver_id = ds.driver_id
+       JOIN leagues l ON l.tier = ds.tier
+       LEFT JOIN teams t ON t.team_id = ds.team_id
+      WHERE ds.final_rank = 1 ${filter}
+      ORDER BY ds.season DESC, ds.tier`,
+    tier ? [tier] : [],
+  );
+}
+
+export interface TrackRecordRow {
+  track_id: number;
+  track: string;
+  short_name: string;
+  season: number;
+  tier: number;
+  lap: number;
+  lap_time_ms: number;
+  driver_id: number;
+  name: string;
+}
+
+/**
+ * Schnellste je gefahrene Runde pro Strecke.
+ *
+ * Nur aus der Tick-Sim, weil nur sie Rundenzeiten kennt - die Light-Sim
+ * liefert Ergebnisse ohne Runden. Der Rekord bezieht sich damit auf eine
+ * einzige Saison und eine einzige Liga; die Ansicht sagt das dazu.
+ */
+export function trackRecords(db: Database): TrackRecordRow[] {
+  return rows<TrackRecordRow>(
+    db,
+    `SELECT tr.track_id, tr.name AS track, tr.short_name, l.season, l.tier, l.lap,
+            l.lap_time_ms, l.driver_id, d.first_name || ' ' || d.last_name AS name
+       FROM lap_records l
+       JOIN calendar c ON c.tier = l.tier AND c.round = l.round AND c.season = 1
+       JOIN tracks tr ON tr.track_id = c.track_id
+       JOIN drivers d ON d.driver_id = l.driver_id
+      WHERE l.lap_time_ms > 0
+        AND l.lap_time_ms = (
+          SELECT MIN(l2.lap_time_ms) FROM lap_records l2
+          JOIN calendar c2 ON c2.tier = l2.tier AND c2.round = l2.round AND c2.season = 1
+          WHERE c2.track_id = c.track_id AND l2.lap_time_ms > 0)
+      GROUP BY tr.track_id
+      ORDER BY tr.name`,
+  );
+}
+
+export interface TeamRecordRow {
+  team_id: number;
+  team: string;
+  colour_primary: string;
+  seasons: number;
+  titles: number;
+  wins: number;
+  podiums: number;
+  promotions: number;
+  relegations: number;
+  best_tier: number;
+  worst_tier: number;
+}
+
+/** Karrierebilanz aller Teams über alle Saisons. */
+export function teamRecords(db: Database): TeamRecordRow[] {
+  return rows<TeamRecordRow>(
+    db,
+    `SELECT ts.team_id, t.short_name AS team, t.colour_primary,
+            COUNT(*) AS seasons,
+            SUM(CASE WHEN ts.final_rank = 1 THEN 1 ELSE 0 END) AS titles,
+            SUM(ts.wins) AS wins, SUM(ts.podiums) AS podiums,
+            SUM(CASE WHEN ts.movement IN ('promoted','promoted_barrage') THEN 1 ELSE 0 END) AS promotions,
+            SUM(CASE WHEN ts.movement IN ('relegated','relegated_barrage','licence_denied','licence_loss') THEN 1 ELSE 0 END) AS relegations,
+            MIN(ts.tier) AS best_tier, MAX(ts.tier) AS worst_tier
+       FROM team_seasons ts
+       JOIN teams t ON t.team_id = ts.team_id
+      GROUP BY ts.team_id`,
+  );
+}

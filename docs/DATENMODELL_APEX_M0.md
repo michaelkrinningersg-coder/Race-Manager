@@ -1710,3 +1710,62 @@ Was das **nicht** beweist: dass die Kopplung von Sponsoren und Preisgeld an das 
 * **3,3 Zeitstrafen je Rennen** sind am oberen Rand des Plausiblen. Der Wert hängt fast vollständig an der Kollisionsquote von 3,7; beide sind zusammen zu kalibrieren, wenn sie kalibriert werden.
 * **Die Differenz aus `overtaking` und `defending` ist weiter systematisch −7,2** (22.10). Unverändert ungeklärt.
 * `w_newgen`, `w_sponsor`, `w_fitness`, `w_morale` haben nach wie vor keinen Leser.
+
+---
+
+## 24. M7 Feinschliff: Rekorde und Ruhmeshalle
+
+Die Roadmap führt „Statistik/Rekorde/HoF" unter M7. Die Daten dafür lagen vollständig vor und wurden nirgends ausgewertet: `driver_seasons` (6 679 Zeilen), `team_seasons` (3 340), `race_results` (112 452), `lap_records` (31 178).
+
+### 24.1 Abfrage statt Tabelle
+
+Getroffene Entscheidung: **im Frontend per SQL**, nicht als Tabelle in der Engine oder im Publish-Werkzeug.
+
+Der Grund ist nicht Bequemlichkeit. Alles auf diesen Seiten ist eine Ableitung aus Ergebnissen, die bereits feststehen – eine gespeicherte Kopie davon kann nur eines: veralten. Sobald sich eine Auswertung ändert, müsste ein Schema mitgezogen und die Welt neu gerechnet werden.
+
+Die Entscheidung ist gemessen, nicht geschätzt. Auf der Auslieferdatei, aus der das Publish-Werkzeug die Indizes entfernt hat:
+
+| Abfrage | Ergebnis | Dauer |
+| :--- | ---: | ---: |
+| Siege je Fahrer über `race_results` | 20 Zeilen | 15,3 ms |
+| Schnellste Runde je Strecke über `lap_records` | 22 Zeilen | 17,0 ms |
+| Karrierebilanz aller Fahrer | 861 Zeilen | 6,1 ms |
+
+Unter 20 ms für die schwerste Abfrage – unterhalb dessen, was bei einem Seitenwechsel auffällt.
+
+### 24.2 Keine ligaübergreifende Wertung
+
+Getroffene Entscheidung: **nach Liga getrennt ausweisen**, keine Gewichtung.
+
+Der Spitzenreiter der Gesamtwertung hat 134 Siege in 19 Saisons. Ohne die Trennung bleibt offen, ob das eine große Karriere war oder eine lange in Tier 9. Eine gewichtete Umrechnung – ein Sieg in Tier 1 zählt *n*-mal so viel wie einer in Tier 10 – hätte eine einzige lesbare Rangliste ergeben, aber um den Preis einer erfundenen Zahl, die jede Rangfolge bestimmt und die niemand nachprüfen kann.
+
+Die Rekordseite zeigt deshalb vier Bestenlisten je Liga (Siege, Podeste, Poles, Punkte), zehn Ligen, dazu Streckenrekorde und eine Teambilanz. Zehn aufgeklappte Ligen wären vierzig Tabellen auf einer Seite; Tier 1 steht offen, der Rest auf Abruf.
+
+**Streckenrekorde haben eine engere Grundlage als der Rest**: Rundenzeiten entstehen nur in der rundenweise gerechneten Liga. Die Bestzeiten stammen damit aus einer Saison und einer Liga, nicht aus zwanzig und zehn. Die Ansicht sagt das dazu.
+
+### 24.3 Zwei Aufnahmebedingungen für die Ruhmeshalle
+
+Getroffene Entscheidung: **Titelträger und Aufstiegshelden**.
+
+1. mindestens ein Ligatitel, in welcher Liga auch immer
+2. ein Karriereaufstieg von mindestens drei Ligen
+
+Die zweite Bedingung ist der eigentliche Inhalt. Nur die Tier-1-Meister aufzunehmen hätte neun von zehn Ligen leer ausgehen lassen und ausgerechnet die Pyramide ignoriert, die das Kernfeature ist. Eine Bestenliste ohne Schwelle wiederum wäre nur eine weitere Tabelle gewesen.
+
+**Bezugspunkt des Aufstiegs ist die Liga der ersten Saison**, nicht die schlechteste der Karriere. Sonst wäre ein Fahrer, der von Tier 2 auf Tier 8 durchgereicht wird und dazwischen einmal Tier 5 sieht, ein Aufsteiger.
+
+Gemessen über 20 Saisons: **284 Aufnahmen** – 146 Titelträger, 138 Aufstiegshelden. Die weitesten Wege ohne einen einzigen Titel:
+
+| Fahrer | Weg | Saisons | Siege |
+| :--- | :--- | ---: | ---: |
+| Gianni Ponti | Tier 8 → Tier 1 | 15 | 5 |
+| Runa Steinbeck | Tier 7 → Tier 1 | 12 | 4 |
+| Grace Roydon | Tier 8 → Tier 2 | 13 | 9 |
+
+Genau diese Karrieren sind das, was das Konzept mit „10 Ligen, jede Saison Auf- und Abstieg" behauptet – und sie standen bis hierher nirgends.
+
+### 24.4 Was offen bleibt
+
+* **284 von 861 Fahrern sind aufgenommen, also ein Drittel.** Das ist die Folge der gewählten Bedingungen und der Datenlage: In 20 Saisons werden 200 Titel vergeben, verteilt auf 146 Fahrer. Ob eine Ruhmeshalle mit einem Drittel aller Fahrer noch eine Auszeichnung ist, ist eine Balancing-Frage und keine technische – zu schärfen wäre sie über eine höhere Aufstiegsschwelle oder über mehrere Titel als Bedingung.
+* **Ein Meister mit null Siegen** ist möglich und kam vor (Tier 6, Saison 20, 137 Punkte). Das ist kein Fehler, sondern die Folge eines flachen Punktesystems – aber es ist eine Aussage über das Punktesystem, die bisher niemand getroffen hat.
+* Ein **Editor** ist der letzte offene Posten aus M7 und nicht gebaut.
