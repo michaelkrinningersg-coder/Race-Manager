@@ -46,11 +46,24 @@ Acht Dateien, ausgewählt nach einem Kriterium: Genau sie werden gebraucht, dami
 | `teams.csv` | 167 Teams, handgepflegt |
 | `drivers.csv` | ~450 Fahrer, handgepflegt |
 
-### 1.2 Was ausdrücklich noch fehlt
+### 1.2 Zweite Runde: Strecken, Kalender, Motoren
 
-`tracks.csv`, `track_sector_weights.csv`, `calendar.csv`, `race_weekend_formats.csv`, `tyre_compounds.csv`, `weather_profiles.csv`, `sponsors.csv`, `engine_suppliers.csv`, `staff.csv`, `staff_roles.csv`, `team_facilities.csv`, `team_finances.csv`, `driver_names.csv`, `newgen_presets.csv`, `game_state.csv`.
+Vier weitere Dateien sind hinzugekommen und in Abschnitt 17 spezifiziert:
 
-Drei Spalten der acht Dateien zeigen bereits auf diese noch nicht existierenden Dateien: `weekend_format_id`, `barrage_track_id`, `engine_supplier_id`. Sie werden als **Vorwärtsreferenz** geführt – der Bootstrapper prüft sie erst, wenn die Zieldatei vorliegt (siehe 14.3).
+| Datei | Trägt |
+| :--- | :--- |
+| `race_weekend_formats.csv` | Die fünf Wochenendformate aus Konzept 11.1 |
+| `tracks.csv` | 30 Strecken, gemeinsamer Pool über alle zehn Ligen |
+| `engine_suppliers.csv` | Acht Motorenhersteller, je einer je Werksteam |
+| `calendar.csv` | Startkalender Saison 1, 130 Rennwochenenden |
+
+Damit sind `weekend_format_id` und `engine_supplier_id` keine Vorwärtsreferenzen mehr, sondern scharf geprüfte Fremdschlüssel.
+
+### 1.3 Was weiterhin fehlt
+
+`track_sector_weights.csv`, `tyre_compounds.csv`, `weather_profiles.csv`, `sponsors.csv`, `staff.csv`, `staff_roles.csv`, `team_facilities.csv`, `team_finances.csv`, `driver_names.csv`, `newgen_presets.csv`, `game_state.csv`.
+
+Eine einzige Vorwärtsreferenz bleibt: `barrage_track_id` in `promotion_rules.csv`. Leer bedeutet dort Zufallsauswahl aus dem Streckenpool.
 
 ### 1.3 Grundprinzip
 
@@ -861,3 +874,91 @@ Das Schema ist vollständig. Was hier geführt wird, sind die Zahlen dahinter �
 **16.9 Tuning-Spielraum am Motor.** Konzept 6.6 schlägt ±8 % auf die gelieferte Basis vor, mit größerem Spielraum im Werks- als im Kundenvertrag. Der Wert ist noch nicht bestätigt und betrifft `engine_suppliers.csv` aus der nächsten Runde.
 
 **16.10 Zusammenspiel von ATR und Testtagen.** Beide Regler sind gesetzt, ziehen aber gegeneinander (siehe Hinweis in 6.2). Zu prüfen nach den ersten Zehn-Saison-Läufen – keine Entscheidung vorab, sondern eine Messung.
+
+---
+
+## 17. Zweite Datei-Runde: Strecken, Kalender, Motoren
+
+Drei Entscheidungen prägen diese Runde:
+
+* **Ein gemeinsamer Streckenpool für alle zehn Ligen.** Die Ligen unterscheiden sich über die Kalenderlänge, nicht über den Streckensatz. 30 Strecken statt der 45 einer gestaffelten Variante, und jeder Aufsteiger findet Kurse wieder, die er kennt.
+* **Nur Saison 1 im Kalender.** Folgesaisons erzeugt später ein `CalendarService` aus Regeln – eine 20-Saisons-Karriere von Hand vorzuhalten wäre nicht tragbar.
+* **Acht Motorenhersteller, je einer je Werksteam.** Genau die acht Werksteams aus `teams.csv`.
+
+### 17.1 `race_weekend_formats.csv`
+
+Fünf Formate (Konzept 11.1). `leagues.weekend_format_id` verweist hierauf.
+
+| Spalte | Typ | Bedeutung |
+| :--- | :--- | :--- |
+| `format_id` | INT | Primärschlüssel |
+| `name` | TEXT | Anzeigename |
+| `practice_sessions` / `practice_minutes` | INT | Zahl und Gesamtdauer der Trainings |
+| `qualifying_mode` | TEXT | `segments` (K.o. in Abschnitten) · `single` (ein Zeittraining) · `result` (Ergebnis des vorigen Laufs) |
+| `qualifying_segments` | INT | 1–3, nur bei `segments` relevant |
+| `race_count` | INT | Läufe je Wochenende |
+| `race_distance_pct` | REAL | Anteil der Referenzdistanz |
+| `reverse_grid_top_n` | INT | Umgedrehte Startpositionen für den zweiten Lauf; `0` = aus |
+| `sprint_weekends_per_season` | INT | Wochenenden im Sprintformat |
+
+### 17.2 `tracks.csv`
+
+30 Strecken. Über `archetype` hängt später das Gewichtsprofil, alles andere ist streckeneigen.
+
+| Spalte | Typ | Bereich | Bedeutung |
+| :--- | :--- | :--- | :--- |
+| `track_id` | INT | ab 300001 | Primärschlüssel |
+| `name` / `short_name` | TEXT | | weltweit eindeutig |
+| `country` / `city` | TEXT | ISO-3 | Heimrennen-Zuordnung |
+| `length_m` / `laps` | INT | 2000–12000 / 20–120 | Renndistanz |
+| `archetype` | TEXT | 7 Werte | `highspeed` · `downforce_street` · `balanced` · `stop_and_go` · `bumpy_street` · `altitude` · `tyre_killer` |
+| `overtaking_difficulty` | REAL | 0–1 | 0 = leicht, 1 = praktisch unmöglich |
+| `pit_loss_s` | REAL | 10–40 | Zeitverlust der Boxengasse |
+| `safety_car_rate` | REAL | 0–1 | Wahrscheinlichkeit je Rennen |
+| `elevation_change_m` | INT | 0–300 | Höhenunterschied |
+| `abrasion` | REAL | 0–1 | Reifenabrieb |
+| `downforce_level` | REAL | 0–1 | Abtriebsbedarf |
+
+### 17.3 `engine_suppliers.csv`
+
+Acht Hersteller. Jeder besitzt eigene `powertrain`- und `ers`-Werte und entwickelt sie aus eigenem Herstellerbudget, nicht aus dem Kostendeckel des Teams (Konzept 6.6).
+
+| Spalte | Typ | Bedeutung |
+| :--- | :--- | :--- |
+| `supplier_id` | INT | Primärschlüssel, ab 200001 |
+| `works_team_id` | INT | FK → `teams`, eindeutig. Das Team muss `is_works_team = 1` tragen |
+| `powertrain_performance` / `ers_performance` | INT | 0–1000, gleiche Skala wie die Bauteile |
+| `powertrain_reliability` / `ers_reliability` | INT | 0–100 |
+| `weight_kg` / `fuel_efficiency` | REAL | Gewicht und Verbrauchsgüte |
+| `customer_slots` | INT | Kundenteams zusätzlich zum Werksteam |
+| `customer_spec_offset` | INT | Abschlag auf die Werksspezifikation für Kunden |
+| `works_tuning_pct` / `customer_tuning_pct` | REAL | Tuning-Spielraum des Teams auf die gelieferte Basis. Im Werksvertrag größer |
+| `lease_cost_customer` | INT | Jahresleasing eines Kundenmotors in Euro |
+
+**Kapazität ist bindend:** Acht Hersteller mit je vier Kundenslots decken 40 Teams ab. Tier 1–3 umfasst 37 Teams, davon 7 Werksteams – also 30 Kundenverträge. Das geht auf; Tier 1–6 mit 79 nötigen Verträgen ginge nicht. Deshalb wurde `needs_engine_contract` in `licence_requirements.csv` von Tier 1–6 auf **Tier 1–3** zurückgenommen. Darunter fahren die Teams Serienmotoren ohne Herstellervertrag, was zur Beschreibung dieser Ligen als Werkstattbetrieb passt.
+
+### 17.4 `calendar.csv`
+
+Eine Zeile je Rennwochenende. Saison 1 hat 130 Läufe über alle zehn Ligen.
+
+| Spalte | Typ | Bedeutung |
+| :--- | :--- | :--- |
+| `season` / `tier` / `round` | INT | Primärschlüssel |
+| `week` | INT | Kalenderwoche 8–46 (Konzept 13.1) |
+| `track_id` | INT | FK → `tracks` |
+| `format_id` | INT | FK → `race_weekend_formats`. Wiederholt den Ligawert, damit einzelne Läufe später ein Sonderformat bekommen können |
+
+Die Streckenfolge je Liga ist gesetzt; die Wochenverteilung ist reine Arithmetik – die Läufe verteilen sich gleichmäßig über das Rennfenster.
+
+**Validierung:** Zahl der Läufe je Tier = `race_count` aus `leagues.csv` · Woche eindeutig je `(season, tier)` · alle Fremdschlüssel aufgelöst · Abweichung vom Ligaformat als Warnung, damit ein Sonderformat sichtbar bleibt statt unterzugehen.
+
+### 17.5 Neue Prüfungen
+
+| Prüfung | Grad |
+| :--- | :--- |
+| Werksteam eines Herstellers trägt `is_works_team = 1` und verweist zurück auf denselben Hersteller | Fehler |
+| Belegte Kundenslots ≤ `customer_slots` | Fehler |
+| Team in einer Liga mit Vertragspflicht ohne `engine_supplier_id` | Fehler |
+| Läufe je Tier ≠ `race_count` | Fehler (im Teilbestandsmodus Warnung) |
+| Kundenteams mit mehr Tuning-Spielraum als das Werksteam | Warnung |
+| Kalenderwoche außerhalb 8–46 | Warnung |

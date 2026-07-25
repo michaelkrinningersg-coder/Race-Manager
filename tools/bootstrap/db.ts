@@ -12,6 +12,60 @@ import type { LoadedTable, Row } from './load.js';
 import { TABLES } from './schema.js';
 
 export const DDL = `
+CREATE TABLE race_weekend_formats (
+  format_id                  INTEGER PRIMARY KEY,
+  name                       TEXT    NOT NULL UNIQUE,
+  practice_sessions          INTEGER NOT NULL,
+  practice_minutes           INTEGER NOT NULL,
+  qualifying_mode            TEXT    NOT NULL CHECK (qualifying_mode IN ('segments','single','result')),
+  qualifying_segments        INTEGER NOT NULL,
+  race_count                 INTEGER NOT NULL,
+  race_distance_pct          REAL    NOT NULL,
+  reverse_grid_top_n         INTEGER NOT NULL,
+  sprint_weekends_per_season INTEGER NOT NULL,
+  flavour                    TEXT    NOT NULL
+);
+
+CREATE TABLE tracks (
+  track_id              INTEGER PRIMARY KEY,
+  name                  TEXT    NOT NULL UNIQUE,
+  short_name            TEXT    NOT NULL UNIQUE,
+  country               TEXT    NOT NULL,
+  city                  TEXT    NOT NULL,
+  length_m              INTEGER NOT NULL,
+  laps                  INTEGER NOT NULL,
+  archetype             TEXT    NOT NULL,
+  overtaking_difficulty REAL    NOT NULL CHECK (overtaking_difficulty BETWEEN 0 AND 1),
+  pit_loss_s            REAL    NOT NULL,
+  safety_car_rate       REAL    NOT NULL,
+  elevation_change_m    INTEGER NOT NULL,
+  abrasion              REAL    NOT NULL,
+  downforce_level       REAL    NOT NULL,
+  first_used_year       INTEGER NOT NULL,
+  flavour               TEXT    NOT NULL
+);
+
+CREATE TABLE engine_suppliers (
+  supplier_id            INTEGER PRIMARY KEY,
+  name                   TEXT    NOT NULL UNIQUE,
+  short_name             TEXT    NOT NULL UNIQUE,
+  country                TEXT    NOT NULL,
+  founded_year           INTEGER NOT NULL,
+  works_team_id          INTEGER NOT NULL UNIQUE,
+  powertrain_performance INTEGER NOT NULL CHECK (powertrain_performance BETWEEN 0 AND 1000),
+  powertrain_reliability INTEGER NOT NULL,
+  ers_performance        INTEGER NOT NULL,
+  ers_reliability        INTEGER NOT NULL,
+  weight_kg              REAL    NOT NULL,
+  fuel_efficiency        REAL    NOT NULL,
+  customer_slots         INTEGER NOT NULL,
+  customer_spec_offset   INTEGER NOT NULL,
+  works_tuning_pct       REAL    NOT NULL,
+  customer_tuning_pct    REAL    NOT NULL,
+  lease_cost_customer    INTEGER NOT NULL,
+  flavour                TEXT    NOT NULL
+);
+
 CREATE TABLE leagues (
   tier                  INTEGER PRIMARY KEY CHECK (tier BETWEEN 1 AND 10),
   name                  TEXT    NOT NULL UNIQUE,
@@ -168,6 +222,18 @@ CREATE TABLE drivers (
   pay_driver_budget     INTEGER NOT NULL DEFAULT 0
 );
 
+CREATE TABLE calendar (
+  season    INTEGER NOT NULL,
+  tier      INTEGER NOT NULL REFERENCES leagues(tier),
+  round     INTEGER NOT NULL,
+  week      INTEGER NOT NULL,
+  track_id  INTEGER NOT NULL REFERENCES tracks(track_id),
+  format_id INTEGER NOT NULL REFERENCES race_weekend_formats(format_id),
+  PRIMARY KEY (season, tier, round)
+);
+
+CREATE UNIQUE INDEX idx_calendar_week ON calendar(season, tier, week);
+CREATE INDEX idx_calendar_track ON calendar(track_id);
 CREATE INDEX idx_teams_tier   ON teams(start_tier);
 CREATE INDEX idx_drivers_team ON drivers(start_team_id);
 CREATE UNIQUE INDEX idx_driver_seat ON drivers(start_team_id, start_seat)
@@ -178,11 +244,15 @@ CREATE UNIQUE INDEX idx_driver_seat ON drivers(start_team_id, start_seat)
 const INSERT_ORDER = [
   'points_systems.csv',
   'car_part_types.csv',
+  'race_weekend_formats.csv',
+  'tracks.csv',
   'leagues.csv',
   'league_regulations.csv',
   'promotion_rules.csv',
   'licence_requirements.csv',
   'teams.csv',
+  'engine_suppliers.csv',
+  'calendar.csv',
   'drivers.csv',
 ];
 

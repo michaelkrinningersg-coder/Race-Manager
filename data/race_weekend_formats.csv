@@ -1,0 +1,11 @@
+# HANDGEPFLEGT - 5 Wochenendformate (Konzept 11.1).
+# leagues.csv verweist ueber weekend_format_id hierauf.
+# qualifying_mode: segments = K.o.-Qualifying mit qualifying_segments Abschnitten,
+#                  single = ein Zeittraining, result = Ergebnis des vorigen Laufs.
+# reverse_grid_top_n > 0 dreht die ersten N Positionen fuer den zweiten Lauf um.
+format_id,name,practice_sessions,practice_minutes,qualifying_mode,qualifying_segments,race_count,race_distance_pct,reverse_grid_top_n,sprint_weekends_per_season,flavour
+1,Grand-Prix-Format,3,180,segments,3,1,1.00,0,6,"Drei Trainings, K.o.-Qualifying in drei Abschnitten, ein Rennen ueber volle Distanz. Sechs Wochenenden pro Saison im Sprintformat."
+2,Verkuerztes Grand-Prix-Format,2,120,segments,2,1,1.00,0,0,"Zwei Trainings und ein zweistufiges Qualifying. Volle Renndistanz, kein Sprint."
+3,Standardformat,1,60,single,1,1,0.90,0,0,"Ein Training, ein Zeittraining, ein Rennen ueber neunzig Prozent der Referenzdistanz."
+4,Doppelrennen mit Umkehrgitter,1,45,single,1,2,0.55,6,0,"Zwei Sprintrennen. Die Startaufstellung des zweiten Laufs ist das Ergebnis des ersten mit umgedrehten Top 6."
+5,Kurzformat,1,30,single,1,2,0.45,0,0,"Kurztraining, Qualifying, zwei kurze Rennen. Kein eigenes Qualifying fuer den zweiten Lauf."

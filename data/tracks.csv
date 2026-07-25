@@ -1,0 +1,36 @@
+# HANDGEPFLEGT - 30 Strecken, gemeinsamer Pool fuer alle zehn Ligen.
+# Die Ligen unterscheiden sich ueber die Kalenderlaenge, nicht ueber den Pool.
+# archetype bestimmt zusammen mit track_sector_weights.csv, welche
+# Bauteilgruppen und Fahrerattribute auf die Rundenzeit wirken (Konzept 10).
+# overtaking_difficulty: 0 = leicht zu ueberholen, 1 = praktisch unmoeglich.
+track_id,name,short_name,country,city,length_m,laps,archetype,overtaking_difficulty,pit_loss_s,safety_car_rate,elevation_change_m,abrasion,downforce_level,first_used_year,flavour
+300001,Autodromo di Lombardia,Lombardia,ITA,Monza,5790,53,highspeed,0.22,21.4,0.18,12,0.42,0.25,1922,"Drei lange Geraden, vier echte Kurven. Wer hier Abtrieb faehrt, verliert eine Sekunde."
+300002,Circuit de la Sarthe Nord,Sarthe,FRA,Le Mans,5420,58,highspeed,0.28,19.8,0.16,18,0.48,0.30,1932,"Ehemalige Langstreckenanbindung. Der Windschatten reicht ueber achthundert Meter."
+300003,Bergring Eifel,Eifel,DEU,Nürburg,5150,60,balanced,0.45,20.2,0.24,72,0.55,0.55,1927,"Wetterwechsel innerhalb einer Runde sind hier keine Ausnahme, sondern die Regel."
+300004,Silverpark Circuit,Silverpark,GBR,Northampton,5890,52,balanced,0.35,18.9,0.20,9,0.52,0.50,1948,"Schnelle Bogenkurven, in denen der Unterboden alles entscheidet."
+300005,Estoril Atlântico,Atlântico,PRT,Estoril,4380,68,balanced,0.48,17.6,0.22,26,0.58,0.58,1972,"Salzluft, wechselnder Grip, unverzeihlicher letzter Sektor."
+300006,Circuit Ardennes,Ardennes,BEL,Spa,7010,44,balanced,0.30,20.8,0.28,102,0.50,0.48,1925,"Der groesste Hoehenunterschied im Kalender. Regen faellt hier oft nur auf der Haelfte der Strecke."
+300007,Baía de Guanabara Street,Guanabara,BRA,Rio de Janeiro,4120,71,downforce_street,0.78,23.6,0.42,14,0.62,0.85,1996,"Mauern auf beiden Seiten, kein Auslauf. Das Safety Car steht hier mit laufendem Motor bereit."
+300008,Marina Bay Nord,Marina,SGP,Singapore,4890,61,downforce_street,0.82,24.1,0.45,6,0.60,0.88,2008,"Zwei Stunden Nacht, dreiunddreissig Grad, hundert Prozent Luftfeuchtigkeit."
+300009,Vieux Port Circuit,Vieux Port,MCO,Monte Carlo,3340,78,downforce_street,0.92,22.8,0.38,42,0.44,0.95,1929,"Ueberholen ist hier keine Faehigkeit, sondern ein Betriebsunfall des Gegners."
+300010,Nihonbashi Street,Nihonbashi,JPN,Tokyo,4560,64,downforce_street,0.75,23.2,0.36,8,0.58,0.82,2019,"Neuester Stadtkurs im Kalender und der einzige mit vier Neunzig-Grad-Ecken in Folge."
+300011,Circuito de Levante,Levante,ESP,Valencia,4640,63,stop_and_go,0.58,19.4,0.26,11,0.66,0.68,1999,"Bremsen und beschleunigen, zwanzig Mal pro Runde. Die Kuehlung ist hier das Nadeloehr."
+300012,Motorpark Brandenburg,Brandenburg,DEU,Klettwitz,4180,70,stop_and_go,0.55,18.2,0.24,7,0.64,0.70,2000,"Aus einem Tagebau entstanden. Enge Radien, harte Bremspunkte, kaum Rhythmus."
+300013,Circuit du Midi,Midi,FRA,Nogaro,3620,80,stop_and_go,0.62,17.4,0.22,15,0.68,0.72,1960,"Kurz, eng und unbarmherzig gegenueber jedem Getriebe."
+300014,Great Lakes Raceway,Great Lakes,USA,Detroit,4020,72,stop_and_go,0.60,18.6,0.30,5,0.70,0.66,1982,"Zwischen Lagerhallen gebaut. Der Belag wechselt viermal pro Runde."
+300015,Kalkstein Ring,Kalkstein,AUT,Spielberg,4320,68,stop_and_go,0.38,17.1,0.26,65,0.60,0.52,1969,"Nur zehn Kurven, aber drei davon entscheiden das Rennen."
+300016,Puerto Andino,Andino,CHL,Santiago,4740,62,altitude,0.50,19.2,0.24,88,0.54,0.62,2011,"Zwoelfhundert Meter ueber dem Meer. Jeder Motor verliert hier sechs Prozent Leistung."
+300017,Altiplano Circuit,Altiplano,MEX,Mexico City,4290,67,altitude,0.44,18.8,0.28,34,0.56,0.60,1962,"Zweitausendzweihundert Meter. Die Kuehlung arbeitet am Limit, der Abtrieb fehlt."
+300018,Anatolia Park,Anatolia,TUR,Istanbul,5340,56,tyre_killer,0.40,19.6,0.22,58,0.86,0.64,2005,"Eine Kurve mit vier Scheitelpunkten und ein Belag, der Reifen in acht Runden auffrisst."
+300019,Kalahari Circuit,Kalahari,ZAF,Johannesburg,4510,66,tyre_killer,0.42,18.4,0.20,44,0.88,0.58,1961,"Hoehe und Hitze zugleich. Wer die Reifen nicht schont, faehrt zweimal extra an die Box."
+300020,Outback Raceway,Outback,AUS,Adelaide,4880,60,tyre_killer,0.46,19.0,0.26,12,0.84,0.60,1985,"Vierzig Grad Asphalttemperatur sind hier ein normaler Renntag."
+300021,Dockside Circuit,Dockside,GBR,Liverpool,3980,74,bumpy_street,0.72,22.4,0.40,10,0.72,0.80,2014,"Auf Hafenstrassen gebaut. Die Bodenwellen sind seit der Eroeffnung nicht besser geworden."
+300022,Vecchia Riviera,Riviera,ITA,Trieste,3760,76,bumpy_street,0.74,22.0,0.38,28,0.70,0.82,2001,"Kopfsteinpflaster wurde ueberasphaltiert. Man merkt es trotzdem in jeder Runde."
+300023,Nordhavn Street,Nordhavn,DNK,Copenhagen,3890,75,bumpy_street,0.70,21.8,0.36,4,0.68,0.78,2017,"Randsteine so hoch, dass jedes Ueberfahren den Unterboden kostet."
+300024,Krakowia Ring,Krakowia,POL,Kraków,4460,66,balanced,0.44,18.0,0.22,31,0.58,0.56,2009,"Osteuropas modernste Anlage. Technisch anspruchsvoll, ohne besondere Tuecke."
+300025,Suzuhara International,Suzuhara,JPN,Mie,5340,56,balanced,0.52,19.4,0.24,40,0.62,0.66,1962,"Die einzige Acht im Kalender. Kein Sektor verzeiht einen Fehler im vorigen."
+300026,Maple Valley Park,Maple Valley,CAN,Montreal,4360,68,highspeed,0.32,19.0,0.34,7,0.64,0.38,1978,"Lange Geraden zwischen langsamen Schikanen. Bremsen und Motor gleichermassen am Limit."
+300027,Bosphorus Coastal,Bosphorus,TUR,Izmir,4680,64,highspeed,0.30,18.6,0.18,22,0.50,0.34,2018,"Kuestenkurs mit Rueckenwind auf der Gegengeraden. Topspeeds ueber dreihundertvierzig."
+300028,Karelia Forest Circuit,Karelia,FIN,Joensuu,4240,70,bumpy_street,0.56,17.8,0.24,36,0.66,0.68,1993,"Durch Waldgebiet gefuehrt, im Fruehjahr regelmaessig von Frostschaeden gezeichnet."
+300029,Pampas International,Pampas,ARG,Córdoba,4570,65,balanced,0.42,18.2,0.22,19,0.60,0.54,1974,"Weite Kurvenradien, viel Wind, und eine Boxengasse aus den Siebzigern."
+300030,Zagros Highland Ring,Zagros,IRN,Tabriz,4830,62,altitude,0.48,19.8,0.26,76,0.58,0.64,2021,"Neueste Strecke der Welt und mit siebzehnhundert Metern die zweithoechste."

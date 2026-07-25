@@ -330,17 +330,10 @@ function checkLicences(context: ValidationContext, findings: Finding[]): void {
     }
   }
 
-  for (const row of rows) {
-    if (num(row, 'min_superlicence_points') > 0 && num(row, 'needs_engine_contract') !== 1) {
-      findings.push(
-        warning(
-          'licence_requirements.csv',
-          `Tier ${num(row, 'tier')}: Superlizenz-Mindestpunkte ohne Motorenvertragspflicht - ungewoehnliche Kombination`,
-          row.line,
-        ),
-      );
-    }
-  }
+  // Superlizenz- und Motorenvertragspflicht haben bewusst verschiedene Grenzen:
+  // Superlizenzpunkte bis Tier 4 (Konzept 7.3), Herstellervertrag bis Tier 3,
+  // weil acht Hersteller mit je vier Kundenslots nicht weiter reichen. Eine
+  // Kopplung der beiden waere eine Annahme ohne Grundlage.
 }
 
 function checkPartTypes(context: ValidationContext, findings: Finding[]): void {
@@ -403,11 +396,13 @@ function checkTeams(context: ValidationContext, findings: Finding[]): void {
         warning('teams.csv', `'${row.values.name}': beide Farben sind identisch`, row.line),
       );
     }
+    // Die Gegenrichtung - Hersteller ohne passendes Werksteam - prueft
+    // checkEngineSuppliers.
     if (num(row, 'is_works_team') === 1 && row.values.engine_supplier_id === null) {
       findings.push(
-        warning(
+        error(
           'teams.csv',
-          `'${row.values.name}': als Werksteam markiert, aber ohne engine_supplier_id (Vorwaertsreferenz noch leer)`,
+          `'${row.values.name}': als Werksteam markiert, aber ohne engine_supplier_id`,
           row.line,
         ),
       );
@@ -625,6 +620,186 @@ function checkDrivers(context: ValidationContext, findings: Finding[]): void {
   }
 }
 
+function checkCalendar(context: ValidationContext, findings: Finding[]): void {
+  const calendar = rowsOf(context, 'calendar.csv');
+  const leagues = rowsOf(context, 'leagues.csv');
+  const trackIds = new Set(rowsOf(context, 'tracks.csv').map((row) => num(row, 'track_id')));
+  const formatIds = new Set(
+    rowsOf(context, 'race_weekend_formats.csv').map((row) => num(row, 'format_id')),
+  );
+
+  const raceCount = new Map(leagues.map((row) => [num(row, 'tier'), num(row, 'race_count')]));
+  const leagueFormat = new Map(
+    leagues.map((row) => [num(row, 'tier'), row.values.weekend_format_id]),
+  );
+
+  // leagues.weekend_format_id war bis zu dieser Datei-Runde eine
+  // Vorwaertsreferenz - jetzt existiert das Ziel und wird scharf geprueft.
+  for (const league of leagues) {
+    const format = league.values.weekend_format_id;
+    if (typeof format === 'number' && !formatIds.has(format)) {
+      findings.push(
+        error(
+          'leagues.csv',
+          `weekend_format_id ${format} existiert nicht in race_weekend_formats.csv`,
+          league.line,
+        ),
+      );
+    }
+  }
+
+  const roundsPerTier = new Map<number, number>();
+  for (const row of calendar) {
+    const tier = num(row, 'tier');
+    roundsPerTier.set(tier, (roundsPerTier.get(tier) ?? 0) + 1);
+
+    if (!raceCount.has(tier)) {
+      findings.push(error('calendar.csv', `Tier ${tier} existiert nicht in leagues.csv`, row.line));
+    }
+    if (!trackIds.has(num(row, 'track_id'))) {
+      findings.push(
+        error('calendar.csv', `track_id ${num(row, 'track_id')} existiert nicht in tracks.csv`, row.line),
+      );
+    }
+    if (!formatIds.has(num(row, 'format_id'))) {
+      findings.push(
+        error(
+          'calendar.csv',
+          `format_id ${num(row, 'format_id')} existiert nicht in race_weekend_formats.csv`,
+          row.line,
+        ),
+      );
+    }
+
+    const week = num(row, 'week');
+    if (week < 8 || week > 46) {
+      findings.push(
+        warning(
+          'calendar.csv',
+          `Woche ${week} liegt ausserhalb des Rennfensters 8-46 (Konzept 13.1)`,
+          row.line,
+        ),
+      );
+    }
+
+    const expectedFormat = leagueFormat.get(tier);
+    if (typeof expectedFormat === 'number' && num(row, 'format_id') !== expectedFormat) {
+      findings.push(
+        warning(
+          'calendar.csv',
+          `Lauf weicht vom Ligaformat ab (${num(row, 'format_id')} statt ${expectedFormat}) - beabsichtigtes Sonderformat?`,
+          row.line,
+        ),
+      );
+    }
+  }
+
+  for (const [tier, expected] of raceCount) {
+    const actual = roundsPerTier.get(tier) ?? 0;
+    if (actual !== expected) {
+      findings.push(
+        stock(context, 'calendar.csv', `Tier ${tier}: ${actual} Laeufe im Kalender, leagues.csv nennt ${expected}`),
+      );
+    }
+  }
+}
+
+function checkEngineSuppliers(context: ValidationContext, findings: Finding[]): void {
+  const suppliers = rowsOf(context, 'engine_suppliers.csv');
+  const teams = rowsOf(context, 'teams.csv');
+  const licences = rowsOf(context, 'licence_requirements.csv');
+
+  const teamById = new Map(teams.map((row) => [num(row, 'team_id'), row]));
+  const supplierById = new Map(suppliers.map((row) => [num(row, 'supplier_id'), row]));
+  const needsContract = new Map(
+    licences.map((row) => [num(row, 'tier'), num(row, 'needs_engine_contract') === 1]),
+  );
+
+  for (const supplier of suppliers) {
+    const teamId = num(supplier, 'works_team_id');
+    const team = teamById.get(teamId);
+    if (!team) {
+      findings.push(
+        error('engine_suppliers.csv', `works_team_id ${teamId} existiert nicht in teams.csv`, supplier.line),
+      );
+      continue;
+    }
+    if (num(team, 'is_works_team') !== 1) {
+      findings.push(
+        error(
+          'engine_suppliers.csv',
+          `'${String(team.values.name)}' ist als Werksteam eingetragen, hat in teams.csv aber is_works_team = 0`,
+          supplier.line,
+        ),
+      );
+    }
+    if (num(team, 'engine_supplier_id') !== num(supplier, 'supplier_id')) {
+      findings.push(
+        error(
+          'engine_suppliers.csv',
+          `Werksteam '${String(team.values.name)}' verweist auf einen anderen Hersteller`,
+          supplier.line,
+        ),
+      );
+    }
+    if (num(supplier, 'customer_tuning_pct') > num(supplier, 'works_tuning_pct')) {
+      findings.push(
+        warning(
+          'engine_suppliers.csv',
+          'Kundenteams haben mehr Tuning-Spielraum als das Werksteam (Konzept 6.6 sieht es umgekehrt)',
+          supplier.line,
+        ),
+      );
+    }
+  }
+
+  // Belegte Kundenslots je Hersteller - das Werksteam zaehlt nicht dagegen.
+  const customers = new Map<number, number>();
+  for (const team of teams) {
+    const supplierId = team.values.engine_supplier_id;
+    const tier = num(team, 'start_tier');
+
+    if (typeof supplierId !== 'number') {
+      if (needsContract.get(tier)) {
+        findings.push(
+          error(
+            'teams.csv',
+            `'${String(team.values.name)}': Tier ${tier} verlangt einen Motorenvertrag, engine_supplier_id ist leer`,
+            team.line,
+          ),
+        );
+      }
+      continue;
+    }
+
+    const supplier = supplierById.get(supplierId);
+    if (!supplier) {
+      findings.push(
+        error('teams.csv', `engine_supplier_id ${supplierId} existiert nicht in engine_suppliers.csv`, team.line),
+      );
+      continue;
+    }
+    if (num(supplier, 'works_team_id') !== num(team, 'team_id')) {
+      customers.set(supplierId, (customers.get(supplierId) ?? 0) + 1);
+    }
+  }
+
+  for (const supplier of suppliers) {
+    const id = num(supplier, 'supplier_id');
+    const used = customers.get(id) ?? 0;
+    const slots = num(supplier, 'customer_slots');
+    if (used > slots) {
+      findings.push(
+        error(
+          'teams.csv',
+          `'${String(supplier.values.name)}' beliefert ${used} Kundenteams, hat aber nur ${slots} Slots`,
+          supplier.line,
+        ),
+      );
+    }
+  }
+}
+
 function checkExpectedRowCounts(context: ValidationContext, findings: Finding[]): void {
   for (const [, table] of context.tables) {
     const expected = table.spec.expectedRows;
@@ -652,6 +827,8 @@ export function validateWorld(context: ValidationContext): Finding[] {
   checkLicences(context, findings);
   checkPartTypes(context, findings);
   checkTeams(context, findings);
+  checkEngineSuppliers(context, findings);
+  checkCalendar(context, findings);
   checkDrivers(context, findings);
 
   return findings;

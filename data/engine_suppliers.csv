@@ -1,0 +1,16 @@
+# HANDGEPFLEGT - 8 Motorenhersteller, je einer je Werksteam (Konzept 6.6).
+# Jeder Hersteller besitzt eigene powertrain- und ers-Werte und entwickelt sie
+# aus eigenem Budget, nicht aus dem Kostendeckel des Teams.
+# customer_spec_offset: Abschlag auf die Werksspezifikation fuer Kundenteams.
+# tuning_pct: Spielraum, den ein Team aus eigenem Budget auf die gelieferte
+#   Basis legen darf - im Werksvertrag groesser als im Kundenvertrag.
+# Vertragspflicht besteht nur in Tier 1-3 (30 Kundenteams, 32 Slots).
+supplier_id,name,short_name,country,founded_year,works_team_id,powertrain_performance,powertrain_reliability,ers_performance,ers_reliability,weight_kg,fuel_efficiency,customer_slots,customer_spec_offset,works_tuning_pct,customer_tuning_pct,lease_cost_customer,flavour
+200001,Aurelia Corse Motori,Aurelia Motori,ITA,1947,1001,980,88,965,84,148,0.86,4,45,0.08,0.05,24000000,"Der Referenzmotor. Beliefert seit Jahrzehnten dieselben drei Kundenteams und wechselt sie nur, wenn jemand aufhoert."
+200002,Brandwerk Antriebstechnik,Brandwerk AT,DEU,1951,1003,965,92,950,89,151,0.89,4,35,0.08,0.05,23000000,"Zuverlaessigster Antrieb im Feld. Die letzten zwei Leistungsprozent gibt der Vorstand nicht frei."
+200003,Northgate Powertrain,Northgate PT,GBR,1972,1002,950,85,955,86,146,0.84,4,60,0.08,0.06,21500000,"Aggressive Auslegung, hohe Spitzenleistung, historisch die schlechteste Standfestigkeit der Spitzengruppe."
+200004,Kanto Heavy Industries,Kanto HI,JPN,1958,1004,930,90,940,88,153,0.91,4,30,0.07,0.05,20000000,"Baut Motoren, seit es die Serie gibt. Effizienz ueber alles - im Verbrauch unschlagbar."
+200005,Sagitta Motori Sportivi,Sagitta MS,ITA,1969,2001,840,83,830,81,157,0.80,4,50,0.07,0.04,9500000,"Abgestiegen mit dem Werksteam, geblieben aus Stolz. Beliefert vier Kunden in Tier 2 und 3."
+200006,Nordkraft Motor,Nordkraft,NOR,1991,2002,810,89,805,86,155,0.87,4,25,0.07,0.04,8200000,"Junges Programm mit skandinavischer Grundsolidität. Faellt selten aus, gewinnt aber auch nichts."
+200007,Toyoda Racing Engines,Toyoda RE,JPN,1976,3001,730,86,720,84,160,0.83,4,40,0.06,0.04,4400000,"Werksprogramm mit Rueckkehrabsicht. Der Motor ist besser als die Liga, in der er faehrt."
+200008,Halden Motorenwerk,Halden MW,DEU,1980,4001,630,84,615,82,164,0.81,4,30,0.06,0.03,2100000,"Zweitmotor eines Konzerns. Bekommt die Entwicklungen des grossen Bruders mit zwei Jahren Verzoegerung."
