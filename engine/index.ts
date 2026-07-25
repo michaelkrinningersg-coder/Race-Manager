@@ -1,5 +1,5 @@
 /**
- * Saisonlauf: M1 (eine Saison) und M2 (Auf-/Abstieg ueber beliebig viele).
+ * Saisonlauf ueber beliebig viele Saisons: Rennen, Auf-/Abstieg, Entwicklung.
  *
  * Aufruf:
  *   npm run season                    # Saison 1, schreibt build/savegame.db
@@ -16,6 +16,7 @@ import { createSavegame } from './savegame.js';
 import { seedCarParts } from './car.js';
 import { applyFinances, buildStandings, prepareSeason, runSeason } from './season.js';
 import { resolveMovements } from './promotion.js';
+import { developParts } from './development.js';
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -122,7 +123,10 @@ function main(): void {
 
     for (let season = 1; season <= options.seasons; season += 1) {
       prepareSeason(db, season);
-      seedCarParts(db, season);
+      // Nur die erste Saison wird aus Prestige und Deckel abgeleitet. Danach
+      // traegt jedes Team sein gewachsenes Auto weiter (Konzept 6.3).
+      if (season === 1) seedCarParts(db, season);
+      else developParts(db, season - 1, season);
 
       const summary = runSeason(db, season);
       buildStandings(db, season);

@@ -86,7 +86,7 @@ Schema, Wertebereiche und Validierungsregeln: [`docs/DATENMODELL_APEX_M0.md`](do
 
 ---
 
-## Saison-Engine (M1 + M2)
+## Saison-Engine (M1 – M3)
 
 ```bash
 npm run bootstrap                  # Voraussetzung: erzeugt build/world_data.db
@@ -106,11 +106,27 @@ Konstanz des Fahrers abhängt. Startplatz und Überholschwierigkeit der Strecke 
 Ergebnis, Ausfälle entstehen per Monte Carlo aus der Ligaquote und der Zuverlässigkeit des Autos.
 Jede Zahl ist damit herleitbar – die Forderung aus Design-Säule 3 des Konzepts.
 
-Autos gibt es bis M3 noch nicht als gewachsene Werte. Sie werden aus dem Ligadeckel, dem
-Prestige des Teams innerhalb seiner Liga und – für Antrieb und ERS – dem Motorenhersteller
-abgeleitet. Die Feldbreite ist dabei bewusst **keine** Prozentzahl des Deckels, sondern wächst
-nach unten hin: Kostendeckel und ATR ziehen die oberen Ligen zusammen, unten greift keins von
-beidem.
+**Autos in Saison 1** entstehen aus Ligadeckel, Prestige und Motorenhersteller. Die Feldbreite
+ist bewusst **keine** Prozentzahl des Deckels, sondern wächst nach unten: Kostendeckel und ATR
+ziehen die oberen Ligen zusammen, unten greift keins von beidem. Prestige ist damit ein reiner
+Startwert – ab Saison 2 zählt nur noch der gewachsene Bauteilwert.
+
+### Entwicklung (M3)
+
+Ein Entwicklungsschritt je Saison, nach der Formel aus Konzept 6.3: Ressourcen mit abnehmendem
+Grenzertrag, Personal als Multiplikator, ATR-Faktor, Fahrer-Feedback, Sättigung nahe am Deckel.
+Über zehn Saisons wächst das Tier-1-Feld im Schnitt von 786 auf 934 bei Deckel 1000.
+
+Der **Sättigungsterm ist der Anti-Dominanz-Regler**: Wer nah am Deckel steht, gewinnt kaum noch
+dazu, wer weit weg ist, holt schnell auf. Zusammen mit der ATR – der Meister bekommt die
+wenigste Windkanalzeit – wechselt der Tier-1-Titel in 15 Saisons sechsmal den Besitzer.
+
+Gespeichert wird stets der **echte** Bauteilwert; der Reglementdeckel kappt erst beim Einsatz
+(Konzept 6.2). Ein Absteiger behält damit sein Auto, auch wenn er es unten nicht ausfahren darf.
+
+Zwei Dinge kann ein Schritt pro Saison nicht: Upgrade-Pakete (Konzept 6.4) und die Ereignisse
+Durchbruch und Sackgasse. Beide setzen einen Wochentakt voraus. Aus demselben Grund ist die
+Streuung schmal – 39 Wochenwürfe mitteln sich aus, sie summieren sich nicht.
 
 ### Auf- und Abstieg (M2)
 

@@ -59,8 +59,26 @@ function loadRosters(db: Database, season: number): Map<number, Roster> {
 
   const parts = new Map<number, Record<string, number>>();
   const reliability = new Map<number, number>();
+  // Der Reglementdeckel wirkt hier, nicht beim Speichern: gefahren wird
+  // min(performance, Deckel), gespeichert bleibt der echte Wert (Konzept 6.2).
   for (const row of db
-    .prepare('SELECT team_id, part_key, performance, reliability FROM car_parts WHERE season = ?')
+    .prepare(
+      `SELECT c.team_id, c.part_key, c.reliability,
+              MIN(c.performance, r.cap) AS performance
+       FROM car_parts c
+       JOIN team_seasons ts ON ts.team_id = c.team_id AND ts.season = c.season
+       JOIN (SELECT tier, 'chassis' k, cap_chassis cap FROM league_regulations WHERE season = 1
+             UNION ALL SELECT tier,'front_wing',cap_front_wing FROM league_regulations WHERE season=1
+             UNION ALL SELECT tier,'rear_wing',cap_rear_wing FROM league_regulations WHERE season=1
+             UNION ALL SELECT tier,'floor',cap_floor FROM league_regulations WHERE season=1
+             UNION ALL SELECT tier,'powertrain',cap_powertrain FROM league_regulations WHERE season=1
+             UNION ALL SELECT tier,'ers',cap_ers FROM league_regulations WHERE season=1
+             UNION ALL SELECT tier,'gearbox',cap_gearbox FROM league_regulations WHERE season=1
+             UNION ALL SELECT tier,'suspension',cap_suspension FROM league_regulations WHERE season=1
+             UNION ALL SELECT tier,'brakes',cap_brakes FROM league_regulations WHERE season=1) r
+         ON r.tier = ts.tier AND r.k = c.part_key
+       WHERE c.season = ?`,
+    )
     .all(season) as Record<string, number>[]) {
     const key = row.team_id as number;
     const current = parts.get(key) ?? {};

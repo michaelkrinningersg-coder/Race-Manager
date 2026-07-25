@@ -195,10 +195,12 @@ Pro Liga und Saison existiert ein Reglement-Datensatz mit Deckeln (Aero, Motor, 
 Windkanal- und CFD-Zeit wird **umgekehrt zur Platzierung** zugeteilt:
 
 ```
-ATR-Faktor = 1.35 - 0.05 × (Vorjahresplatz - 1)      // Tier 1, Plätze 1..11 → 1.35 .. 0.85
+ATR-Faktor = 0.85 + 0.05 × (Vorjahresplatz - 1)      // Tier 1, Plätze 1..11 → 0.85 .. 1.35
 ```
 
-Der Meister entwickelt langsamer als der Letzte. Das ist der wichtigste Anti-Dominanz-Regler im Spiel und lässt sich in den Spieloptionen abschalten („Sandbox-Reglement").
+Der Meister entwickelt langsamer als der Letzte.
+
+> Frühere Fassungen dieses Abschnitts schrieben `1.35 - 0.05 × (Platz - 1)`. Das gab dem Meister den **höchsten** Faktor und widersprach damit dem Satz darunter. Maßgeblich ist die Absicht: Wer vorn steht, bekommt weniger Windkanalzeit. Das ist der wichtigste Anti-Dominanz-Regler im Spiel und lässt sich in den Spieloptionen abschalten („Sandbox-Reglement").
 
 ---
 

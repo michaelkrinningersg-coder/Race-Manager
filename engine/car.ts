@@ -12,8 +12,15 @@
 
 import type { Database } from './savegame.js';
 
-/** Das staerkste Team einer Liga liegt knapp unter dem Reglementdeckel. */
-const TOP_FACTOR = 0.995;
+/**
+ * Das staerkste Team einer Liga zu Beginn eines Reglementzyklus.
+ *
+ * Bewusst deutlich unter dem Deckel: Ohne Abstand haette die Entwicklung
+ * (M3) keine Luft, der Saettigungsterm aus Konzept 6.3 wuerde alles sofort
+ * abwuergen. Die Feldbreite bleibt davon unberuehrt - sie ist absolut, nicht
+ * anteilig, also verschiebt dieser Faktor alle Teams gleichermassen.
+ */
+const TOP_FACTOR = 0.8;
 
 /**
  * Feldbreite je Liga, in Score-Punkten (ein Score-Punkt = 10 Bauteilpunkte).
@@ -159,9 +166,9 @@ export function seedCarParts(db: Database, season: number): number {
           source = 'derived';
         }
 
-        // Der Reglementdeckel kappt am Ende alles - auch einen Werksmotor,
-        // der in einer niedrigeren Liga eingesetzt wird.
-        performance = Math.min(Math.round(performance), cap);
+        // Gespeichert wird der echte Wert. Der Reglementdeckel kappt erst
+        // beim Einsatz (Konzept 6.2) - sonst verloere ein Absteiger sein Auto.
+        performance = Math.round(performance);
         insert.run({
           team_id: team.team_id,
           season,
