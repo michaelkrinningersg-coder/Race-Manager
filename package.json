@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.tools.json",
     "bootstrap": "tsx tools/bootstrap/index.ts",
-    "bootstrap:check": "tsx tools/bootstrap/index.ts --check --partial"
+    "bootstrap:check": "tsx tools/bootstrap/index.ts --check --partial",
+    "season": "tsx engine/index.ts"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.11",

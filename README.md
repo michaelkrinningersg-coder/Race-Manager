@@ -12,6 +12,8 @@ Dieses Repository enthält aktuell:
   durchsimuliert) im Browser darstellt.
 * den **Bootstrapper**: liest `data/*.csv`, prüft sie gegen das Schema und erzeugt daraus
   `build/world_data.db`.
+* die **Saison-Engine**: simuliert eine komplette Saison über alle zehn Ligen und schreibt
+  Ergebnisse und Tabellen in ein Savegame.
 
 **Live:** https://michaelkrinningersg-coder.github.io/Race-Manager/
 
@@ -84,6 +86,35 @@ Schema, Wertebereiche und Validierungsregeln: [`docs/DATENMODELL_APEX_M0.md`](do
 
 ---
 
+## Saison-Engine (M1)
+
+```bash
+npm run bootstrap    # Voraussetzung: erzeugt build/world_data.db
+npm run season       # simuliert Saison 1, schreibt build/savegame.db
+npm run season -- --quiet --seed 12345
+```
+
+Die Engine kopiert `world_data.db` zum Savegame und schreibt nur dorthin – die Weltdatenbank
+bleibt unberührt. Ein Durchlauf umfasst 130 Rennwochenenden, 5.492 Einzelergebnisse und
+braucht rund 110 ms; das Konzept setzt drei Sekunden als Ziel.
+
+**Wie ein Ergebnis entsteht:** Für jedes Auto wird aus `track_sector_profile` ein Auto- und ein
+Fahrer-Score gebildet – je Sektor gewichtet nach Bauteilgruppen und Fahrerwerten. Beide gehen
+zu 60 zu 40 in einen Gesamtscore ein, darauf kommt ein Rauschen, dessen Streuung von der
+Konstanz des Fahrers abhängt. Startplatz und Überholschwierigkeit der Strecke verschieben das
+Ergebnis, Ausfälle entstehen per Monte Carlo aus der Ligaquote und der Zuverlässigkeit des Autos.
+Jede Zahl ist damit herleitbar – die Forderung aus Design-Säule 3 des Konzepts.
+
+Autos gibt es bis M3 noch nicht als gewachsene Werte. Sie werden aus dem Ligadeckel, dem
+Prestige des Teams innerhalb seiner Liga und – für Antrieb und ERS – dem Motorenhersteller
+abgeleitet. Die Feldbreite ist dabei bewusst **keine** Prozentzahl des Deckels, sondern wächst
+nach unten hin: Kostendeckel und ATR ziehen die oberen Ligen zusammen, unten greift keins von
+beidem.
+
+Gleiche CSVs und gleicher Seed ergeben ein byteweise identisches Savegame.
+
+---
+
 ## Entwicklung
 
 ```bash
@@ -102,6 +133,14 @@ Race-Manager/
 │   ├── KONZEPT_MEHRLIGA_RENNMANAGER.md    # Designdokument
 │   └── DATENMODELL_APEX_M0.md             # Schema der Stammdaten
 ├── data/                                  # CSV-Stammdaten (die Wahrheit)
+├── engine/                                # Saison-Engine (M1)
+│   ├── rng.ts                             # deterministischer Zufall
+│   ├── savegame.ts                        # Savegame-Kopie + Verlaufstabellen
+│   ├── car.ts                             # Bauteilwerte aus Deckel und Prestige
+│   ├── scoring.ts                         # Auto- und Fahrer-Score je Strecke
+│   ├── lightsim.ts                        # Rennwochenende
+│   ├── season.ts                          # Saisonlauf und Tabellen
+│   └── index.ts                           # CLI
 ├── tools/bootstrap/
 │   ├── csv.ts                             # CSV-Leser nach den Konventionen
 │   ├── schema.ts                          # Spaltendefinitionen der acht Dateien

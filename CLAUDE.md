@@ -57,6 +57,7 @@ Code, Bezeichner und Dateinamen auf Englisch.
 * `docs/DATENMODELL_APEX_M0.md` – Schema der CSV-Stammdaten und der `world_data.db` (M0–M2)
 * `data/*.csv` – die Stammdaten selbst; sie sind die Wahrheit, die Datenbank ist Erzeugnis
 * `tools/bootstrap/` – liest, prüft und überführt die CSVs nach `build/world_data.db`
+* `engine/` – Saison-Engine: Light-Sim aller zehn Ligen, Ergebnisse und Tabellen ins Savegame
 * `src/data/leagues.ts` – Stammdaten der zehn Ligen
 * `src/data/world.ts` – deterministischer Weltgenerator + Light-Sim einer Saison
 * `src/views/` – Ansichten des Ligen-Explorers

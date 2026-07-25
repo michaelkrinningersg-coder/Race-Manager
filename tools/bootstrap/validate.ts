@@ -888,6 +888,34 @@ function checkEngineSuppliers(context: ValidationContext, findings: Finding[]): 
     }
   }
 
+  // Ein Motor muss zur Liga passen, in der er faehrt. Ein Tier-1-Team mit
+  // einem Antrieb, der weit unter dem Ligadeckel liegt, ist chancenlos - und
+  // faellt in den Ergebnissen erst nach einer durchsimulierten Saison auf.
+  const caps = new Map<number, number>();
+  for (const row of rowsOf(context, 'league_regulations.csv')) {
+    if (num(row, 'season') === 1) caps.set(num(row, 'tier'), num(row, 'cap_powertrain'));
+  }
+  for (const team of teams) {
+    const supplierId = team.values.engine_supplier_id;
+    if (typeof supplierId !== 'number') continue;
+    const supplier = supplierById.get(supplierId);
+    const cap = caps.get(num(team, 'start_tier'));
+    if (!supplier || cap === undefined) continue;
+
+    const isWorks = num(supplier, 'works_team_id') === num(team, 'team_id');
+    const delivered =
+      num(supplier, 'powertrain_performance') - (isWorks ? 0 : num(supplier, 'customer_spec_offset'));
+    if (delivered < cap * 0.75) {
+      findings.push(
+        warning(
+          'teams.csv',
+          `'${String(team.values.name)}': gelieferter Antrieb ${delivered} liegt unter 75 % des Ligadeckels ${cap} - in dieser Liga chancenlos`,
+          team.line,
+        ),
+      );
+    }
+  }
+
   for (const supplier of suppliers) {
     const id = num(supplier, 'supplier_id');
     const used = customers.get(id) ?? 0;
