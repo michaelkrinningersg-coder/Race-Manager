@@ -25,7 +25,7 @@
 13. [SQLite-Schema](#13-sqlite-schema)
 14. [Bootstrapper & Validierung](#14-bootstrapper--validierung)
 15. [Autorenleitfaden für die handgepflegten Bestände](#15-autorenleitfaden-für-die-handgepflegten-bestände)
-16. [Offene Wert-Entscheidungen](#16-offene-wert-entscheidungen)
+16. [Wert-Entscheidungen](#16-wert-entscheidungen)
 
 ---
 
@@ -187,32 +187,48 @@ Das Reglement einer Liga in einer bestimmten Saison. Eine Zeile je `(tier, seaso
 | `cap_brakes` | INT | 0–1000 | ✓ | |
 | `min_weight_kg` | INT | 700–1100 | ✓ | Mindestgewicht inklusive Fahrer |
 | `cost_cap` | INT | Euro | ✓ | Kostendeckel der Saison |
-| `test_days` | INT | 0–30 | ✓ | Erlaubte Testtage (**offen**, siehe 16.2) |
+| `test_days` | INT | 0–30 | ✓ | Erlaubte Testtage. Fällt mit der Ligenhöhe, siehe 6.2 |
 | `tyre_supplier` | TEXT | | | Vorwärtsreferenz, in M0 leer |
 | `atr_base` | REAL | 1.0–2.0 | ✓ | ATR-Formel, Konzept 5.4: `faktor = atr_base - atr_step × (platz - 1)` |
 | `atr_step` | REAL | 0.0–0.2 | ✓ | `0` schaltet die ATR für diese Liga ab |
 
-### Beispielzeilen (Saison 1)
+### 6.1 Aero-Drosselung in den unteren Ligen
 
-Die neun Deckel tragen in Saison 1 **denselben Wert je Liga** – die Stufung der Ligen untereinander steht, die Differenzierung *zwischen* den Bauteilgruppen ist noch offen (siehe 16.1).
+Sechs der neun Gruppen tragen den vollen Ligadeckel. Die drei **aerodynamischen** Gruppen – `front_wing`, `rear_wing`, `floor` – werden zusätzlich mit einem Faktor je Liga gedrosselt:
+
+| Tier | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 |
+| :--- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Aero-Faktor | 1.00 | 0.98 | 0.96 | 0.93 | 0.90 | 0.87 | 0.83 | 0.79 | 0.75 | 0.70 |
+| Ligadeckel | 1000 | 870 | 760 | 660 | 570 | 490 | 420 | 360 | 300 | 250 |
+| **Aero-Deckel** | **1000** | **853** | **730** | **614** | **513** | **426** | **349** | **284** | **225** | **175** |
+
+Wirkung: In Tier 10 liegt der Aero-Deckel 30 % unter dem mechanischen Deckel, in Tier 1 fallen beide zusammen. Wer aufsteigt, verschiebt seinen Entwicklungsschwerpunkt schrittweise von mechanischem Grip zu Aerodynamik – ohne dass dafür ein zweites Regelwerk nötig wäre.
+
+`chassis` zählt hier bewusst **nicht** als Aero-Gruppe: Konzept 6.1 definiert sie über Steifigkeit, Gewicht und Crash-Sicherheit, also strukturell. Sie trägt den vollen Ligadeckel.
+
+Der Faktor ist eine reine Herleitungsregel – gespeichert werden immer die fertigen Deckelwerte, damit ein einzelner Ausreißer je Liga und Gruppe später ohne Formeländerung möglich bleibt.
+
+### 6.2 Beispielzeilen (Saison 1)
 
 ```csv
 tier,season,regulation_label,cap_chassis,cap_front_wing,cap_rear_wing,cap_floor,cap_powertrain,cap_ers,cap_gearbox,cap_suspension,cap_brakes,min_weight_kg,cost_cap,test_days,tyre_supplier,atr_base,atr_step
-1,1,Grundformel,1000,1000,1000,1000,1000,1000,1000,1000,1000,798,145000000,,,1.35,0.05
-2,1,Grundformel,870,870,870,870,870,870,870,870,870,810,70000000,,,1.35,0.05
-3,1,Grundformel,760,760,760,760,760,760,760,760,760,825,34000000,,,1.35,0.04
-4,1,Grundformel,660,660,660,660,660,660,660,660,660,840,17000000,,,1.30,0.03
-5,1,Grundformel,570,570,570,570,570,570,570,570,570,860,9000000,,,1.30,0.03
-6,1,Grundformel,490,490,490,490,490,490,490,490,490,880,4500000,,,1.20,0.02
-7,1,Grundformel,420,420,420,420,420,420,420,420,420,900,2200000,,,1.00,0.00
-8,1,Grundformel,360,360,360,360,360,360,360,360,360,920,1100000,,,1.00,0.00
-9,1,Grundformel,300,300,300,300,300,300,300,300,300,940,550000,,,1.00,0.00
-10,1,Grundformel,250,250,250,250,250,250,250,250,250,960,260000,,,1.00,0.00
+1,1,Grundformel,1000,1000,1000,1000,1000,1000,1000,1000,1000,798,145000000,12,,1.35,0.05
+2,1,Grundformel,870,853,853,853,870,870,870,870,870,810,70000000,10,,1.35,0.05
+3,1,Grundformel,760,730,730,730,760,760,760,760,760,825,34000000,9,,1.35,0.04
+4,1,Grundformel,660,614,614,614,660,660,660,660,660,840,17000000,8,,1.30,0.03
+5,1,Grundformel,570,513,513,513,570,570,570,570,570,860,9000000,7,,1.30,0.03
+6,1,Grundformel,490,426,426,426,490,490,490,490,490,880,4500000,6,,1.20,0.02
+7,1,Grundformel,420,349,349,349,420,420,420,420,420,900,2200000,5,,1.00,0.00
+8,1,Grundformel,360,284,284,284,360,360,360,360,360,920,1100000,4,,1.00,0.00
+9,1,Grundformel,300,225,225,225,300,300,300,300,300,940,550000,3,,1.00,0.00
+10,1,Grundformel,250,175,175,175,250,250,250,250,250,960,260000,2,,1.00,0.00
 ```
 
-> `test_days` ist in diesen Zeilen absichtlich leer gelassen und wird nach der Entscheidung aus 16.2 befüllt. `atr_base`/`atr_step` unterhalb Tier 3 sind ebenfalls ein Vorschlag, kein beschlossener Wert.
+**Testtage** fallen gleichläufig mit der Ligenhöhe: Tier 1 hat 12, Tier 10 noch 2. Wer aufsteigt, gewinnt Testzeit hinzu.
 
-**Validierung:** jeder Deckel ≤ 1000 · Deckel eines Tiers ≤ Deckel des nächsthöheren Tiers (kein Ausreißer nach oben) · `min_weight_kg` steigt monoton mit dem Tier · `cost_cap` fällt monoton mit dem Tier · für jedes `tier` existiert eine Zeile mit `season = 1`.
+> Zu beachten: Testtage und ATR ziehen damit in entgegengesetzte Richtungen – die ATR bremst die Spitzenteams, die Testtage begünstigen die oberen Ligen. Das ist als Zusammenspiel gewollt (Ligenvorteil ja, Teamvorteil innerhalb der Liga nein), sollte aber nach den ersten Zehn-Saison-Läufen gegengeprüft werden. `atr_base`/`atr_step` unterhalb Tier 3 sind weiterhin ein Vorschlag.
+
+**Validierung:** jeder Deckel ≤ 1000 · Deckel eines Tiers ≤ Deckel des nächsthöheren Tiers, je Gruppe einzeln geprüft · Aero-Deckel ≤ mechanischer Deckel derselben Liga · `min_weight_kg` steigt monoton mit dem Tier · `cost_cap` und `test_days` fallen monoton mit dem Tier · für jedes `tier` existiert eine Zeile mit `season = 1`.
 
 ---
 
@@ -280,31 +296,33 @@ Langformat: eine Zeile je Punktesystem und Position. Die systemweiten Werte (`sy
 
 ### Vollständiger Inhalt
 
-Die Punktwerte selbst sind entschieden (Tier 1–3 volle Skala, darunter flacher). Die drei Bonus-Spalten stehen auf `0` und sind offen (siehe 16.3).
+Beide Systeme vergeben **je einen Bonuspunkt für die Pole und für die schnellste Rennrunde**; der Rundenbonus nur bis Platz 10. Damit sind zwischen Sieg und zweitem Platz nicht 7, sondern bis zu 9 Punkte Unterschied möglich – das Qualifying wird auf überholarmen Strecken zum Titelfaktor.
 
 ```csv
 points_system_id,system_name,position,points,bonus_pole,bonus_fastest_lap,fastest_lap_max_position,min_distance_pct
-1,Volle Skala,1,25,0,0,10,0.75
-1,Volle Skala,2,18,0,0,10,0.75
-1,Volle Skala,3,15,0,0,10,0.75
-1,Volle Skala,4,12,0,0,10,0.75
-1,Volle Skala,5,10,0,0,10,0.75
-1,Volle Skala,6,8,0,0,10,0.75
-1,Volle Skala,7,6,0,0,10,0.75
-1,Volle Skala,8,4,0,0,10,0.75
-1,Volle Skala,9,2,0,0,10,0.75
-1,Volle Skala,10,1,0,0,10,0.75
-2,Flache Skala,1,20,0,0,10,0.75
-2,Flache Skala,2,16,0,0,10,0.75
-2,Flache Skala,3,13,0,0,10,0.75
-2,Flache Skala,4,11,0,0,10,0.75
-2,Flache Skala,5,9,0,0,10,0.75
-2,Flache Skala,6,7,0,0,10,0.75
-2,Flache Skala,7,5,0,0,10,0.75
-2,Flache Skala,8,3,0,0,10,0.75
-2,Flache Skala,9,2,0,0,10,0.75
-2,Flache Skala,10,1,0,0,10,0.75
+1,Volle Skala,1,25,1,1,10,0.75
+1,Volle Skala,2,18,1,1,10,0.75
+1,Volle Skala,3,15,1,1,10,0.75
+1,Volle Skala,4,12,1,1,10,0.75
+1,Volle Skala,5,10,1,1,10,0.75
+1,Volle Skala,6,8,1,1,10,0.75
+1,Volle Skala,7,6,1,1,10,0.75
+1,Volle Skala,8,4,1,1,10,0.75
+1,Volle Skala,9,2,1,1,10,0.75
+1,Volle Skala,10,1,1,1,10,0.75
+2,Flache Skala,1,20,1,1,10,0.75
+2,Flache Skala,2,16,1,1,10,0.75
+2,Flache Skala,3,13,1,1,10,0.75
+2,Flache Skala,4,11,1,1,10,0.75
+2,Flache Skala,5,9,1,1,10,0.75
+2,Flache Skala,6,7,1,1,10,0.75
+2,Flache Skala,7,5,1,1,10,0.75
+2,Flache Skala,8,3,1,1,10,0.75
+2,Flache Skala,9,2,1,1,10,0.75
+2,Flache Skala,10,1,1,1,10,0.75
 ```
+
+Bei den Doppelrennen in Tier 7–10 wird der Pole-Bonus **einmal je Wochenende** vergeben (Startaufstellung des zweiten Laufs entsteht aus dem Ergebnis des ersten, nicht aus einem eigenen Qualifying), der Rundenbonus dagegen je Lauf.
 
 **Validierung:** `position` lückenlos ab 1 · `points` streng monoton fallend · systemweite Spalten innerhalb eines Systems identisch · jedes in `leagues.csv` referenzierte System existiert.
 
@@ -329,16 +347,29 @@ Die administrative Hürde vor dem sportlich erkämpften Aufstieg (Konzept 5.1). 
 | `min_superlicence_points` | INT | ≥ 0 | ✓ | Mindestpunkte je Fahrer. Konzept 7.3: relevant ab Tier 4 aufwärts |
 | `grace_period_seasons` | INT | 0–3 | ✓ | Frist zur Nachrüstung nach dem Aufstieg. Konzept 4.3: `1` |
 
-### Beispielzeile
+### Vollständiger Inhalt
 
-Vollständig belegt ist bisher nur Tier 2 – das ist die im Konzept 5.1 ausformulierte Beispielprüfung „Tier 3 → Tier 2". Die Leiter über alle zehn Stufen ist eine Balancing-Entscheidung und offen (siehe 16.4).
+Die Leiter fällt **gleichmäßig linear** von Tier 1 nach Tier 10, verankert an der einzigen im Konzept ausformulierten Prüfung (5.1, „Tier 3 → Tier 2"): Liquidität 25 %, Windkanal 2, Prüfstand 2, Simulator 1, 30 Mitarbeiter, Technical Director und Chief Designer besetzt, Superlizenz 25.
 
 ```csv
 tier,min_liquidity_pct,min_windtunnel_level,min_dyno_level,min_simulator_level,min_factory_level,min_staff_count,required_roles,needs_engine_contract,min_licence_points,min_superlicence_points,grace_period_seasons
+1,0.28,3,3,2,3,33,technical_director|chief_designer|head_of_aero|powertrain_chief,1,0,30,1
 2,0.25,2,2,1,2,30,technical_director|chief_designer,1,0,25,1
+3,0.22,2,2,1,2,27,technical_director|chief_designer,1,0,20,1
+4,0.19,2,1,1,2,24,technical_director,1,0,15,1
+5,0.16,1,1,0,1,21,technical_director,1,0,0,1
+6,0.13,1,1,0,1,18,technical_director,1,0,0,1
+7,0.10,1,0,0,1,15,,0,0,0,1
+8,0.07,0,0,0,0,12,,0,0,0,1
+9,0.04,0,0,0,0,9,,0,0,0,1
+10,0.01,0,0,0,0,6,,0,0,0,1
 ```
 
-**Validierung:** alle Mindestanforderungen fallen monoton mit steigendem Tier (Tier 1 am strengsten) · Tier 10 hat keine Infrastruktur-Mindestanforderung · `required_roles` enthält nur Rollen aus `staff_roles.csv`, sobald diese existiert.
+Ablesbare Schwellen: ab **Tier 7** entfällt jede Rollenpflicht und der Motorenvertrag, ab **Tier 8** jede Infrastrukturanforderung, ab **Tier 5** greift keine Superlizenz-Mindestpunktzahl mehr – letzteres entspricht Konzept 7.3, das Mindestpunktzahlen nur für Tier 1–4 vorsieht.
+
+> Eine Stelle sticht heraus: Tier 1 verlangt mit 33 Mitarbeitern kaum mehr als Tier 2 mit 30. Das ist die Folge der linearen Leiter durch den Konzept-Anker – wenn die Weltmeisterschaft sich administrativ deutlicher abheben soll, muss entweder der Anker fallen oder Tier 1 als Ausnahme angehoben werden.
+
+**Validierung:** alle Mindestanforderungen fallen monoton mit steigendem Tier (Tier 1 am strengsten) · `required_roles` enthält nur Rollen aus `staff_roles.csv`, sobald diese existiert · `min_superlicence_points > 0` nur dort, wo auch `needs_engine_contract = 1` gilt.
 
 ---
 
@@ -720,17 +751,21 @@ Die verbindliche Sortierung nach Primärschlüssel plus `#`-Kommentarzeilen als 
 
 ---
 
-## 16. Offene Wert-Entscheidungen
+## 16. Wert-Entscheidungen
 
-Das Schema oben ist vollständig. Was fehlt, sind Zahlen – und zwar solche, die Balancing sind und deshalb nicht nebenbei gesetzt werden. Jede der folgenden Fragen blockiert das Befüllen der jeweiligen Datei, keine blockiert die Implementierung des Bootstrappers.
+Das Schema ist vollständig. Was hier geführt wird, sind die Zahlen dahinter – Balancing, das nicht nebenbei gesetzt wird. Vier davon sind entschieden und oben eingearbeitet, drei stehen aus.
 
-**16.1 Bauteil-Deckel je Gruppe.** Aktuell trägt jede der neun Gruppen denselben Ligadeckel. Alternative: gruppenspezifische Faktoren, sodass etwa Aerodynamik in Tier 1 weiter gedeckelt ist als Bremsen. Das ist der Hebel, mit dem sich Ligen technisch unterschiedlich *anfühlen*.
+### Entschieden
 
-**16.2 Testtage je Liga** (`test_days`).
+**16.1 Bauteil-Deckel je Gruppe → nur Aero gedrosselt.** `front_wing`, `rear_wing` und `floor` tragen einen Faktor je Liga (1.00 in Tier 1 bis 0.70 in Tier 10), die übrigen sechs Gruppen den vollen Ligadeckel. Ausgearbeitet in 6.1.
 
-**16.3 Bonuspunkte** für Pole und schnellste Runde – und ob sie in allen Ligen gelten.
+**16.2 Testtage → gleichläufig, oben mehr.** Tier 1: 12 Tage, dann fallend bis Tier 10: 2. Eingearbeitet in 6.2.
 
-**16.4 Lizenzleiter über alle zehn Stufen.** Belegt ist nur Tier 2 aus dem Konzept.
+**16.3 Bonuspunkte → Pole und schnellste Runde, je 1 Punkt.** Rundenbonus nur bis Platz 10; bei Doppelrennen der Pole-Bonus einmal je Wochenende. Eingearbeitet in 8.
+
+**16.4 Lizenzleiter → gleichmäßig linear**, verankert an der Tier-2-Prüfung aus Konzept 5.1. Eingearbeitet in 9.
+
+### Offen
 
 **16.5 Verteilungsvorgaben aus Abschnitt 15** – Leistungsbänder, Prestige-Bänder, Pay-Driver-Anteile, Archetyp-Mischung.
 
