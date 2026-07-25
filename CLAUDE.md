@@ -54,6 +54,7 @@ Code, Bezeichner und Dateinamen auf Englisch.
 ## 6. Projektüberblick
 
 * `docs/KONZEPT_MEHRLIGA_RENNMANAGER.md` – vollständiges Designdokument (APEX)
+* `docs/DATENMODELL_APEX_M0.md` – Schema der CSV-Stammdaten und der `world_data.db` (M0–M2)
 * `src/data/leagues.ts` – Stammdaten der zehn Ligen
 * `src/data/world.ts` – deterministischer Weltgenerator + Light-Sim einer Saison
 * `src/views/` – Ansichten des Ligen-Explorers

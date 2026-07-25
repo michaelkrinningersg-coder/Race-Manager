@@ -79,7 +79,7 @@ export function renderLeague(world: World, tier: number): string {
       </header>
 
       <div class="stat-row">
-        <div class="stat"><span class="stat__value">${league.teamCount}</span><span class="stat__label">Teams · ${league.carsPerTeam} Auto(s)</span></div>
+        <div class="stat"><span class="stat__value">${league.teamCount}</span><span class="stat__label">Teams · ${league.carsPerTeam} Autos je Team</span></div>
         <div class="stat"><span class="stat__value">${league.raceCount}</span><span class="stat__label">Rennen</span></div>
         <div class="stat"><span class="stat__value">${formatMoney(league.costCap)}</span><span class="stat__label">Kostendeckel</span></div>
         <div class="stat"><span class="stat__value">${formatNumber(league.partCap)}</span><span class="stat__label">Bauteil-Deckel</span></div>

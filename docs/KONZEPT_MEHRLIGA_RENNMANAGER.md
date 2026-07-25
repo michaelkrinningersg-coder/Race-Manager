@@ -4,7 +4,7 @@
 
 > Arbeitstitel: **APEX – Racing Director**
 > Status: Konzeptdokument (Design-Vorgabe, noch keine Implementierung)
-> Sprache/Stack-Vorbild: Velo – Radsport Director (Schwesterprojekt)
+> Sprache/Stack-Vorbild: Velo – Radsport Director (siehe [../README.md](../README.md))
 
 ---
 
@@ -58,7 +58,7 @@ APEX ist ein rundenbasierter Motorsport-Manager. Der Spieler führt ein Rennteam
 | Entwicklung | Geld → Prozent | Ressourcen-Modell: Budget × Personal × Windkanalzeit, abnehmender Grenzertrag, Kinderkrankheiten, Fahrer-Feedback |
 | Setup | Trial & Error auf 4 Achsen | 6 Setup-Achsen mit strecken- *und* fahrerabhängigem Optimum, Ingenieur-Qualität bestimmt die Trefferwahrscheinlichkeit |
 | Rennen | 2D-Balken-Sim | Sektorbasierte Tick-Simulation mit Reifenverschleiß, Spritmasse, Dirty Air, Safety Car, Wetterfenstern, Boxenstopp-Fehlern |
-| Fahrer | Wenige Werte | 14 Attribute + Potenzial, Altersverlauf, Moral, Ego, Feedback-Qualität, Superlizenzpunkte |
+| Fahrer | Wenige Werte | 16 Attribute + Potenzial, Altersverlauf, Moral, Ego, Feedback-Qualität, Superlizenzpunkte |
 | Personal | Rudimentär | 8 Rollen mit eigenen Karrieren und einem Personalmarkt |
 | Wirtschaft | Sponsoren + Preisgeld | Kostendeckel, TV-Geld nach Liga, Fallschirmzahlungen, Motoren-Kundenverträge, Insolvenz & Neugründung |
 | Weltsimulation | Nur die eigene Serie | Alle 10 Ligen werden simuliert (Light-Sim), inkl. Fahrerkarrieren von unten nach oben |
@@ -78,8 +78,8 @@ graph TD
     L6["Tier 6 · Challenger Series<br/>18 Teams · 12 Rennen"]
     L7["Tier 7 · National Elite<br/>18 Teams · 10 Rennen"]
     L8["Tier 8 · National Series<br/>20 Teams · 10 Rennen"]
-    L9["Tier 9 · Regional Cup<br/>20 Teams · 8 Rennen · 1 Auto"]
-    L10["Tier 10 · Rookie Cup<br/>22 Teams · 8 Rennen · 1 Auto"]
+    L9["Tier 9 · Regional Cup<br/>20 Teams · 8 Rennen · 2 Autos"]
+    L10["Tier 10 · Rookie Cup<br/>22 Teams · 8 Rennen · 2 Autos"]
     L2 -->|Aufstieg| L1
     L3 -->|Aufstieg| L2
     L4 --> L3
@@ -112,19 +112,20 @@ graph TD
 | 6 | Challenger Series | 18 | 2 | 12 | 4,5 M | 3,8 M | 490 | 880 kg | 7 |
 | 7 | National Elite | 18 | 2 | 10 | 2,2 M | 1,9 M | 420 | 900 kg | 6 |
 | 8 | National Series | 20 | 2 | 10 | 1,1 M | 0,9 M | 360 | 920 kg | 6 |
-| 9 | Regional Cup | 20 | 1 | 8 | 550 k | 450 k | 300 | 940 kg | 5 |
-| 10 | Rookie Cup | 22 | 1 | 8 | 260 k | 210 k | 250 | 960 kg | 4 |
+| 9 | Regional Cup | 20 | 2 | 8 | 550 k | 450 k | 300 | 940 kg | 5 |
+| 10 | Rookie Cup | 22 | 2 | 8 | 260 k | 210 k | 250 | 960 kg | 4 |
 
-Gesamt: **167 Teams**, **292 Stammcockpits**, dazu Test- und Nachwuchsfahrer → ca. **450 aktive Fahrer** in der Welt.
+Gesamt: **167 Teams**, **334 Stammcockpits** (durchgehend zwei Autos pro Team), dazu rund 115 Test- und Nachwuchsfahrer → ca. **450 aktive Fahrer** in der Welt.
 
-### 3.2 Regionale Konferenzen (ab Tier 7, optional)
+Zwei Autos gelten bewusst auch in Tier 9–10: Die Teamkollegen-Dynamik – Mentoring, Stallorder, interner Vergleich – ist genau dort am wichtigsten, wo Nachwuchs entsteht. Wirtschaftlich wird der Mehraufwand über die niedrigen Kostendeckel und den hohen Pay-Driver-Anteil dieser Ligen abgebildet, nicht über die Cockpitzahl.
 
-Tier 7–10 sind national/regional geprägt. Zwei Ausbaustufen:
+### 3.2 Regionale Konferenzen – bewusst nicht umgesetzt
 
-* **Ausbaustufe A (MVP): Linear.** Jede Liga ist eine einzige Tabelle. Einfach zu balancieren, einfach zu erklären.
-* **Ausbaustufe B: Konferenzen.** Tier 7–10 sind je in 2–4 geographische Konferenzen (Europa, Amerika, Asien-Pazifik) geteilt. Aufstieg erfolgt aus jeder Konferenz; der Abstieg aus Tier 6 wird nach Nationalität des Teams in die passende Konferenz zugewiesen. Das erzeugt regional gefärbte Fahrerlaufbahnen (ein japanischer Fahrer arbeitet sich über die Asien-Pazifik-Konferenzen hoch), erhöht aber die Balancing-Komplexität deutlich.
+Erwogen war, Tier 7–10 in je 2–4 geographische Konferenzen (Europa, Amerika, Asien-Pazifik) zu teilen, mit Aufstieg aus jeder Konferenz und nationalitätsabhängiger Zuweisung der Absteiger aus Tier 6.
 
-Empfehlung: Ausbaustufe A implementieren, das Schema (Feld `conference_id`) aber von Anfang an vorsehen.
+**Entscheidung: Keine Konferenzen.** Jede der zehn Ligen ist eine einzige Tabelle. Das hält Auf-/Abstieg, Barrage und Balancing über alle Stufen hinweg nach exakt derselben Regel erklärbar – der Preis wäre ein zweites Regelwerk für ein Drittel der Pyramide gewesen.
+
+Die Spalte `conference_count` bleibt im Schema erhalten (Wert durchgehend `1`), damit eine spätere Regionalisierung keine Migration erzwingt. Regionale Färbung entsteht stattdessen über die Nationalitätsverteilung der Teams und Fahrer in den unteren Ligen.
 
 ---
 
@@ -273,6 +274,25 @@ Beim Aufstieg wird das Auto neu homologiert:
 * Der Aufsteiger erhält eine **einmalige Homologationshilfe**: +8 % auf alle Bauteile (Anpassung an das neue Reglement) und 2 zusätzliche Testtage.
 * Bauteile, die im neuen Reglement verboten sind, werden auf `carry_over_factor` reduziert.
 * Beim Abstieg bleiben die Werte erhalten; der Absteiger ist im ersten Jahr unten regelmäßig Titelfavorit („Fallschirm-Favorit") – ein bewusst gewollter, aus dem Fußball bekannter Effekt.
+
+### 6.6 Motorenhersteller als eigenständige Entität
+
+Motoren sind **kein Vertragsparameter am Team**, sondern eigene Akteure mit eigener Entwicklung – und trotzdem vom Team beeinflussbar.
+
+**Der Hersteller** besitzt einen eigenen Bauteil-Datensatz für `powertrain` und `ers` (Performance, Zuverlässigkeit, Gewicht, Verbrauch, Reife) und entwickelt ihn nach derselben Formel wie ein Team, gespeist aus dem eigenen Herstellerbudget statt aus dem Kostendeckel des Teams. Er beliefert 1 Werksteam und 0–4 Kundenteams. Daraus entsteht Werksteam-Politik: Kundenteams erhalten die Vorjahres- oder eine gedrosselte Spezifikation, das Werksteam bekommt Updates zuerst.
+
+**Das Team tunt innerhalb der gelieferten Basis.** Der Liefervertrag definiert eine Motorbasis; darauf hat das Team einen begrenzten Spielraum, der aus dem eigenen Budget und der Qualität des Powertrain-Chefs gespeist wird:
+
+| Stellhebel | Wirkung | Preis |
+| :--- | :--- | :--- |
+| Leistungsmapping | ± Leistung | gegenläufig Zuverlässigkeit und Verbrauch |
+| Kühlungspaket | Hitzereserve, weniger Fading | Luftwiderstand, Gewicht |
+| ERS-Einsatzstrategie | Beschleunigung, Überholhilfe | Verschleiß der Energiespeicher |
+| Einbau & Package | Gewichtsverteilung, Schwerpunkt | Entwicklungszeit am Chassis |
+
+Der Tuning-Spielraum ist gedeckelt (Vorschlag: ±8 % auf die gelieferte Basis) und im Werksvertrag größer als im Kundenvertrag. Ein Team kann damit einen mittelmäßigen Motor teilweise kompensieren, ihn aber nie in einen Spitzenmotor verwandeln – die Herstellerwahl bleibt eine strategische Mehrjahresentscheidung.
+
+**Konsequenzen:** Herstellerwechsel sind ein eigenes Marktereignis mit Laufzeiten und Ausstiegsklauseln; ein Hersteller kann aussteigen (alle Kundenteams müssen sich neu binden) oder neu einsteigen; die Zuverlässigkeit eines Herstellers wird über alle Kundenteams hinweg sichtbar und ist damit scoutbar.
 
 ---
 
@@ -564,6 +584,10 @@ Der Spieler ist **Teamchef**, nicht Teambesitzer. Zwei Bewegungsrichtungen:
 
 Analog zu Velo: **CSV = Stammdaten**, daraus wird per Bootstrapper eine `world_data.db` erzeugt, die beim Karrierestart in ein Savegame kopiert wird.
 
+> **Detailspezifikation:** Für die acht Dateien, die M0–M2 tragen, existiert eine ausgearbeitete Schema-Vorgabe mit Spaltentypen, Wertebereichen, Beispielzeilen, SQLite-DDL und Validierungsregeln: [DATENMODELL_APEX_M0.md](DATENMODELL_APEX_M0.md). Die Tabelle unten bleibt die Gesamtübersicht über alle geplanten Dateien.
+>
+> Dort ist auch entschieden: **Teams und Fahrer werden handgepflegt**, nicht prozedural erzeugt. 167 Teams und ~450 Fahrer sind gesetzte Identitäten bis hinunter in den Rookie Cup.
+
 ### 15.1 CSV-Stammdaten
 
 | Datei | Inhalt |
@@ -576,7 +600,7 @@ Analog zu Velo: **CSV = Stammdaten**, daraus wird per Bootstrapper eine `world_d
 | `teams.csv` | team_id, name, kürzel, land, tier_start, farben, ai_archetype, prestige |
 | `team_facilities.csv` | team_id, facility_type, level |
 | `team_finances.csv` | team_id, kapital, sponsor_ids, motorenvertrag |
-| `drivers.csv` | driver_id, name, land, alter, 14 Attribute, potential, ego, marketability |
+| `drivers.csv` | driver_id, name, land, alter, 16 Attribute, potential, ego, marketability |
 | `driver_names.csv` | Namenspools je Land für Newgens |
 | `staff.csv` / `staff_roles.csv` | Personal, Rollen, Werte |
 | `car_part_types.csv` | 9 Bauteilgruppen, Basiskosten, Ausfall-Basisrate |
@@ -756,9 +780,9 @@ backend/src/
 
 ## 20. Offene Fragen
 
-1. **Konferenzen ja/nein?** Ausbaustufe B erhöht Realismus und Regionalfarbe, aber auch den Balancing-Aufwand deutlich. Vorschlag: Schema vorbereiten, Entscheidung nach M2 anhand der Simulationsergebnisse.
-2. **Ein oder zwei Autos in Tier 9–10?** Ein Auto ist wirtschaftlich stimmiger für Amateurligen, bricht aber die Teamkollegen-Dynamik (Mentoring, Stallorder) genau dort, wo Nachwuchs entsteht.
-3. **Motorenhersteller als eigene Entität** mit eigener Entwicklung – oder als reiner Vertragsparameter? Erstes ist deutlich reizvoller (Werksteam-Politik), kostet aber ein eigenes Subsystem.
+1. **Konferenzen ja/nein?** ✓ **ENTSCHIEDEN: Nein.** Schlanker halten, kein separates Konferenz-Subsystem.
+2. **Ein oder zwei Autos in Tier 9–10?** ✓ **ENTSCHIEDEN: Zwei Autos.** Volle Teamdynamik von unten auf, Mentoring und Stallorder sind in der Nachwuchsschmiede zentral.
+3. **Motorenhersteller als eigene Entität** mit eigener Entwicklung – oder als reiner Vertragsparameter? ✓ **ENTSCHIEDEN: Unabhängige Entität mit Tuning für Teams.** Werksteam-Verträge und Kundenverträge sind spielerisch relevant, mit je eigenem Entwicklungstracking. Teams können aber innerhalb ihres Budgets Motorenspecs für ihre Autos anpassen.
 4. **Reglementwechsel in unteren Ligen?** Vorschlag: nur Tier 1–4 haben echte Formelwechsel; darunter sind die Reglements stabil und abgeleitet.
 5. **Wie sichtbar ist die Konkurrenz-Entwicklung?** Vorschlag: Schätzwerte mit Unschärfe, die vom Scouting-Level abhängt – nie exakte Zahlen.
 6. **Fahrer-Ablösesummen** in unteren Ligen: realistisch (fast keine) oder spielerisch (relevantes Geschäftsmodell)? Zweiteres macht Tier 7–10 wirtschaftlich überhaupt erst spielbar.

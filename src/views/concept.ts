@@ -50,7 +50,7 @@ export function renderConcept(): string {
       <h2>Diese Seite</h2>
       <p>
         Der Ligen-Explorer zeigt eine deterministisch erzeugte Beispielwelt: 167 Teams,
-        knapp 300 Stammfahrer, jede Liga über eine volle Saison im Light-Sim-Verfahren
+        334 Stammfahrer, jede Liga über eine volle Saison im Light-Sim-Verfahren
         durchgerechnet. Gleicher Seed, gleiche Welt – die Tabellen sind bei jedem Aufruf
         identisch.
       </p>
