@@ -1,6 +1,6 @@
 {
   "name": "race-manager",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "private": true,
   "description": "APEX - Racing Director: Motorsport-Manager mit 10-stufiger Ligenpyramide",
   "type": "module",
