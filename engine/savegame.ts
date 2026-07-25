@@ -77,6 +77,39 @@ CREATE TABLE game_state (
   world_seed     INTEGER NOT NULL
 );
 
+CREATE TABLE lap_records (
+  season      INTEGER NOT NULL,
+  tier        INTEGER NOT NULL,
+  round       INTEGER NOT NULL,
+  leg         INTEGER NOT NULL,
+  lap         INTEGER NOT NULL,
+  driver_id   INTEGER NOT NULL REFERENCES drivers(driver_id),
+  position    INTEGER NOT NULL,
+  lap_time_ms INTEGER NOT NULL,
+  gap_to_leader_ms INTEGER NOT NULL,
+  compound    TEXT    NOT NULL,
+  tyre_wear   REAL    NOT NULL,
+  fuel_kg     REAL    NOT NULL,
+  event       TEXT,
+  PRIMARY KEY (season, tier, round, leg, lap, driver_id)
+);
+
+CREATE TABLE race_analysis (
+  season         INTEGER NOT NULL,
+  tier           INTEGER NOT NULL,
+  round          INTEGER NOT NULL,
+  leg            INTEGER NOT NULL,
+  driver_id      INTEGER NOT NULL REFERENCES drivers(driver_id),
+  stops          INTEGER NOT NULL,
+  best_lap_ms    INTEGER NOT NULL,
+  total_ms       INTEGER NOT NULL,
+  lost_tyres_s   REAL    NOT NULL,
+  lost_fuel_s    REAL    NOT NULL,
+  lost_traffic_s REAL    NOT NULL,
+  lost_pits_s    REAL    NOT NULL,
+  PRIMARY KEY (season, tier, round, leg, driver_id)
+);
+
 CREATE TABLE team_finances (
   team_id   INTEGER NOT NULL REFERENCES teams(team_id),
   season    INTEGER NOT NULL,

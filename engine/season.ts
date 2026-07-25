@@ -11,6 +11,7 @@ import { loadTrackProfiles } from './scoring.js';
 import { simulateWeekend, type Entry, type ResultRow, type WeekendContext } from './lightsim.js';
 import { nextTier, type Movement } from './promotion.js';
 import { loadPayoutRules, parachuteFor, payoutFor } from './finance.js';
+import { simulateRace, type Compound, type RaceContext, type RaceEntry } from './racesim.js';
 
 const PART_KEYS = [
   'chassis',
@@ -104,7 +105,24 @@ function loadRosters(db: Database, season: number): Map<number, Roster> {
   return byTier;
 }
 
-export function runSeason(db: Database, season: number): SeasonSummary {
+/**
+ * Laedt die Reifenmischungen. Regenmischungen bleiben aussen vor, solange es
+ * kein Wetter gibt (M7).
+ */
+function loadCompounds(db: Database): Compound[] {
+  return (db
+    .prepare('SELECT * FROM tyre_compounds WHERE wet_only = 0 ORDER BY compound_id')
+    .all() as Record<string, number | string>[]).map((row) => ({
+    compoundId: row.compound_id as number,
+    shortName: String(row.short_name),
+    grip: row.grip as number,
+    wearRate: row.wear_rate as number,
+    cliffWearPct: row.cliff_wear_pct as number,
+    minStintLaps: row.min_stint_laps as number,
+  }));
+}
+
+export function runSeason(db: Database, season: number, tickTier = 0): SeasonSummary {
   const worldSeed = (db.prepare('SELECT world_seed FROM game_state WHERE id = 1').get() as { world_seed: number }).world_seed;
   const rosters = loadRosters(db, season);
   const profiles = loadTrackProfiles(db);
@@ -132,6 +150,23 @@ export function runSeason(db: Database, season: number): SeasonSummary {
     (db.prepare('SELECT * FROM points_systems_meta').all() as Record<string, number>[]).map(
       (row) => [row.points_system_id, row],
     ),
+  );
+
+  const trackData = new Map(
+    (db.prepare('SELECT * FROM tracks').all() as Record<string, number>[]).map((row) => [
+      row.track_id,
+      row,
+    ]),
+  );
+  const compounds = loadCompounds(db);
+
+  const insertLap = db.prepare(
+    `INSERT INTO lap_records (season, tier, round, leg, lap, driver_id, position, lap_time_ms, gap_to_leader_ms, compound, tyre_wear, fuel_kg, event)
+     VALUES (@season, @tier, @round, @leg, @lap, @driver_id, @position, @lap_time_ms, @gap_to_leader_ms, @compound, @tyre_wear, @fuel_kg, @event)`,
+  );
+  const insertAnalysis = db.prepare(
+    `INSERT INTO race_analysis (season, tier, round, leg, driver_id, stops, best_lap_ms, total_ms, lost_tyres_s, lost_fuel_s, lost_traffic_s, lost_pits_s)
+     VALUES (@season, @tier, @round, @leg, @driver_id, @stops, @best_lap_ms, @total_ms, @lost_tyres_s, @lost_fuel_s, @lost_traffic_s, @lost_pits_s)`,
   );
 
   const insert = db.prepare(
@@ -177,8 +212,118 @@ export function runSeason(db: Database, season: number): SeasonSummary {
           fastestLapMaxPosition: systemMeta?.fastest_lap_max_position ?? 10,
         };
 
-        const rows: ResultRow[] = simulateWeekend(roster.entries, context);
+        let rows: ResultRow[] = simulateWeekend(roster.entries, context);
         weekends += 1;
+
+        // Die gewaehlte Liga wird rundenweise nachgerechnet. Die Light-Sim
+        // liefert dabei die Startaufstellung - das Qualifying bleibt ihr
+        // Zustaendigkeitsbereich, gefahren wird das Rennen dann echt.
+        if (tier === tickTier) {
+          const track = trackData.get(round.track_id);
+          // Die bereits gerechnete Light-Sim liefert nur noch die
+          // Startaufstellung; ihre Rennergebnisse werden verworfen.
+          const light = rows;
+          const gridOf = new Map(
+            light.filter((r) => r.leg === 1).map((r) => [r.driverId, r.grid]),
+          );
+          rows = [];
+
+          for (let leg = 1; leg <= format.race_count; leg += 1) {
+            const raceEntries: RaceEntry[] = roster.entries.map((entry) => ({
+              ...entry,
+              // Strategen- und Crewqualitaet bis M5 aus der Ligastufe
+              // abgeleitet - dieselbe Kruecke wie beim uebrigen Personal.
+              strategy: 68 - (tier - 1) * 4.5,
+              crew: 68 - (tier - 1) * 4.5,
+              grid: gridOf.get(entry.driverId) ?? roster.entries.length,
+            }));
+
+            const raceContext: RaceContext = {
+              worldSeed,
+              season,
+              tier,
+              round: round.round,
+              leg,
+              profile,
+              trackLengthM: track?.length_m ?? 4500,
+              laps: Math.max(8, Math.round((track?.laps ?? 55) * format.race_distance_pct)),
+              abrasion: track?.abrasion ?? 0.6,
+              pitLossS: track?.pit_loss_s ?? 20,
+              overtakingDifficulty: tracks.get(round.track_id) ?? 0.5,
+              dnfBaseRate: league.dnf_base_rate,
+              compounds,
+            };
+
+            const race = simulateRace(raceEntries, raceContext);
+            for (const record of race.records) {
+              insertLap.run({
+                season,
+                tier,
+                round: round.round,
+                leg,
+                lap: record.lap,
+                driver_id: record.driverId,
+                position: record.position,
+                lap_time_ms: record.lapTimeMs,
+                gap_to_leader_ms: record.gapToLeaderMs,
+                compound: record.compound,
+                tyre_wear: record.tyreWear,
+                fuel_kg: record.fuelKg,
+                event: record.event,
+              });
+            }
+
+            let fastest: number | null = null;
+            let fastestMs = Number.POSITIVE_INFINITY;
+            for (const outcome of race.outcomes) {
+              if (
+                outcome.status === 'classified' &&
+                outcome.bestLapMs > 0 &&
+                outcome.bestLapMs < fastestMs &&
+                (outcome.position ?? 99) <= (systemMeta?.fastest_lap_max_position ?? 10)
+              ) {
+                fastestMs = outcome.bestLapMs;
+                fastest = outcome.driverId;
+              }
+              insertAnalysis.run({
+                season,
+                tier,
+                round: round.round,
+                leg,
+                driver_id: outcome.driverId,
+                stops: outcome.stops,
+                best_lap_ms: outcome.bestLapMs,
+                total_ms: outcome.totalMs,
+                lost_tyres_s: outcome.lostToTyres,
+                lost_fuel_s: outcome.lostToFuel,
+                lost_traffic_s: outcome.lostToTraffic,
+                lost_pits_s: outcome.lostToPits,
+              });
+            }
+
+            const poleDriver = leg === 1 ? (light[0]?.driverId ?? null) : null;
+            rows.push(
+              ...race.outcomes.map((outcome) => {
+                let points = outcome.position ? system.get(outcome.position) ?? 0 : 0;
+                const isPole = outcome.driverId === poleDriver;
+                const isFastest = outcome.driverId === fastest;
+                if (isPole) points += systemMeta?.bonus_pole ?? 0;
+                if (isFastest) points += systemMeta?.bonus_fastest_lap ?? 0;
+                return {
+                  leg,
+                  driverId: outcome.driverId,
+                  teamId: outcome.teamId,
+                  grid: outcome.grid,
+                  position: outcome.position,
+                  status: outcome.status,
+                  points,
+                  pole: isPole,
+                  fastestLap: isFastest,
+                };
+              }),
+            );
+          }
+        }
 
         for (const row of rows) {
           insert.run({

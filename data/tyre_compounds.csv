@@ -1,0 +1,19 @@
+# HANDGEPFLEGT - Reifenmischungen (Konzept 15.1).
+#
+# grip: Faktor auf die Rundenzeit bei frischem Reifen. Medium ist die
+#   Referenz mit 1.000, weich schneller, hart langsamer.
+# wear_rate: Verschleiss in Prozentpunkten je Runde bei Streckenabrieb 1.0.
+#   Der tatsaechliche Wert skaliert mit tracks.abrasion und dem
+#   Reifenmanagement des Fahrers. Die Werte sind so kalibriert, dass eine
+#   volle Renndistanz die Klippe erreicht - sonst waere kein Stopp noetig
+#   und die ganze Strategieebene bliebe wirkungslos.
+# cliff_wear_pct: Ab diesem Verschleiss bricht der Grip ein - die Klippe.
+#   Darunter kostet Verschleiss wenig, darueber sehr viel.
+# wet_only: Regenmischungen. Bis zum Wetterfenster (M7) kommen sie nicht zum
+#   Einsatz; sie stehen hier, damit spaeter keine Schemaaenderung noetig ist.
+compound_id,name,short_name,grip,wear_rate,cliff_wear_pct,min_stint_laps,wet_only,flavour
+1,Weich,W,1.030,6.50,72,6,0,"Die schnellste Runde und die kuerzeste Freude. Auf Reifenkillern kaum eine Renndistanz wert."
+2,Medium,M,1.000,4.30,80,10,0,"Die Referenz. Wer nicht weiss, was er tun soll, faehrt Medium und liegt selten falsch."
+3,Hart,H,0.978,2.90,88,16,0,"Zwei Zehntel langsamer, dafuer haelt er die halbe Distanz. Das Mittel der Wahl fuer Einstopprennen."
+4,Intermediate,I,0.900,3.50,85,8,1,"Fuer abtrocknende Strecken. Auf trockenem Asphalt loest er sich binnen weniger Runden auf."
+5,Regen,R,0.820,3.00,85,8,1,"Stehendes Wasser. Bei Trockenheit unfahrbar, bei Starkregen alternativlos."

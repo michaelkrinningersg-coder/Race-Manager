@@ -86,12 +86,13 @@ Schema, Wertebereiche und Validierungsregeln: [`docs/DATENMODELL_APEX_M0.md`](do
 
 ---
 
-## Saison-Engine (M1 – M3)
+## Saison-Engine (M1 – M4)
 
 ```bash
 npm run bootstrap                  # Voraussetzung: erzeugt build/world_data.db
 npm run season                     # Saison 1, schreibt build/savegame.db
 npm run season -- --seasons 10     # zehn Saisons mit Auf- und Abstieg
+npm run season -- --tick-tier 1    # Tier 1 rundenweise statt Light-Sim
 npm run season -- --quiet --seed 12345
 ```
 
@@ -127,6 +128,28 @@ Gespeichert wird stets der **echte** Bauteilwert; der Reglementdeckel kappt erst
 Zwei Dinge kann ein Schritt pro Saison nicht: Upgrade-Pakete (Konzept 6.4) und die Ereignisse
 Durchbruch und Sackgasse. Beide setzen einen Wochentakt voraus. Aus demselben Grund ist die
 Streuung schmal – 39 Wochenwürfe mitteln sich aus, sie summieren sich nicht.
+
+### Rundenweise Rennsimulation (M4)
+
+`--tick-tier N` rechnet eine Liga rundenweise durch, die übrigen neun bleiben Light-Sim – die
+Aufteilung aus Konzept 12.7. Jede Runde jedes Autos landet in `lap_records`: Rundenzeit,
+Position, Rückstand, Mischung, Verschleiß, Spritmenge und Ereignis.
+
+Die Rundenzeit entsteht aus der sauberen Pace (Auto und Fahrer über das Sektorprofil),
+Reifenverschleiß, Spritmasse und Verkehr. **Die Reifenklippe ist der Kern:** Unterhalb kostet
+Abbau wenig, oberhalb sehr viel – deshalb kostet ein zu später Stopp ein Rennen. Die Mischungen
+sind so kalibriert, dass eine volle Renndistanz die Klippe erreicht; ohne das wäre kein Stopp
+nötig und die Strategieebene bliebe wirkungslos.
+
+Die Stoppzahl ergibt sich aus Verschleiß, Mischung und Boxengassenverlust, verrauscht mit der
+Qualität des Chefstrategen. Das Ergebnis variiert mit der Strecke: Lombardia (Abrieb 0,42) wird
+ohne Stopp gefahren, Anatolia (0,86) mit einem.
+
+`race_analysis` hält je Fahrer und Rennen fest, wie viele Sekunden an Reifen, Sprit, Verkehr und
+Boxenstopps verloren gingen – die Zeitzerlegung aus Design-Säule 3.
+
+Nicht enthalten: Safety Car und Wetter. Beide gehören laut Roadmap zu M7. Ohne sie bleibt die
+Strategie eine Rechenaufgabe statt einer Entscheidung.
 
 ### Auf- und Abstieg (M2)
 
@@ -177,7 +200,8 @@ Race-Manager/
 │   ├── savegame.ts                        # Savegame-Kopie + Verlaufstabellen
 │   ├── car.ts                             # Bauteilwerte aus Deckel und Prestige
 │   ├── scoring.ts                         # Auto- und Fahrer-Score je Strecke
-│   ├── lightsim.ts                        # Rennwochenende
+│   ├── lightsim.ts                        # Rennwochenende (Light-Sim)
+│   ├── racesim.ts                         # rundenweise Rennsimulation
 │   ├── facilities.ts                      # abgeleitete Infrastruktur
 │   ├── licence.ts                         # Lizenzprüfung
 │   ├── finance.ts                         # Ausschüttung und Fallschirm

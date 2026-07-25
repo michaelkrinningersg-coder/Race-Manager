@@ -207,6 +207,22 @@ export const TABLES: TableSpec[] = [
     ],
   },
   {
+    file: 'tyre_compounds.csv',
+    table: 'tyre_compounds',
+    primaryKey: ['compound_id'],
+    columns: [
+      { name: 'compound_id', type: 'int', required: true, min: 1, unique: true },
+      { name: 'name', type: 'text', required: true, unique: true },
+      { name: 'short_name', type: 'text', required: true, unique: true },
+      { name: 'grip', type: 'real', required: true, min: 0.5, max: 1.2 },
+      { name: 'wear_rate', type: 'real', required: true, min: 0.1, max: 10 },
+      { name: 'cliff_wear_pct', type: 'real', required: true, min: 10, max: 100 },
+      { name: 'min_stint_laps', type: 'int', required: true, min: 1, max: 60 },
+      { name: 'wet_only', type: 'int', required: true, min: 0, max: 1 },
+      { name: 'flavour', type: 'text', required: true },
+    ],
+  },
+  {
     file: 'tracks.csv',
     table: 'tracks',
     primaryKey: ['track_id'],

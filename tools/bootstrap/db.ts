@@ -26,6 +26,18 @@ CREATE TABLE race_weekend_formats (
   flavour                    TEXT    NOT NULL
 );
 
+CREATE TABLE tyre_compounds (
+  compound_id    INTEGER PRIMARY KEY,
+  name           TEXT    NOT NULL UNIQUE,
+  short_name     TEXT    NOT NULL UNIQUE,
+  grip           REAL    NOT NULL,
+  wear_rate      REAL    NOT NULL,
+  cliff_wear_pct REAL    NOT NULL,
+  min_stint_laps INTEGER NOT NULL,
+  wet_only       INTEGER NOT NULL DEFAULT 0,
+  flavour        TEXT    NOT NULL
+);
+
 CREATE TABLE tracks (
   track_id              INTEGER PRIMARY KEY,
   name                  TEXT    NOT NULL UNIQUE,
@@ -325,6 +337,7 @@ const INSERT_ORDER = [
   'points_systems.csv',
   'car_part_types.csv',
   'race_weekend_formats.csv',
+  'tyre_compounds.csv',
   'tracks.csv',
   'track_archetype_weights.csv',
   'track_sector_weights.csv',

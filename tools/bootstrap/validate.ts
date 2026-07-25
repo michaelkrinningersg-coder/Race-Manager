@@ -343,6 +343,29 @@ function checkLicences(context: ValidationContext, findings: Finding[]): void {
   // Kopplung der beiden waere eine Annahme ohne Grundlage.
 }
 
+function checkTyres(context: ValidationContext, findings: Finding[]): void {
+  const dry = rowsOf(context, 'tyre_compounds.csv').filter((row) => num(row, 'wet_only') === 0);
+  if (dry.length === 0) {
+    findings.push(error('tyre_compounds.csv', 'Keine Trockenmischung vorhanden'));
+    return;
+  }
+  // Mehr Grip muss mehr Verschleiss kosten - sonst gaebe es eine Mischung,
+  // die jede andere schlaegt, und die Strategie waere entschieden, bevor das
+  // Rennen beginnt.
+  const byGrip = [...dry].sort((a, b) => num(b, 'grip') - num(a, 'grip'));
+  for (let i = 1; i < byGrip.length; i += 1) {
+    if (num(byGrip[i], 'wear_rate') >= num(byGrip[i - 1], 'wear_rate')) {
+      findings.push(
+        error(
+          'tyre_compounds.csv',
+          `'${String(byGrip[i].values.name)}' hat weniger Grip als '${String(byGrip[i - 1].values.name)}', verschleisst aber nicht langsamer - sie waere nie die richtige Wahl`,
+          byGrip[i].line,
+        ),
+      );
+    }
+  }
+}
+
 function checkPayouts(context: ValidationContext, findings: Finding[]): void {
   const rows = [...rowsOf(context, 'league_payouts.csv')].sort((a, b) => num(a, 'tier') - num(b, 'tier'));
   const tiers = new Set(rowsOf(context, 'leagues.csv').map((row) => num(row, 'tier')));
@@ -994,6 +1017,7 @@ export function validateWorld(context: ValidationContext): Finding[] {
   checkPointsSystems(context, findings);
   checkLicences(context, findings);
   checkPayouts(context, findings);
+  checkTyres(context, findings);
   checkPartTypes(context, findings);
   checkTeams(context, findings);
   checkEngineSuppliers(context, findings);

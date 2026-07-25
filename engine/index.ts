@@ -6,6 +6,7 @@
  *   npm run season -- --seasons 10    # zehn Saisons mit Auf- und Abstieg
  *   npm run season -- --seed 20260724
  *   npm run season -- --world <pfad> --out <pfad>
+ *   npm run season -- --tick-tier 1   # Tier 1 rundenweise statt Light-Sim
  *   npm run season -- --quiet         # nur die Kennzahlen, keine Tabellen
  */
 
@@ -25,6 +26,7 @@ interface Options {
   savePath: string;
   seed: number;
   seasons: number;
+  tickTier: number;
   quiet: boolean;
 }
 
@@ -34,6 +36,7 @@ function parseArgs(argv: string[]): Options {
     savePath: resolve(repoRoot, 'build', 'savegame.db'),
     seed: 20260724,
     seasons: 1,
+    tickTier: 0,
     quiet: false,
   };
   for (let i = 0; i < argv.length; i += 1) {
@@ -43,6 +46,7 @@ function parseArgs(argv: string[]): Options {
     else if (arg === '--out') options.savePath = resolve(argv[++i]);
     else if (arg === '--seed') options.seed = Number(argv[++i]);
     else if (arg === '--seasons') options.seasons = Number(argv[++i]);
+    else if (arg === '--tick-tier') options.tickTier = Number(argv[++i]);
     else {
       console.error(`Unbekannte Option: ${arg}`);
       process.exit(2);
@@ -112,6 +116,7 @@ function main(): void {
   console.log(`  Savegame: ${options.savePath}`);
   console.log(`  Seed:     ${options.seed}`);
   console.log(`  Saisons:  ${options.seasons}`);
+  if (options.tickTier > 0) console.log(`  Tick-Sim: Tier ${options.tickTier}`);
 
   const db = createSavegame(options.worldPath, options.savePath, options.seed);
 
@@ -128,7 +133,7 @@ function main(): void {
       if (season === 1) seedCarParts(db, season);
       else developParts(db, season - 1, season);
 
-      const summary = runSeason(db, season);
+      const summary = runSeason(db, season, options.tickTier);
       buildStandings(db, season);
       applyFinances(db, season);
       const movements = resolveMovements(db, season);
