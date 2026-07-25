@@ -1829,3 +1829,86 @@ Der Befund gehört zur Klasse aus 22.8, hat aber eine dritte Ursache: kein fehle
 * **Nur die vier Dateien aus Konzept 17** sind bearbeitbar. Die übrigen 17 Stammdatendateien liest der Editor nicht – die Spaltendefinitionen lägen maschinenlesbar vor, aber eine generische Tabelle kennt keine Zusammenhänge, etwa dass Gewichtsspalten sich auf 1,0 summieren müssen.
 * **Dateiübergreifende Regeln laufen nicht.** `validateWorld` braucht alle Tabellen gleichzeitig; der Editor hat immer nur eine geladen. Ein Fremdschlüssel auf ein gelöschtes Team fällt damit erst beim Bootstrap auf.
 * **Zeilen anlegen und löschen** kann der Editor nicht, nur Werte ändern.
+
+---
+
+## 26. Karrieremodus: die Engine im Browser
+
+Konzept 14.2. Bis v0.20.0 gab es keinen Spieler – 167 Teams unter KI, und die Oberfläche war ein Betrachter einer fertig gerechneten Welt. Seit M5 vertiefte jeder Meilenstein eine Simulation, die niemand spielte.
+
+### 26.1 Die Messung, die den Weg erst plausibel gemacht hat
+
+Zur Wahl standen die Karriere im Browser, auf der Kommandozeile oder zunächst nur der Adapter. „Im Browser" klang nach einer Portierung von 6 353 Zeilen. Vor der Entscheidung gemessen:
+
+| | |
+| :--- | ---: |
+| Engine-Dateien mit Node-Bezug | **2 von ~20** |
+| `prepare` / `get` / `all` / `run` / `transaction` | 177 / 165 / 97 / 62 / 23 |
+| `pragma` | 1 |
+| `pluck`, `raw`, `iterate`, `lastInsertRowid`, `changes` | **0** |
+
+Die Engine benutzt ausschließlich den gemeinsamen Nenner, den sql.js ebenfalls bedient. Sie reicht `db` durch und ruft daran sechs Methoden – eine Disziplin, die niemand geplant hatte und die sich hier auszahlte.
+
+`engine/db.ts` beschreibt seither genau diesen Nenner; `Database` ist kein Alias auf better-sqlite3 mehr. Der Dateizugriff steht in `savegame.node.ts`, das Gemeinsame in `initSavegame`. Die Saisonschleife lag im Rumpf der CLI und war nicht aufrufbar – die Spielschleife des Spiels war damit in der Datei eingesperrt, die es nie ausliefert. Sie steht jetzt in `engine/loop.ts`, getrennt in `prepareSeasonStart` und `finishSeason`.
+
+**Vier Schritte, vier Hash-Vergleiche.** Schnittstellenschnitt, Schleifen-Extraktion und Spielerteam-Code je einzeln als verhaltensneutral belegt; zum Schluss über drei Saisons mit demselben Seed **alle zehn geprüften Tabellen byte-identisch** zwischen better-sqlite3 und sql.js. Rechenzeit rund 2 s je Saison gegen 1,1 s unter Node.
+
+### 26.2 Zwei Fehler im Adapter, beide erst im Browser sichtbar
+
+`src/data/sqljs.ts` gleicht drei Unterschiede aus: Cursor statt Ergebnisobjekt, benannte Parameter mit Präfix (`{'@season': …}` statt `{season: …}`), Transaktionen über `BEGIN` und `SAVEPOINT`.
+
+**Die erste Fassung bereitete jede Anweisung bei jedem Aufruf neu vor.** Sicher, aber unbrauchbar: Die Vorbereitung der ersten Saison schreibt für 167 Teams Bauteile, Fahrer, Personal und Anlagen, und der Browser kam nach drei Minuten nicht durch.
+
+**Die zweite Fassung mit Zwischenspeicher hielt Leichen.** sql.js gibt vorbereitete Anweisungen frei, sobald `exec()` läuft – und `exec()` läuft bei jedem `BEGIN`, `COMMIT` und `SAVEPOINT`. Fehlerbild: `Statement closed`.
+
+Beides ist der Grund, warum der Adapter heute den Speicher bei `exec()` leert und einen trotzdem geschlossenen Zugriff einmal neu vorbereitet.
+
+**Zum Vorgehen, weil es die eigentliche Lehre ist:** Nach dem ersten Fehlschlag hatte ich einen Wettlauf im asynchronen Neuzeichnen vermutet, ihn plausibel begründet und behoben – der Fehler blieb. Erst als ich aufgehört habe zu raten und die tatsächliche Meldung aus dem Browser geholt habe, war die Ursache in einem Schritt klar. Der Wettlauf war real und ist mitbehoben, aber er war nicht die Ursache.
+
+Dazu ein dritter Fund: `game_state.current_season` stand nach `initSavegame` auf 1, obwohl Saison 1 nicht gefahren war. Die CLI las den Wert nie und zählte selbst; der Karrieremodus liest ihn und bereitete daraus eine Saison vor, deren Vorjahr es nicht gab.
+
+### 26.3 Das Spielerteam und warum die Voreinstellung die KI ist
+
+`game_state.player_team_id` ist die eine Marke, an der die Karriere hängt. `engine/player.ts` hält Lesen, Setzen und den Filter an einer Stelle – bewusst eine Funktion statt fünf `WHERE`-Bedingungen, damit eine neue KI-Routine auffällt, wenn sie den Aufruf nicht hat.
+
+Ausgenommen sind Entwicklung, Anlagenausbau, Personalmarkt, Fahrermarkt und Sponsorenvergabe. **Nicht ausgenommen ist der Zwangsverkauf** – der ist keine Entscheidung, sondern die Folge einer leeren Kasse.
+
+Der Kniff ist `scopeTeams` mit zwei Betriebsarten: ohne Angabe alle außer dem Spieler, mit `onlyTeam` genau dieses eine Team. Damit ist die **Voreinstellung des Spielers exakt das, was die KI für ihn getan hätte** – dieselbe Funktion, nur eingegrenzt. Ohne sie stünde sein Auto in Saison 1 ohne Entwicklung da, während 166 andere zulegen; die Karriere wäre vorbei, bevor er eine Maske gesehen hätte. Eine zweite Fassung der Entwicklungsformel wäre die Alternative gewesen, und zwei Fassungen laufen immer auseinander.
+
+### 26.4 Die fünf Entscheidungsbereiche
+
+| Bereich | Was der Spieler entscheidet |
+| :--- | :--- |
+| Entwicklung | Schwerpunkt je Bauteilgruppe – genau `focus[part_key]`, das die KI über ihren Archetyp setzt |
+| Anlagen | Welche Anlage ausgebaut wird, geprüft gegen Bestand, Höchststufe und Kasse |
+| Personal | Je Rolle die beste vertragslose Alternative |
+| Fahrer | Cockpits einzeln mit vertragslosen Fahrern besetzen |
+| Sponsoren | Angebote der eigenen Liga abschließen |
+
+Zwei Abgrenzungen sind bewusst so:
+
+* **Entwicklung läuft immer**, auch ohne Entscheidung – nur das *Wohin* ist die Wahl. Hätte ich sie wie die anderen vier behandelt, hätte ein Spieler, der die Regler anfasst, die Entwicklung *ersetzt* statt gelenkt.
+* **Der Kostendeckel wird beim Bauen nicht geprüft.** Er ist eine Nachschau am Saisonende (`checkCostCaps`), keine Sperre. Wer ihn reißt, bekommt die Strafe im Folgejahr – und das ist die Entscheidung, um die es geht.
+
+`engine/playerMarket.ts` listet und bucht, es **bewertet nichts**: Wert, Gehalt und Laufzeit stehen bereits in der Datenbank. Dieselbe Überlegung wie beim Editor, der die Regeln des Bootstrappers benutzt statt eigene.
+
+### 26.5 Vorstandsziele
+
+Vorgabe ist der Vorjahresplatz plus eine Position; im ersten Jahr die Mitte des Feldes. Ein Vorstand, der jedes Jahr eine Verbesserung verlangt, feuert zwangsläufig jeden. Vertrauen steigt um vier je Platz über der Vorgabe und fällt um sechs je Platz darunter – die Schieflage ist gewollt. Unter 20 ist Schluss, nie im ersten Jahr.
+
+**Die Skala ist gesetzt, nicht eingemessen.** Im Test sprang das Vertrauen nach einer Saison auf 100: In Tier 10 lautet die Vorgabe „Mittelfeld", Platz 2 bringt +40. Das ist eine erste Setzung und wartet auf eine Messung wie die des Zweikampfs in 22.10.
+
+### 26.6 Der Spielstand
+
+IndexedDB statt localStorage – ein Spielstand ist eine SQLite-Datei von mehreren Megabyte, und IndexedDB speichert Binärdaten ohne den Base64-Aufschlag. Zusätzlich Export und Import als Datei, weil IndexedDB dem Browser gehört und mit einem geleerten Verlauf weg ist. Eine Karriere über zwanzig Saisons darf nicht an einer Browsereinstellung hängen.
+
+`npm run publish` liefert deshalb neben `apex.db` auch `world_data.db` aus: Eine neue Karriere beginnt bei Saison 1, nicht bei 20 – sie braucht die gebootstrappte Welt, nicht die fertig gerechnete. Mit 0,35 MB fällt sie nicht auf.
+
+### 26.7 Was offen bleibt
+
+* **Die Personalmaske zeigt meist „niemand frei".** Gemessen: In Saison 2 gibt es **null** vertragslose Kräfte, über alle Saisons dagegen 825. Ursache ist die Reihenfolge – `beginSeason` lässt den KI-Personalmarkt für 166 Teams laufen, bevor der Spieler den Markt sieht, und der ist dann leergeräumt. Beim Fahrermarkt passiert das nicht, weil `generateNewgens` jede Saison nachfüllt; beim Personal gibt es kein Gegenstück. Das zu ändern ist eine Designentscheidung – der Spieler zieht vor der KI, oder es gibt einen reservierten Pool –, keine Justierung.
+* **Ablösesummen** (Konzept 9.1) sind nicht gebaut. Der Spieler kann deshalb niemanden abwerben, die KI schon.
+* **Die Vorstandsskala ist ungeeicht** (26.5).
+* **Kein Live-Cockpit** (Konzept 11.3). Die Karriere endet an der Saisongrenze; im Rennen entscheidet der Spieler nichts.
+* **Abgeworben werden** – der zweite Karriereweg aus 14.2 – fehlt, ebenso Reputation und das Gründen eines eigenen Teams.
+* Die Karriere rechnet in der Light-Sim. Der Rundenverlauf, den die Tick-Sim erzeugt, steht dem Spieler nicht zur Verfügung.
