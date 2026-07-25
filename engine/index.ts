@@ -137,6 +137,7 @@ function main(): void {
     let newgens = 0;
     let signings = 0;
     let unfilled = 0;
+    let overBudget = 0;
 
     for (let season = 1; season <= options.seasons; season += 1) {
       prepareSeason(db, season);
@@ -155,6 +156,7 @@ function main(): void {
         const market = runMarket(db, season);
         signings += market.signings;
         unfilled += market.unfilled;
+        overBudget += market.overBudget;
       }
 
       const summary = runSeason(db, season, options.tickTier);
@@ -189,6 +191,7 @@ function main(): void {
     console.log(`  Newgens:                ${newgens}`);
     console.log(`  Cockpitwechsel:         ${signings}`);
     console.log(`  Unbesetzte Cockpits:    ${unfilled}`);
+    console.log(`  Ueber Budget besetzt:   ${overBudget}`);
     console.log(`  Rechenzeit:             ${ms.toFixed(0)} ms`);
 
     if (!options.quiet) {

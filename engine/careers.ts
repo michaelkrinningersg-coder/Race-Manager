@@ -12,6 +12,105 @@
 
 import type { Database } from './savegame.js';
 import { createRng, gaussian, seedFrom } from './rng.js';
+import { loadPayoutRules, payoutFor } from './finance.js';
+
+/** Anteil der Ausschuettung, den ein Team in seine beiden Stammfahrer steckt. */
+const DRIVER_BUDGET_SHARE = 0.12;
+
+/**
+ * Gehaltsmodell - die Schranke, die die Fahrerpyramide traegt.
+ *
+ * Der Preis eines Fahrers haengt allein an seiner Guete, nie an der Liga: Ein
+ * 90er kostet in Tier 10 dasselbe wie in Tier 1, nur kann ihn dort niemand
+ * bezahlen. Genau daraus entsteht die Staffelung, die in drivers.csv von Hand
+ * gesetzt ist - ohne sie vergaebe jedes Team, auch das aermste, sein Cockpit an
+ * den besten Verfuegbaren, und die unteren Ligen zoegen binnen zwanzig Saisons
+ * bis auf wenige Punkte an die oberen heran.
+ *
+ * Beide Ankerpunkte kommen aus den Daten, nicht aus einer gesetzten Zahl: der
+ * Preis aus dem Sitzbudget von Tier 1 und Tier 10, die zugehoerige Guete aus
+ * dem Kernwertschnitt der handgepflegten Stammfahrer dieser beiden Ligen. Wer
+ * league_payouts oder drivers.csv nachjustiert, justiert den Markt mit.
+ */
+interface SalaryModel {
+  /** Sitzbudget je Liga bei mittlerer Platzierung - nur als Rueckfallwert. */
+  seatBudget: Map<number, number>;
+  reference: number;
+  quality: number;
+  exponent: number;
+}
+
+function loadSalaryModel(db: Database): SalaryModel {
+  const rules = loadPayoutRules(db);
+  const counts = new Map(
+    (db.prepare('SELECT start_tier tier, COUNT(*) n FROM teams GROUP BY start_tier').all() as Record<
+      string,
+      number
+    >[]).map((row) => [row.tier, row.n]),
+  );
+
+  const seatBudget = new Map<number, number>();
+  for (const [tier, rule] of rules) {
+    const count = counts.get(tier) ?? 16;
+    seatBudget.set(tier, (payoutFor(rule, (count + 1) / 2, count) * DRIVER_BUDGET_SHARE) / 2);
+  }
+
+  const anchors = new Map(
+    (db
+      .prepare(
+        `SELECT t.start_tier tier, AVG((d.pace + d.qualifying + d.braking + d.cornering) / 4.0) q
+         FROM drivers d JOIN teams t ON t.team_id = d.start_team_id
+         WHERE d.is_newgen = 0 AND d.start_role = 'race' AND t.start_tier IN (1, 10)
+         GROUP BY t.start_tier`,
+      )
+      .all() as { tier: number; q: number }[]).map((row) => [row.tier, row.q]),
+  );
+
+  const topBudget = seatBudget.get(1) ?? 1;
+  const bottomBudget = seatBudget.get(10) ?? 1;
+  const topQuality = anchors.get(1) ?? 88;
+  const bottomQuality = anchors.get(10) ?? 37;
+
+  // Der Exponent ist nicht gewaehlt, sondern die Loesung von
+  // topBudget / bottomBudget = (topQuality / bottomQuality) ^ exponent.
+  const exponent = Math.log(topBudget / bottomBudget) / Math.log(topQuality / bottomQuality);
+
+  return { seatBudget, reference: topBudget, quality: topQuality, exponent };
+}
+
+/**
+ * Ab wie vielen Superlizenzpunkten ein Fahrer seinen vollen Marktwert aufruft.
+ * Etwa zwei starke Saisons in einer mittleren Liga.
+ */
+const REPUTATION_FULL = 45;
+
+/** Was ein voellig unbeschriebener Fahrer von seinem spaeteren Wert kostet. */
+const ROOKIE_DISCOUNT = 0.1;
+
+/**
+ * Gehaltsforderung eines Fahrers. Steigt so steil, wie die Ausschuettung faellt
+ * - und wird um den Ruf gedaempft.
+ *
+ * Der Ruf ist nicht Kosmetik, sondern noetig, damit sich Superlizenz- und
+ * Geldschranke nicht gegenseitig zuschnueren. Ohne ihn sass ein schneller
+ * Neunzehnjaehriger in der Falle: Fuer Tier 1-4 fehlten ihm die Punkte, fuer
+ * Tier 5-10 war er zu teuer. Er fuhr nie, verdiente nie Punkte und die Spitze
+ * blutete aus - gemessen fiel der Kernwert der Tier-1-Fahrer in zwanzig
+ * Saisons von 89 auf 74, waehrend im freien Pool dauerhaft ein 82er sass, den
+ * niemand verpflichten konnte.
+ *
+ * Mit dem Ruf unterschreibt ein Rookie billig dort, wo er darf, faehrt sich
+ * Punkte heraus und wird beim naechsten Vertrag teuer - der uebliche Weg nach
+ * oben. Ein alternder Fahrer wird ueber den fallenden Kernwert von selbst
+ * wieder billiger und findet weiter unten ein Cockpit.
+ */
+function askingSalary(model: SalaryModel, quality: number, superlicencePoints: number): number {
+  const market = model.reference * Math.pow(Math.max(1, quality) / model.quality, model.exponent);
+  const reputation =
+    ROOKIE_DISCOUNT +
+    (1 - ROOKIE_DISCOUNT) * Math.min(1, Math.max(0, superlicencePoints) / REPUTATION_FULL);
+  return Math.round(market * reputation);
+}
 
 const ATTRIBUTES = [
   'pace',
@@ -46,6 +145,8 @@ export interface CareerSummary {
   promotedFromJunior: number;
   /** Cockpits, fuer die sich kein zugelassener Fahrer fand. */
   unfilled: number;
+  /** Cockpits, die nur ueber dem Fahrerbudget zu besetzen waren. */
+  overBudget: number;
 }
 
 /**
@@ -406,12 +507,38 @@ export function runMarket(db: Database, season: number): CareerSummary {
     contract_until: number | null;
   }[];
 
+  // Fahrerbudget eines Teams: sein Anteil an der Ausschuettung, die es in
+  // seiner *neuen* Liga zu erwarten hat. Bezugspunkt ist die Platzierung der
+  // Vorsaison - der Meister einer Liga hat mehr fuer Fahrer uebrig als ihr
+  // Letzter, und ein Aufsteiger rechnet bereits mit dem Geld der neuen Liga.
+  const salaries = loadSalaryModel(db);
+  const payoutRules = loadPayoutRules(db);
+  const teamCounts = new Map(
+    (db.prepare('SELECT tier, COUNT(*) n FROM team_seasons WHERE season = ? GROUP BY tier')
+      .all(season) as Record<string, number>[]).map((row) => [row.tier, row.n]),
+  );
+  const priorRank = new Map(
+    (db.prepare('SELECT team_id, final_rank FROM team_seasons WHERE season = ?').all(season - 1) as {
+      team_id: number;
+      final_rank: number | null;
+    }[]).map((row) => [row.team_id, row.final_rank]),
+  );
+
+  const budgetFor = (teamId: number, tier: number): number => {
+    const rule = payoutRules.get(tier);
+    const count = teamCounts.get(tier) ?? 16;
+    if (!rule) return salaries.seatBudget.get(tier) ?? 0;
+    const rank = Math.min(count, priorRank.get(teamId) ?? Math.round((count + 1) / 2));
+    return (payoutFor(rule, rank, count) * DRIVER_BUDGET_SHARE) / 2;
+  };
+
   const summary: CareerSummary = {
     retired: 0,
     newgens: 0,
     signings: 0,
     promotedFromJunior: 0,
     unfilled: 0,
+    overBudget: 0,
   };
 
   const run = db.transaction(() => {
@@ -456,30 +583,47 @@ export function runMarket(db: Database, season: number): CareerSummary {
        VALUES (?, ?, 'signed', ?, ?, ?)`,
     );
 
+    const selectCandidates = db.prepare(
+      `SELECT * FROM driver_state
+       WHERE season = ? AND retired = 0 AND role != 'race'
+         AND superlicence_points >= ?
+       ORDER BY (pace + qualifying + braking + cornering) DESC, driver_id`,
+    );
+
     for (const vacancy of vacancies) {
       const required = superlicenceMin.get(vacancy.tier) ?? 0;
       // Kandidat ist jeder, der kein Stammcockpit hat - Free Agents ebenso wie
       // Junioren und Ersatzfahrer des eigenen oder eines fremden Teams.
-      const candidates = db
-        .prepare(
-          `SELECT * FROM driver_state
-           WHERE season = ? AND retired = 0 AND role != 'race'
-             AND superlicence_points >= ?
-           ORDER BY (pace + qualifying + braking + cornering) DESC, driver_id
-           LIMIT 1`,
-        )
-        .all(season, required) as StateRow[];
+      const candidates = selectCandidates.all(season, required) as StateRow[];
 
       if (candidates.length === 0) {
         summary.unfilled += 1;
         continue;
       }
-      const pick = candidates[0];
+
+      const budget = budgetFor(vacancy.teamId, vacancy.tier);
+      // Was ein Fahrer das Team netto kostet. Ein Pay-Driver bringt sein Budget
+      // mit und senkt damit den Preis - genau dafuer steht pay_driver_budget in
+      // drivers.csv.
+      const netCost = (row: StateRow): number =>
+        askingSalary(salaries, quality(row), (row.superlicence_points as number) ?? 0) -
+        ((row.pay_driver_budget as number) ?? 0);
+
+      // Der beste Fahrer, den dieses Team bezahlen kann.
+      let pick = candidates.find((row) => netCost(row) <= budget);
+      if (!pick) {
+        // Ein Team muss zwei Autos an den Start bringen. Findet sich niemand im
+        // Rahmen, wird der guenstigste ueber Budget verpflichtet.
+        pick = candidates.reduce((best, row) => (netCost(row) < netCost(best) ? row : best));
+        summary.overBudget += 1;
+      }
+
       const rng = createRng(seedFrom(worldSeed, season, vacancy.teamId, vacancy.seat, 13));
-      // Laufzeit 1 bis 4 Jahre, Gehalt aus Ligastufe und Fahrerguete.
       const years = 1 + Math.floor(rng() * 4);
-      const salary = Math.round(
-        Math.pow(10, 7 - (vacancy.tier - 1) * 0.28) * Math.pow(quality(pick) / 70, 3),
+      const salary = askingSalary(
+        salaries,
+        quality(pick),
+        (pick.superlicence_points as number) ?? 0,
       );
       sign.run(vacancy.teamId, vacancy.seat, season + years, salary, pick.driver_id as number, season);
       noteSigning.run(

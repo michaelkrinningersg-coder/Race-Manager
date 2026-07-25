@@ -23,6 +23,14 @@ import { createRng, gaussian, seedFrom } from './rng.js';
  */
 const SEASON_GAIN = 0.2;
 
+/**
+ * Anschubhilfe fuer den Aufsteiger in seiner ersten Saison in der neuen Liga.
+ * Er entwickelt gegen den hoeheren Deckel dieser Liga - der Saettigungsterm
+ * laesst ihm dort ohnehin mehr Luft als den Etablierten, der Faktor
+ * beschleunigt nur, wie schnell er sie nutzt.
+ */
+const PROMOTION_CATCH_UP = 1.6;
+
 /** Aggregiertes Wochenrauschen: Mittel leicht ueber 1, Streuung schmal. */
 const NOISE_MEAN = 1.025;
 const NOISE_SD = 0.045;
@@ -89,7 +97,7 @@ export function developParts(
   // und Ressourcenterm.
   const previous = db
     .prepare(
-      `SELECT ts.team_id, ts.tier, ts.final_rank, t.ai_archetype,
+      `SELECT ts.team_id, ts.tier, ts.final_rank, ts.movement, t.ai_archetype,
               COALESCE(f.payout, 0) AS payout
        FROM team_seasons ts
        JOIN teams t ON t.team_id = ts.team_id
@@ -179,6 +187,33 @@ export function developParts(
       // Designentscheidung, keine weitere Justierung.
       const homologation = newTier < oldTier ? 1.08 : 1;
 
+      // Aufsteiger-Bonus (getroffene Entscheidung).
+      //
+      // Ein Aufsteiger kommt mit einem Auto an, das unter dem Deckel seiner
+      // alten Liga gebaut wurde, und trifft dort auf Autos am neuen Deckel. Er
+      // haelt sich, aber er gewinnt nicht - gemessen erreichte in zwanzig
+      // Saisons kein einziges Team einen Netto-Aufstieg von zwei Stufen, und
+      // 44 von 167 Teams bewegten sich ueberhaupt nicht. Der Bonus gilt genau
+      // eine Saison, naemlich die erste in der neuen Liga, und laeuft danach
+      // von selbst aus - er ist kein zweiter Deckel, sondern eine Anschubhilfe.
+      const promoted = row.movement === 'promoted' || row.movement === 'promoted_barrage';
+      const catchUp = promoted ? PROMOTION_CATCH_UP : 1;
+
+      // Ein Aufsteiger entwickelt gegen den Deckel der Liga, in der sein Auto
+      // *fahren* wird, nicht gegen den, unter dem es gebaut wurde. Am alten
+      // Deckel gemessen bliebe ihm kein Spielraum - sein Saettigungsterm waere
+      // nahe null, ausgerechnet in der Saison, in der er aufholen muss. Das war
+      // der strukturelle Grund, warum kein Team je zweimal hintereinander
+      // aufstieg.
+      //
+      // Fuer Absteiger und Verbleibende bleibt der alte Deckel massgeblich.
+      // Auch den Absteiger am neuen, niedrigeren Deckel zu messen, wurde
+      // ausprobiert und verworfen: Er entwickelte dann gar nicht mehr weiter,
+      // war mit seinem gekappten Auto unten trotzdem ueberlegen, und die Quote
+      // der direkten Wiederaufstiege stieg ueber 20 Saisons von 60 auf 71
+      // Prozent.
+      const capRegulation = newTier < oldTier ? newRegulation : oldRegulation;
+
       const rng = createRng(seedFrom(worldSeed, toSeason, teamId));
       teams += 1;
 
@@ -204,7 +239,7 @@ export function developParts(
           continue;
         }
 
-        const cap = oldRegulation[`cap_${type.part_key}`];
+        const cap = capRegulation[`cap_${type.part_key}`];
         const headroom = Math.max(0, 1 - existing.performance / cap);
         const saturation = Math.pow(headroom, 1.3);
 
@@ -223,6 +258,7 @@ export function developParts(
           atr *
           feedbackTerm *
           saturation *
+          catchUp *
           noise;
 
         const performance = Math.round((existing.performance + delta) * homologation);
