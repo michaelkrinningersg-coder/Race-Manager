@@ -6,3 +6,7 @@ dist/
 build/
 *.local
 .DS_Store
+
+# Auslieferdatei der Webansicht - entsteht aus "npm run world"
+public/apex.db
+public/sql-wasm.wasm

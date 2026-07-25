@@ -514,11 +514,443 @@ code {
   text-align: center;
 }
 
+/* ---------- Ladebildschirm ---------- */
+
+.boot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  min-height: 100vh;
+  padding: 2rem;
+  text-align: center;
+}
+
+.boot__title {
+  margin: 0.4rem 0 0;
+  font-size: 1.3rem;
+  font-weight: 650;
+}
+
+.boot__bar {
+  width: min(420px, 80vw);
+  height: 6px;
+  overflow: hidden;
+  background: var(--bg-elevated);
+  border-radius: 999px;
+}
+
+.boot__fill {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  border-radius: 999px;
+  transition: width 0.2s ease-out;
+}
+
+.boot__hint {
+  margin: 0;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.boot__note {
+  max-width: 46ch;
+  margin: 0.4rem 0 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+/* ---------- Saisonwechsler ---------- */
+
+.season-picker {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.season-picker__label {
+  color: var(--muted);
+  font-size: 0.78rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.season-picker__select {
+  padding: 0.35rem 0.6rem;
+  color: var(--text);
+  font: inherit;
+  font-size: 0.85rem;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+/* ---------- Ligaverlauf ---------- */
+
+.ladder {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 120px;
+  padding: 0.6rem 0.4rem 0;
+  overflow-x: auto;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.ladder__step {
+  display: flex;
+  flex: 1 0 22px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  height: 100%;
+  gap: 0.25rem;
+}
+
+.ladder__bar {
+  width: 100%;
+  height: var(--h);
+  background: linear-gradient(180deg, var(--accent), rgba(255, 90, 31, 0.35));
+  border-radius: 4px 4px 0 0;
+  opacity: 0.55;
+  transition: opacity 0.15s;
+}
+
+.ladder__step:hover .ladder__bar,
+.ladder__step.is-current .ladder__bar {
+  opacity: 1;
+}
+
+.ladder__season {
+  color: var(--muted);
+  font-size: 0.62rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.ladder__step.is-current .ladder__season {
+  color: var(--text);
+  font-weight: 700;
+}
+
+/* ---------- Anlagen ---------- */
+
+.facilities {
+  display: grid;
+  gap: 0.4rem;
+  margin: 0.8rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.facility {
+  display: grid;
+  align-items: center;
+  gap: 0.8rem;
+  grid-template-columns: minmax(190px, 1.3fr) auto 74px minmax(140px, 0.8fr);
+  padding: 0.5rem 0.75rem;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.facility__name {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-weight: 600;
+}
+
+.facility__pips {
+  display: inline-flex;
+  gap: 4px;
+}
+
+.pip {
+  width: 13px;
+  height: 13px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+}
+
+.pip.is-filled {
+  background: var(--accent);
+  border-color: transparent;
+}
+
+.facility__level {
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.facility__cost {
+  color: var(--text);
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+/* ---------- Chronik: Ausbauten, Ereignisse ---------- */
+
+.moves,
+.events,
+.denials {
+  display: grid;
+  gap: 0.3rem;
+  margin: 0.6rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.move,
+.event {
+  display: grid;
+  align-items: baseline;
+  gap: 0.7rem;
+  grid-template-columns: 44px minmax(0, 1fr) auto auto;
+  padding: 0.4rem 0.7rem;
+  background: var(--bg-elevated);
+  border-left: 3px solid var(--border);
+  border-radius: 0 8px 8px 0;
+  font-size: 0.86rem;
+}
+
+.event {
+  grid-template-columns: 44px 130px minmax(0, 1fr);
+}
+
+.move--built {
+  border-left-color: var(--promotion);
+}
+
+.move--forced_sale {
+  border-left-color: var(--relegation);
+}
+
+.move__season,
+.event__season {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.move__label,
+.event__label {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.move__amount {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.event__detail {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.denials li {
+  padding: 0.45rem 0.7rem;
+  background: var(--bg-elevated);
+  border-left: 3px solid var(--barrage);
+  border-radius: 0 8px 8px 0;
+  font-size: 0.86rem;
+}
+
+.denial-reason {
+  display: block;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+/* ---------- Marken ---------- */
+
+.tag {
+  padding: 0.08rem 0.4rem;
+  border-radius: 999px;
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.tag--newgen {
+  background: rgba(52, 209, 127, 0.16);
+  color: var(--promotion);
+}
+
+.tag--licence {
+  background: rgba(255, 90, 31, 0.16);
+  color: var(--accent);
+}
+
+.tag--pole {
+  background: rgba(60, 130, 255, 0.18);
+  color: #7fb0ff;
+}
+
+.tag--fl {
+  background: rgba(186, 104, 255, 0.18);
+  color: #c79bff;
+}
+
+/* ---------- Rennen ---------- */
+
+.race-chips {
+  display: grid;
+  gap: 0.4rem;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  margin-top: 0.7rem;
+}
+
+.race-chip {
+  display: grid;
+  align-items: center;
+  gap: 0.1rem 0.6rem;
+  grid-template-areas: 'round track' 'round country';
+  grid-template-columns: 28px minmax(0, 1fr);
+  padding: 0.45rem 0.6rem;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  font-size: 0.82rem;
+}
+
+.race-chip:hover {
+  border-color: var(--accent);
+}
+
+.race-chip__round {
+  grid-area: round;
+  color: var(--accent);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.race-chip__track {
+  grid-area: track;
+  overflow: hidden;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.race-chip__country {
+  grid-area: country;
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+.leg-switch {
+  display: inline-flex;
+  gap: 0.3rem;
+  margin-bottom: 0.9rem;
+  padding: 0.2rem;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+}
+
+.leg-switch__item {
+  padding: 0.25rem 0.8rem;
+  border-radius: 999px;
+  font-size: 0.82rem;
+}
+
+.leg-switch__item.is-active {
+  background: var(--accent);
+  color: #10141c;
+  font-weight: 700;
+}
+
+.row--dnf td {
+  color: var(--muted);
+}
+
+.row--denied {
+  background: rgba(244, 192, 47, 0.07);
+}
+
+.gain--up {
+  color: var(--promotion);
+}
+
+.gain--down {
+  color: var(--relegation);
+}
+
+/* ---------- Positionsverlauf ---------- */
+
+.chart-scroll {
+  overflow-x: auto;
+  margin-top: 0.7rem;
+  padding: 0.6rem;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.chart {
+  display: block;
+  min-width: 620px;
+  width: 100%;
+  color: var(--muted);
+}
+
+.chart__tick {
+  fill: currentColor;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.chart__tick--x {
+  text-anchor: middle;
+}
+
+.lapline path {
+  transition: opacity 0.12s;
+}
+
+.chart:hover .lapline path {
+  opacity: 0.3;
+}
+
+.chart .lapline:hover path {
+  opacity: 1;
+  stroke-width: 2.6;
+}
+
+/* ---------- Kompakte Tabelle ---------- */
+
+.table--compact th,
+.table--compact td {
+  padding: 0.35rem 0.5rem;
+  font-size: 0.82rem;
+}
+
+.table tbody tr.is-current {
+  background: rgba(255, 90, 31, 0.1);
+}
+
 /* ---------- Responsiv ---------- */
 
 @media (max-width: 860px) {
   .layout {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  /* Rasterkinder duerfen nicht breiter werden als die Spalte. Ohne min-width: 0
+     erzwingt der breiteste Inhalt - hier die Ligaleiste - die Breite der
+     gesamten Seite, und das Layout laeuft waagerecht ueber. */
+  .layout > * {
+    min-width: 0;
   }
 
   .sidebar {
@@ -547,5 +979,24 @@ code {
 
   .part__value {
     text-align: left;
+  }
+
+  .facility {
+    grid-template-columns: 1fr auto;
+    gap: 0.3rem 0.6rem;
+  }
+
+  .facility__cost {
+    text-align: left;
+  }
+
+  .move,
+  .event {
+    grid-template-columns: 40px minmax(0, 1fr);
+  }
+
+  .topbar {
+    flex-wrap: wrap;
+    gap: 0.6rem;
   }
 }

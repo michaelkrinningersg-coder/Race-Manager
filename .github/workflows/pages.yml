@@ -28,6 +28,14 @@ jobs:
       - name: Abhaengigkeiten installieren
         run: npm ci
 
+      # Die Seite zeigt kein erfundenes Beispiel mehr, sondern das Erzeugnis der
+      # Engine. Es entsteht hier statt im Repo: `data/*.csv` sind die Wahrheit,
+      # die Datenbank ist Erzeugnis und hat unter Versionskontrolle nichts
+      # verloren. Kostet rund eine halbe Minute und laesst jede Aenderung an den
+      # Stammdaten oder am Balancing automatisch auf die Seite durchschlagen.
+      - name: Welt erzeugen (Bootstrap, 20 Saisons, Auslieferdatei)
+        run: npm run world
+
       - name: Typen pruefen und bauen
         run: npm run build
 

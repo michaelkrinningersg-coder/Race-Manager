@@ -49,10 +49,22 @@ export function renderConcept(): string {
 
       <h2>Diese Seite</h2>
       <p>
-        Der Ligen-Explorer zeigt eine deterministisch erzeugte Beispielwelt: 167 Teams,
-        334 Stammfahrer, jede Liga über eine volle Saison im Light-Sim-Verfahren
-        durchgerechnet. Gleicher Seed, gleiche Welt – die Tabellen sind bei jedem Aufruf
-        identisch.
+        Was hier steht, ist kein Beispiel, sondern das Ergebnis der Engine. Der
+        Bootstrapper prüft die handgepflegten Stammdaten aus <code>data/*.csv</code> und
+        erzeugt daraus die Welt; die Engine simuliert zwanzig Saisons mit Rennen, Auf- und
+        Abstieg, Bauteilentwicklung, Fahrerkarrieren, Personal und Infrastruktur. Das
+        Ergebnis wird als SQLite-Datenbank ausgeliefert und im Browser abgefragt – daher
+        der kurze Ladebalken beim ersten Aufruf.
+      </p>
+      <p>
+        Alles bleibt deterministisch: gleicher Seed, gleiche Welt. Die Tabellen sind bei
+        jedem Aufruf identisch, und eine geänderte CSV-Zeile schlägt beim nächsten
+        Deployment bis in die letzte Fahrerakte durch.
+      </p>
+      <p class="muted small">
+        Den Rundenverlauf gibt es nur für die Schlusssaison der obersten Liga – zwanzig
+        Saisons rundenweise wären rund 570.000 Datenzeilen und über 60 MB gewesen. Alle
+        übrigen Rennen liefern Ergebnisse, aber keinen Verlauf.
       </p>
       <p>
         Das vollständige Designdokument liegt im Repository unter

@@ -7,6 +7,7 @@
  *   npm run season -- --seed 20260724
  *   npm run season -- --world <pfad> --out <pfad>
  *   npm run season -- --tick-tier 1   # Tier 1 rundenweise statt Light-Sim
+ *   npm run season -- --tick-tier 1 --tick-from 20   # nur in Saison 20
  *   npm run season -- --quiet         # nur die Kennzahlen, keine Tabellen
  */
 
@@ -37,6 +38,13 @@ interface Options {
   seed: number;
   seasons: number;
   tickTier: number;
+  /**
+   * Ab welcher Saison die Tick-Sim greift. Der Rundenverlauf ist mit Abstand
+   * die groesste Tabelle - eine Tier-1-Saison bringt rund 28.000 Zeilen, zwanzig
+   * davon sprengen jede Auslieferdatei. Fuer die Webansicht laeuft die Tick-Sim
+   * deshalb nur in der Schlusssaison.
+   */
+  tickFrom: number;
   quiet: boolean;
 }
 
@@ -47,6 +55,7 @@ function parseArgs(argv: string[]): Options {
     seed: 20260724,
     seasons: 1,
     tickTier: 0,
+    tickFrom: 1,
     quiet: false,
   };
   for (let i = 0; i < argv.length; i += 1) {
@@ -57,6 +66,7 @@ function parseArgs(argv: string[]): Options {
     else if (arg === '--seed') options.seed = Number(argv[++i]);
     else if (arg === '--seasons') options.seasons = Number(argv[++i]);
     else if (arg === '--tick-tier') options.tickTier = Number(argv[++i]);
+    else if (arg === '--tick-from') options.tickFrom = Number(argv[++i]);
     else {
       console.error(`Unbekannte Option: ${arg}`);
       process.exit(2);
@@ -126,7 +136,12 @@ function main(): void {
   console.log(`  Savegame: ${options.savePath}`);
   console.log(`  Seed:     ${options.seed}`);
   console.log(`  Saisons:  ${options.seasons}`);
-  if (options.tickTier > 0) console.log(`  Tick-Sim: Tier ${options.tickTier}`);
+  if (options.tickTier > 0) {
+    console.log(
+      `  Tick-Sim: Tier ${options.tickTier}` +
+        (options.tickFrom > 1 ? ` ab Saison ${options.tickFrom}` : ''),
+    );
+  }
 
   const db = createSavegame(options.worldPath, options.savePath, options.seed);
 
@@ -181,7 +196,8 @@ function main(): void {
         overBudget += market.overBudget;
       }
 
-      const summary = runSeason(db, season, options.tickTier);
+      const tickTier = season >= options.tickFrom ? options.tickTier : 0;
+      const summary = runSeason(db, season, tickTier);
       buildStandings(db, season);
       applyFinances(db, season);
       // Zwangsverkauf direkt nach der Bilanz und noch vor der Lizenzpruefung:
