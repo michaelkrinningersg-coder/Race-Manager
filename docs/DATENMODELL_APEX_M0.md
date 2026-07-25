@@ -391,22 +391,35 @@ Die neun Bauteilgruppen als Typdefinition (Konzept 6.1). Kein Teambestand – de
 | `carry_over_default` | REAL | 0.0–1.0 | ✓ | Werterhalt bei Reglementwechsel (Konzept 5.3: Aero ~0.3, Bremsen ~0.9) |
 | `supplied_by_engine` | INT | 0/1 | ✓ | `1` für `powertrain` und `ers` – kommt vom Hersteller, nicht aus der eigenen Entwicklung (Konzept 6.6) |
 
-### Inhalt – qualitative Spalten belegt, numerische offen
+### Herleitung der numerischen Spalten
+
+Die Werte sind nicht frei gesetzt, sondern aus dem Konzept abgeleitet:
+
+| Spalte | Herleitung |
+| :--- | :--- |
+| `carry_over_default` | Konzept 5.3 nennt zwei Ankerwerte: Aerodynamik ~0.3, Bremsen ~0.9. Die übrigen Gruppen liegen dazwischen, gestaffelt danach, wie stark ein Formelwechsel sie entwertet |
+| `base_failure_rate` | Anteile an der Gesamt-Ausfallrate, gewichtet nach dem Zielkonflikt aus Konzept 6.1: Antriebseinheit trägt „Leistung ↔ Zuverlässigkeit" und damit den größten Anteil |
+| `damage_prone` | Konzept 6.1 nennt beim Frontflügel ausdrücklich die „Anfälligkeit für Schäden"; das Chassis ist als Crash-Struktur das Gegenstück |
+| `dev_constant_k` | Entwicklungstempo: Aerodynamik iteriert schnell im Windkanal, die Antriebseinheit ist durch Homologation und lange Vorlaufzeiten am trägsten |
 
 ```csv
 part_key,name,sort_order,primary_effect,conflict,dev_constant_k,base_failure_rate,damage_prone,weight_reference_kg,carry_over_default,supplied_by_engine
-chassis,Monocoque / Chassis,1,"Gesamtsteifigkeit, Gewicht, Crash-Sicherheit",Steifigkeit vs. Gewicht,,,,,,0
-front_wing,Frontfluegel & Nase,2,"Frontgrip, Balance",Abtrieb vs. Empfindlichkeit,,,,,,0
-rear_wing,Heckfluegel,3,Topspeed vs. Kurvenabtrieb,direkt im Setup einstellbar,,,,,,0
-floor,Unterboden / Diffusor,4,Abtrieb ohne Luftwiderstand,Performance vs. Fahrbarkeit,,,,,,0
-powertrain,Antriebseinheit,5,"Leistung, Verbrauch, Standfestigkeit, Hitze",Leistung vs. Zuverlaessigkeit,,,,,,1
-ers,Energierueckgewinnung,6,"Beschleunigung, Ueberholhilfe",Effizienz vs. Gewicht,,,,,,1
-gearbox,Getriebe,7,"Beschleunigung, Schaltverluste",Uebersetzung vs. Topspeed,,,,,,0
-suspension,Fahrwerk & Aufhaengung,8,"Mechanischer Grip, Reifenverschleiss",Haerte vs. Reifenschonung,,,,,,0
-brakes,Bremsen & Kuehlung,9,"Bremspunkte, Hitzemanagement",Kuehlung vs. Luftwiderstand,,,,,,0
+chassis,Monocoque / Chassis,1,"Gesamtsteifigkeit, Gewicht, Crash-Sicherheit",Steifigkeit vs. Gewicht,0.70,0.04,0.05,120,0.55,0
+front_wing,Frontfluegel & Nase,2,"Frontgrip, Balance",Abtrieb vs. Empfindlichkeit,1.30,0.06,0.90,12,0.30,0
+rear_wing,Heckfluegel,3,Topspeed vs. Kurvenabtrieb,direkt im Setup einstellbar,1.20,0.04,0.40,10,0.30,0
+floor,Unterboden / Diffusor,4,Abtrieb ohne Luftwiderstand,Performance vs. Fahrbarkeit,1.15,0.05,0.55,25,0.30,0
+powertrain,Antriebseinheit,5,"Leistung, Verbrauch, Standfestigkeit, Hitze",Leistung vs. Zuverlaessigkeit,0.60,0.28,0.12,150,0.70,1
+ers,Energierueckgewinnung,6,"Beschleunigung, Ueberholhilfe",Effizienz vs. Gewicht,0.80,0.16,0.10,40,0.65,1
+gearbox,Getriebe,7,"Beschleunigung, Schaltverluste",Uebersetzung vs. Topspeed,0.85,0.15,0.15,45,0.80,0
+suspension,Fahrwerk & Aufhaengung,8,"Mechanischer Grip, Reifenverschleiss",Haerte vs. Reifenschonung,1.00,0.10,0.45,60,0.75,0
+brakes,Bremsen & Kuehlung,9,"Bremspunkte, Hitzemanagement",Kuehlung vs. Luftwiderstand,1.05,0.12,0.20,30,0.90,0
 ```
 
-**Validierung:** genau 9 Zeilen · `part_key` deckungsgleich mit den `cap_*`-Spalten in `league_regulations.csv` · Summe `base_failure_rate` = 1.0 · genau zwei Zeilen mit `supplied_by_engine = 1`.
+Zwei Muster fallen dabei zusammen und sind gewollt: Was schnell entwickelt (`dev_constant_k` hoch), verliert beim Reglementwechsel am meisten (`carry_over_default` niedrig) – die Aerodynamik ist Hochrisiko-Investition. Was langsam wächst, hält dafür. Genau daraus entsteht die Frage, die ein Reglementwechsel dem Spieler stellt.
+
+`weight_reference_kg` summiert sich auf 492 kg und ist **keine vollständige Massenbilanz** – Kühlung, Elektronik, Karosserie, Sitz, Räder und Fahrer stecken nicht darin. Es ist ausschließlich die Bezugsgröße, gegen die `weight_delta` eines Bauteils gerechnet wird.
+
+**Validierung:** genau 9 Zeilen · `part_key` deckungsgleich mit den `cap_*`-Spalten in `league_regulations.csv` · Summe `base_failure_rate` = 1.0 · genau zwei Zeilen mit `supplied_by_engine = 1` · `carry_over_default` der drei Aero-Gruppen identisch.
 
 ---
 
@@ -463,15 +476,17 @@ team_id,name,short_name,code,country,city,founded_year,start_tier,colour_primary
 | `country` | TEXT | ISO-3 | ✓ | |
 | `birth_year` | INT | | ✓ | **Nicht `age`** – das Alter ergibt sich aus der laufenden Saison und altert dadurch automatisch mit |
 
-### 12.2 Die 16 Attribute (je 0–100)
+### 12.2 Die 17 Attribute (je 0–100)
 
 | Kategorie | Spalten |
 | :--- | :--- |
-| Speed | `pace`, `qualifying`, `braking`, `cornering` |
+| Speed | `pace`, `qualifying`, `braking`, `cornering`, `car_control` |
 | Racecraft | `overtaking`, `defending`, `starts`, `racecraft_traffic` |
 | Kopf | `consistency`, `pressure`, `aggression` |
 | Technik | `feedback`, `tyre_management`, `fuel_saving` |
 | Kondition | `fitness`, `wet_skill` |
+
+`car_control` ist Fahrzeugbeherrschung am Limit: Bodenwellen, Randsteine, rutschiger Untergrund, Abfangen eines ausbrechenden Hecks. Es trägt den Streckenarchetyp „Bumpy Street" (Konzept 10) und wirkt zusätzlich auf die Fehlerwahrscheinlichkeit bei hoher `aggression` und auf Nässe. Als eigenes gepflegtes Attribut erlaubt es das Profil, auf das es ankommt: ein Fahrer, der auf Straßenkursen über sich hinauswächst, ohne generell schneller zu sein.
 
 `aggression` ist ausdrücklich **kein Gütewert**, sondern eine Charaktereigenschaft: hoch bedeutet mehr Zeitgewinn *und* mehr Fehler. Der Validator prüft deshalb nicht auf eine „gute" Ausprägung.
 
@@ -494,7 +509,7 @@ team_id,name,short_name,code,country,city,founded_year,start_tier,colour_primary
 
 ### Beispielzeilen
 
-Zur Lesbarkeit hier nur die Kopf- und Vertragsspalten sowie vier der 16 Attribute; die echte Datei führt alle Spalten in der oben festgelegten Reihenfolge.
+Zur Lesbarkeit hier nur die Kopf- und Vertragsspalten sowie vier der 17 Attribute; die echte Datei führt alle Spalten in der oben festgelegten Reihenfolge.
 
 ```csv
 driver_id,first_name,last_name,country,birth_year,pace,qualifying,consistency,tyre_management,...,potential,ego,start_team_id,start_role,start_seat,contract_until_season,salary,pay_driver_budget
@@ -650,6 +665,7 @@ CREATE TABLE drivers (
   qualifying           INTEGER NOT NULL,
   braking              INTEGER NOT NULL,
   cornering            INTEGER NOT NULL,
+  car_control          INTEGER NOT NULL,
   overtaking           INTEGER NOT NULL,
   defending            INTEGER NOT NULL,
   starts               INTEGER NOT NULL,
@@ -721,7 +737,7 @@ Der Bootstrapper enthält **keinen Zufall**. Gleiche CSVs erzeugen eine byteweis
 
 ## 15. Autorenleitfaden für die handgepflegten Bestände
 
-167 Teams und 450 Fahrer von Hand zu setzen, ist die größte Einzelaufgabe in M0. Ohne Leitplanken entsteht dabei ein Bestand, in dem Tier 7 stärker ist als Tier 5. Die folgenden Vorgaben sind **Vorschläge und noch nicht beschlossen** (siehe 16.5), aber sie zeigen, welche Art von Vorgabe die Handpflege braucht.
+167 Teams und 450 Fahrer von Hand zu setzen, ist die größte Einzelaufgabe in M0. Ohne Leitplanken entsteht dabei ein Bestand, in dem Tier 7 stärker ist als Tier 5. Die folgenden Vorgaben sind **verbindlich** – der Validator prüft sie als Warnungen, nicht als Fehler, weil bewusste Ausreißer erlaubt bleiben sollen.
 
 ### 15.1 Fahrer-Kontingent
 
@@ -735,15 +751,66 @@ Der Bootstrapper enthält **keinen Zufall**. Gleiche CSVs erzeugen eine byteweis
 
 ### 15.2 Leistungsbänder je Liga
 
-Damit die Pyramide von oben nach unten trägt, braucht jede Liga ein Band für den Durchschnitt der vier Kernattribute (`pace`, `qualifying`, `braking`, `cornering`) – mit **bewusster Überlappung** zur Nachbarliga, denn ein Tier-3-Spitzenfahrer muss besser sein als ein Tier-2-Hinterbänkler. Sonst wäre der Fahrermarkt zwischen den Ligen tot.
+Maßgeblich ist der Durchschnitt der vier Kernattribute `pace`, `qualifying`, `braking`, `cornering` (ohne `car_control` – das ist ein Spezialistenwert und soll die Einordnung nicht verzerren).
 
-### 15.3 Altersstruktur
+Bandbreite **8 Punkte**, Schrittweite zwischen benachbarten Ligen **6 Punkte**. Daraus ergibt sich eine Überlappung von 2 Punkten, also **einem Viertel der Bandbreite**:
+
+| Tier | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| Kernschnitt | 87–95 | 81–89 | 75–83 | 69–77 | 63–71 | 57–65 | 51–59 | 45–53 | 39–47 | 33–41 |
+
+Der beste Fahrer einer Liga liegt damit knapp über dem schwächsten der nächsthöheren – der Aufsteiger kann zwei, drei Leute mitnehmen, muss aber nachlegen. Formel: `min = 87 − 6 × (tier − 1)`, `max = min + 8`.
+
+### 15.3 Prestige-Bänder je Liga
+
+Gleiche Logik für `prestige` in `teams.csv`, mit Bandbreite 18 und Schrittweite 8,5:
+
+| Tier | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| Prestige | 78–96 | 70–88 | 61–79 | 53–71 | 44–62 | 36–54 | 27–45 | 19–37 | 10–28 | 2–20 |
+
+Ausdrücklich erwünschte Ausreißer nach oben: „gefallene Riesen" mit `history_best_tier` deutlich über `start_tier` behalten einen Teil ihres Prestiges. Etwa jedes zehnte Team in Tier 5–9 sollte so angelegt sein.
+
+### 15.4 Pay-Driver-Anteil je Liga
+
+Steil ansteigend nach unten – in Tier 1–2 gibt es keine Pay Driver, in Tier 10 finanziert die Mehrheit der Cockpits sich selbst:
+
+| Tier | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 |
+| :--- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Anteil | 0 % | 0 % | 5 % | 12 % | 30 % | 38 % | 45 % | 50 % | 55 % | 60 % |
+| Cockpits | 22 | 24 | 28 | 32 | 32 | 36 | 36 | 40 | 40 | 44 |
+| **Pay Driver** | **0** | **0** | **1** | **4** | **10** | **14** | **16** | **20** | **22** | **26** |
+
+Summe: **113 von 334 Stammcockpits**. Zwei Regeln dazu:
+
+* Ein Pay Driver liegt im **unteren Drittel** des Leistungsbands seiner Liga – er blockiert ein Cockpit, das ein schnellerer Fahrer verdient hätte (Konzept 9.1).
+* `pay_driver_budget` beträgt **10–25 % des Kostendeckels** der jeweiligen Liga. In Tier 5 sind das 0,9–2,25 Mio., in Tier 10 rund 26–65 k.
+
+### 15.5 Archetyp-Mischung je Liga
+
+| Tier | Werksteam | Tradition | Aufsteiger | Tech-Startup | Privatier | Nachwuchs | Σ |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 1 | 4 | 3 | 1 | 2 | 1 | 0 | 11 |
+| 2 | 2 | 3 | 3 | 2 | 2 | 0 | 12 |
+| 3 | 1 | 3 | 4 | 2 | 3 | 1 | 14 |
+| 4 | 1 | 3 | 4 | 2 | 4 | 2 | 16 |
+| 5 | 0 | 3 | 4 | 1 | 5 | 3 | 16 |
+| 6 | 0 | 3 | 4 | 1 | 6 | 4 | 18 |
+| 7 | 0 | 3 | 3 | 1 | 7 | 4 | 18 |
+| 8 | 0 | 3 | 3 | 1 | 8 | 5 | 20 |
+| 9 | 0 | 2 | 3 | 0 | 9 | 6 | 20 |
+| 10 | 0 | 2 | 3 | 0 | 10 | 7 | 22 |
+| **Σ** | **8** | **28** | **32** | **12** | **55** | **32** | **167** |
+
+Acht Werksteams bedeutet acht Motorenhersteller mit eigenem Programm (Konzept 6.6) – die übrigen 159 Teams sind Kundenteams oder fahren unterhalb von Tier 7 ohne Herstellervertrag. Nachwuchsschmieden häufen sich unten, wo das Scouting-Geschäftsmodell greift; Tech-Startups verschwinden unterhalb von Tier 8, weil dort niemand extreme Aerokonzepte finanzieren kann.
+
+### 15.6 Altersstruktur
 
 Die Kurve aus Konzept 7.2 muss sich im Startbestand wiederfinden: Schwerpunkt bei 24–29, dazu genug 17–21-Jährige mit hohem `potential` in den unteren Ligen, damit das Scouting-Geschäftsmodell (Konzept 7.3) vom ersten Tag an funktioniert.
 
-### 15.4 Verteilungen, die zusätzlich gesetzt werden müssen
+### 15.7 Was weiterhin offen bleibt
 
-Archetyp-Mischung je Liga · Pay-Driver-Anteil je Liga · Prestige-Bänder je Liga · Nationalitätenverteilung · Anteil „gefallener Riesen" (`history_best_tier` deutlich über `start_tier`).
+Nationalitätenverteilung über die 167 Teams und 450 Fahrer. Sie hängt daran, welche Länder überhaupt Strecken stellen – und damit an `tracks.csv` aus der nächsten Runde.
 
 ### 15.5 Praktischer Hinweis zur Pflege
 
@@ -765,10 +832,16 @@ Das Schema ist vollständig. Was hier geführt wird, sind die Zahlen dahinter �
 
 **16.4 Lizenzleiter → gleichmäßig linear**, verankert an der Tier-2-Prüfung aus Konzept 5.1. Eingearbeitet in 9.
 
+**16.5 Verteilungsvorgaben → moderate Überlappung, steiler Pay-Driver-Anteil.** Leistungsbänder mit Breite 8 und Schritt 6 (Überlappung ein Viertel), Pay-Driver-Anteil von 0 % in Tier 1 auf 60 % in Tier 10. Ausgearbeitet in 15.2 bis 15.5.
+
+**16.6 Numerik in `car_part_types.csv` → aus dem Konzept abgeleitet.** `carry_over_default` an den Ankern aus Konzept 5.3, die übrigen drei Spalten nach den Zielkonflikten aus Konzept 6.1. Ausgearbeitet in 10.
+
+**16.7 `car_control` → ja, als 17. Attribut.** Eigener gepflegter Wert in der Kategorie Speed. Eingearbeitet in 12.2 und im DDL.
+
 ### Offen
 
-**16.5 Verteilungsvorgaben aus Abschnitt 15** – Leistungsbänder, Prestige-Bänder, Pay-Driver-Anteile, Archetyp-Mischung.
+**16.8 Nationalitätenverteilung** über Teams und Fahrer – hängt an `tracks.csv` und wird deshalb mit der nächsten Datei-Runde entschieden.
 
-**16.6 Numerische Spalten in `car_part_types.csv`** – `dev_constant_k`, `base_failure_rate`, `damage_prone`, `carry_over_default`.
+**16.9 Tuning-Spielraum am Motor.** Konzept 6.6 schlägt ±8 % auf die gelieferte Basis vor, mit größerem Spielraum im Werks- als im Kundenvertrag. Der Wert ist noch nicht bestätigt und betrifft `engine_suppliers.csv` aus der nächsten Runde.
 
-**16.7 Ein 17. Fahrerattribut `car_control`?** Konzept 10 nennt es beim Streckenarchetyp „Bumpy Street" als dominanten Fahrerwert, Konzept 7.1 führt es nicht in der Attributliste. Entweder wird es aufgenommen, oder der Streckenarchetyp bildet auf `cornering`/`consistency` ab. Die Entscheidung wird erst mit `track_sector_weights.csv` bindend, ändert aber `drivers.csv` – und damit 450 handgepflegte Zeilen. Sie sollte deshalb **vor** dem Befüllen fallen.
+**16.10 Zusammenspiel von ATR und Testtagen.** Beide Regler sind gesetzt, ziehen aber gegeneinander (siehe Hinweis in 6.2). Zu prüfen nach den ersten Zehn-Saison-Läufen – keine Entscheidung vorab, sondern eine Messung.

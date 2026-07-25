@@ -58,7 +58,7 @@ APEX ist ein rundenbasierter Motorsport-Manager. Der Spieler führt ein Rennteam
 | Entwicklung | Geld → Prozent | Ressourcen-Modell: Budget × Personal × Windkanalzeit, abnehmender Grenzertrag, Kinderkrankheiten, Fahrer-Feedback |
 | Setup | Trial & Error auf 4 Achsen | 6 Setup-Achsen mit strecken- *und* fahrerabhängigem Optimum, Ingenieur-Qualität bestimmt die Trefferwahrscheinlichkeit |
 | Rennen | 2D-Balken-Sim | Sektorbasierte Tick-Simulation mit Reifenverschleiß, Spritmasse, Dirty Air, Safety Car, Wetterfenstern, Boxenstopp-Fehlern |
-| Fahrer | Wenige Werte | 16 Attribute + Potenzial, Altersverlauf, Moral, Ego, Feedback-Qualität, Superlizenzpunkte |
+| Fahrer | Wenige Werte | 17 Attribute + Potenzial, Altersverlauf, Moral, Ego, Feedback-Qualität, Superlizenzpunkte |
 | Personal | Rudimentär | 8 Rollen mit eigenen Karrieren und einem Personalmarkt |
 | Wirtschaft | Sponsoren + Preisgeld | Kostendeckel, TV-Geld nach Liga, Fallschirmzahlungen, Motoren-Kundenverträge, Insolvenz & Neugründung |
 | Weltsimulation | Nur die eigene Serie | Alle 10 Ligen werden simuliert (Light-Sim), inkl. Fahrerkarrieren von unten nach oben |
@@ -302,7 +302,7 @@ Der Tuning-Spielraum ist gedeckelt (Vorschlag: ±8 % auf die gelieferte Basis) u
 
 | Kategorie | Attribute |
 | :--- | :--- |
-| **Speed** | `pace` (Grundtempo), `qualifying` (eine schnelle Runde), `braking`, `cornering` |
+| **Speed** | `pace` (Grundtempo), `qualifying` (eine schnelle Runde), `braking`, `cornering`, `car_control` (Fahrzeugbeherrschung am Limit: Bodenwellen, Randsteine, Abfangen) |
 | **Racecraft** | `overtaking`, `defending`, `starts`, `racecraft_traffic` (Verkehr/Dirty Air) |
 | **Kopf** | `consistency` (Streuung der Rundenzeiten), `pressure` (Verhalten in Führung/Schlussphase), `aggression` (Risiko → Chance auf Zeitgewinn und Fehler) |
 | **Technik** | `feedback` (Setup-Qualität und Entwicklungsrichtung), `tyre_management`, `fuel_saving` |
@@ -398,7 +398,7 @@ Analog zu Velos `skill_weights.csv` je Terrain bekommt jede Strecke ein **Gewich
 | Abtrieb / Stadtkurs | Frontflügel, Fahrwerk, Bremsen | `qualifying`, `consistency`, `braking` | Enge Mauern, kaum Überholen |
 | Ausgewogen | Alles gleichmäßig | ausgewogen | Klassische permanente Strecke |
 | Stop-and-Go | Bremsen, ERS, Getriebe | `braking`, `starts` | Viele langsame Ecken |
-| Bumpy Street | Fahrwerk, Monocoque | `bike_handling`-Äquivalent `car_control` | Bodenwellen, Randsteine |
+| Bumpy Street | Fahrwerk, Monocoque | `car_control`, `consistency` | Bodenwellen, Randsteine |
 | Höhenlage | Antrieb (Leistungsverlust), Kühlung | `fitness` | Dünne Luft |
 | Reifenkiller | Fahrwerk, Unterboden | `tyre_management` | Hoher Abrieb |
 
@@ -600,7 +600,7 @@ Analog zu Velo: **CSV = Stammdaten**, daraus wird per Bootstrapper eine `world_d
 | `teams.csv` | team_id, name, kürzel, land, tier_start, farben, ai_archetype, prestige |
 | `team_facilities.csv` | team_id, facility_type, level |
 | `team_finances.csv` | team_id, kapital, sponsor_ids, motorenvertrag |
-| `drivers.csv` | driver_id, name, land, alter, 16 Attribute, potential, ego, marketability |
+| `drivers.csv` | driver_id, name, land, alter, 17 Attribute, potential, ego, marketability |
 | `driver_names.csv` | Namenspools je Land für Newgens |
 | `staff.csv` / `staff_roles.csv` | Personal, Rollen, Werte |
 | `car_part_types.csv` | 9 Bauteilgruppen, Basiskosten, Ausfall-Basisrate |
