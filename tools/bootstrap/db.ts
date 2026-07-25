@@ -56,6 +56,8 @@ CREATE TABLE tracks (
   downforce_level       REAL    NOT NULL,
   first_used_year       INTEGER NOT NULL,
   logistics_factor      REAL    NOT NULL DEFAULT 1,
+  -- Streckentuecke (Konzept 12.4): was ein Fahrfehler hier kostet.
+  risk                  REAL    NOT NULL DEFAULT 0.45 CHECK (risk BETWEEN 0 AND 1),
   flavour               TEXT    NOT NULL
 );
 

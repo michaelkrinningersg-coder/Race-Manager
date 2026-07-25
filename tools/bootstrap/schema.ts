@@ -319,6 +319,7 @@ export const TABLES: TableSpec[] = [
       { name: 'downforce_level', type: 'real', required: true, min: 0, max: 1 },
       { name: 'first_used_year', type: 'int', required: true, min: 1900, max: 2100 },
       { name: 'logistics_factor', type: 'real', required: true, min: 0.5, max: 3 },
+      { name: 'risk', type: 'real', required: true, min: 0, max: 1 },
       { name: 'flavour', type: 'text', required: true },
     ],
   },
