@@ -59,6 +59,7 @@ const ARCHETYPE_BIAS: Record<string, Partial<Record<string, number>>> = {
 
 interface TeamRow {
   team_id: number;
+  /** Liga DIESER Saison - nicht die Startliga aus teams.csv. */
   start_tier: number;
   prestige: number;
   ai_archetype: string;
@@ -74,15 +75,23 @@ interface TeamRow {
  * spaeter nachvollziehbar, warum zwei Teams denselben Antrieb haben.
  */
 export function seedCarParts(db: Database, season: number): number {
-  const teams = db.prepare('SELECT * FROM teams').all() as TeamRow[];
+  // Die Liga kommt aus team_seasons, weil sie sich mit jedem Auf- und Abstieg
+  // aendert. teams.start_tier waere ab Saison 2 falsch.
+  const teams = db
+    .prepare(
+      `SELECT t.team_id, ts.tier AS start_tier, t.prestige, t.ai_archetype,
+              t.engine_supplier_id, t.is_works_team
+       FROM teams t JOIN team_seasons ts ON ts.team_id = t.team_id AND ts.season = ?`,
+    )
+    .all(season) as TeamRow[];
   const partKeys = db
     .prepare('SELECT part_key, supplied_by_engine FROM car_part_types ORDER BY sort_order')
     .all() as { part_key: string; supplied_by_engine: number }[];
 
   const capsByTier = new Map<number, Record<string, number>>();
   for (const row of db
-    .prepare('SELECT * FROM league_regulations WHERE season = ?')
-    .all(season) as Record<string, number>[]) {
+    .prepare('SELECT * FROM league_regulations WHERE season = 1')
+    .all() as Record<string, number>[]) {
     capsByTier.set(row.tier, row);
   }
 

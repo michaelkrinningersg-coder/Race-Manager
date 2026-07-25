@@ -343,6 +343,42 @@ function checkLicences(context: ValidationContext, findings: Finding[]): void {
   // Kopplung der beiden waere eine Annahme ohne Grundlage.
 }
 
+function checkPayouts(context: ValidationContext, findings: Finding[]): void {
+  const rows = [...rowsOf(context, 'league_payouts.csv')].sort((a, b) => num(a, 'tier') - num(b, 'tier'));
+  const tiers = new Set(rowsOf(context, 'leagues.csv').map((row) => num(row, 'tier')));
+
+  for (const row of rows) {
+    if (!tiers.has(num(row, 'tier'))) {
+      findings.push(error('league_payouts.csv', `Tier ${num(row, 'tier')} existiert nicht in leagues.csv`, row.line));
+    }
+    if (num(row, 'parachute_pct_2') > num(row, 'parachute_pct_1')) {
+      findings.push(
+        error(
+          'league_payouts.csv',
+          'Der Fallschirm der zweiten Saison darf nicht groesser sein als der der ersten (Konzept 4.3)',
+          row.line,
+        ),
+      );
+    }
+  }
+
+  // Die Ausschuettung muss mit dem Tier fallen - sonst waere ein Abstieg
+  // finanziell attraktiv und die ganze Pyramidenlogik stuende auf dem Kopf.
+  for (let i = 1; i < rows.length; i += 1) {
+    for (const name of ['tv_fixed', 'tv_variable_top']) {
+      if (num(rows[i], name) > num(rows[i - 1], name)) {
+        findings.push(
+          error(
+            'league_payouts.csv',
+            `'${name}' steigt von Tier ${num(rows[i - 1], 'tier')} nach ${num(rows[i], 'tier')} - Abstieg darf sich nie lohnen`,
+            rows[i].line,
+          ),
+        );
+      }
+    }
+  }
+}
+
 function checkPartTypes(context: ValidationContext, findings: Finding[]): void {
   const rows = rowsOf(context, 'car_part_types.csv');
   if (rows.length === 0) return;
@@ -957,6 +993,7 @@ export function validateWorld(context: ValidationContext): Finding[] {
   checkPromotionSymmetry(context, findings);
   checkPointsSystems(context, findings);
   checkLicences(context, findings);
+  checkPayouts(context, findings);
   checkPartTypes(context, findings);
   checkTeams(context, findings);
   checkEngineSuppliers(context, findings);

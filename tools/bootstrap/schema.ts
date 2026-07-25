@@ -279,6 +279,20 @@ export const TABLES: TableSpec[] = [
     ],
   },
   {
+    file: 'league_payouts.csv',
+    table: 'league_payouts',
+    primaryKey: ['tier'],
+    expectedRows: 10,
+    columns: [
+      { name: 'tier', type: 'int', required: true, min: 1, max: 10, unique: true },
+      { name: 'tv_fixed', type: 'int', required: true, min: 0 },
+      { name: 'tv_variable_top', type: 'int', required: true, min: 0 },
+      { name: 'expense_ratio', type: 'real', required: true, min: 0, max: 2 },
+      { name: 'parachute_pct_1', type: 'real', required: true, min: 0, max: 1 },
+      { name: 'parachute_pct_2', type: 'real', required: true, min: 0, max: 1 },
+    ],
+  },
+  {
     file: 'leagues.csv',
     table: 'leagues',
     primaryKey: ['tier'],

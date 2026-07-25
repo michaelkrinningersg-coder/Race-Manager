@@ -66,6 +66,15 @@ CREATE TABLE engine_suppliers (
   flavour                TEXT    NOT NULL
 );
 
+CREATE TABLE league_payouts (
+  tier            INTEGER PRIMARY KEY REFERENCES leagues(tier),
+  tv_fixed        INTEGER NOT NULL,
+  tv_variable_top INTEGER NOT NULL,
+  expense_ratio   REAL    NOT NULL,
+  parachute_pct_1 REAL    NOT NULL,
+  parachute_pct_2 REAL    NOT NULL
+);
+
 CREATE TABLE leagues (
   tier                  INTEGER PRIMARY KEY CHECK (tier BETWEEN 1 AND 10),
   name                  TEXT    NOT NULL UNIQUE,
@@ -323,6 +332,7 @@ const INSERT_ORDER = [
   'league_regulations.csv',
   'promotion_rules.csv',
   'licence_requirements.csv',
+  'league_payouts.csv',
   'teams.csv',
   'engine_suppliers.csv',
   'calendar.csv',

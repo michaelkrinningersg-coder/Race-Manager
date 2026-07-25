@@ -1,0 +1,23 @@
+# HANDGEPFLEGT - Ausschuettung und Fallschirmzahlungen je Liga (Konzept 9.1, 4.3).
+#
+# Auszahlung eines Teams = tv_fixed + tv_variable_top * (n - platz) / (n - 1),
+# also Fixanteil fuer alle plus variabler Anteil nach Vorjahresplatz. Der
+# Ligadurchschnitt liegt damit bei 60 % des Kostendeckels.
+#
+# expense_ratio: Anteil des Kostendeckels, den ein Team pro Saison ausgibt.
+# Knapp unter dem Durchschnittsertrag - wer vorne steht, legt zu, wer hinten
+# steht, zehrt von der Substanz. Genau die Schere, die Konzept 9.4 braucht.
+#
+# parachute_pct_1/2: Anteil der Ausschuettungsdifferenz zur alten Liga, den ein
+# Absteiger in der ersten bzw. zweiten Saison danach erhaelt.
+tier,tv_fixed,tv_variable_top,expense_ratio,parachute_pct_1,parachute_pct_2
+1,60000000,54000000,0.58,0.60,0.30
+2,29000000,26000000,0.58,0.60,0.30
+3,14000000,12800000,0.58,0.60,0.30
+4,7000000,6400000,0.58,0.60,0.30
+5,3700000,3400000,0.58,0.60,0.30
+6,1850000,1700000,0.58,0.60,0.30
+7,900000,840000,0.58,0.60,0.30
+8,450000,420000,0.58,0.60,0.30
+9,225000,210000,0.58,0.60,0.30
+10,107000,98000,0.58,0.60,0.30

@@ -77,6 +77,38 @@ CREATE TABLE game_state (
   world_seed     INTEGER NOT NULL
 );
 
+CREATE TABLE team_finances (
+  team_id   INTEGER NOT NULL REFERENCES teams(team_id),
+  season    INTEGER NOT NULL,
+  tier      INTEGER NOT NULL,
+  opening   INTEGER NOT NULL,
+  payout    INTEGER NOT NULL DEFAULT 0,
+  parachute INTEGER NOT NULL DEFAULT 0,
+  expenses  INTEGER NOT NULL DEFAULT 0,
+  closing   INTEGER NOT NULL,
+  PRIMARY KEY (team_id, season)
+);
+
+CREATE TABLE barrage_results (
+  season        INTEGER NOT NULL,
+  boundary_tier INTEGER NOT NULL,
+  track_id      INTEGER NOT NULL REFERENCES tracks(track_id),
+  team_id       INTEGER NOT NULL REFERENCES teams(team_id),
+  from_tier     INTEGER NOT NULL,
+  points        INTEGER NOT NULL,
+  won           INTEGER NOT NULL,
+  PRIMARY KEY (season, boundary_tier, team_id)
+);
+
+CREATE TABLE licence_denials (
+  season    INTEGER NOT NULL,
+  team_id   INTEGER NOT NULL REFERENCES teams(team_id),
+  from_tier INTEGER NOT NULL,
+  to_tier   INTEGER NOT NULL,
+  reasons   TEXT    NOT NULL,
+  PRIMARY KEY (season, team_id, to_tier)
+);
+
 CREATE INDEX idx_results_league ON race_results(season, tier);
 CREATE INDEX idx_results_driver ON race_results(driver_id, season);
 CREATE INDEX idx_team_seasons_tier ON team_seasons(season, tier);

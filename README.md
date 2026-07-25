@@ -12,8 +12,8 @@ Dieses Repository enthält aktuell:
   durchsimuliert) im Browser darstellt.
 * den **Bootstrapper**: liest `data/*.csv`, prüft sie gegen das Schema und erzeugt daraus
   `build/world_data.db`.
-* die **Saison-Engine**: simuliert eine komplette Saison über alle zehn Ligen und schreibt
-  Ergebnisse und Tabellen in ein Savegame.
+* die **Saison-Engine**: simuliert beliebig viele Saisons über alle zehn Ligen, inklusive
+  Auf- und Abstieg, Barrage, Lizenzprüfung und Fallschirmzahlungen.
 
 **Live:** https://michaelkrinningersg-coder.github.io/Race-Manager/
 
@@ -86,11 +86,12 @@ Schema, Wertebereiche und Validierungsregeln: [`docs/DATENMODELL_APEX_M0.md`](do
 
 ---
 
-## Saison-Engine (M1)
+## Saison-Engine (M1 + M2)
 
 ```bash
-npm run bootstrap    # Voraussetzung: erzeugt build/world_data.db
-npm run season       # simuliert Saison 1, schreibt build/savegame.db
+npm run bootstrap                  # Voraussetzung: erzeugt build/world_data.db
+npm run season                     # Saison 1, schreibt build/savegame.db
+npm run season -- --seasons 10     # zehn Saisons mit Auf- und Abstieg
 npm run season -- --quiet --seed 12345
 ```
 
@@ -111,7 +112,29 @@ abgeleitet. Die Feldbreite ist dabei bewusst **keine** Prozentzahl des Deckels, 
 nach unten hin: Kostendeckel und ATR ziehen die oberen Ligen zusammen, unten greift keins von
 beidem.
 
-Gleiche CSVs und gleicher Seed ergeben ein byteweise identisches Savegame.
+### Auf- und Abstieg (M2)
+
+Am Saisonende laufen Barrage, Auf-/Abstieg und Lizenzprüfung in der Reihenfolge aus Konzept 13.2.
+
+**Die Symmetrie ist strukturell garantiert.** An jeder Ligengrenze steigen exakt so viele Teams
+ab, wie aufsteigen – nicht weil die Regeldatei es so vorgibt, sondern weil die Zahl der
+Absteiger aus der Zahl der tatsächlich lizenzfähigen Aufsteiger abgeleitet wird. Findet sich
+kein aufstiegsberechtigtes Team, bleibt auch der Absteiger oben. Ohne diese Kopplung
+schrumpfen und wachsen die Ligen über die Saisons hinweg unbemerkt.
+
+**Die Lizenz kann einen Aufstieg kosten.** Geprüft wird gegen die Anforderungen der Zielliga:
+Liquidität als Anteil ihres Kostendeckels, Infrastruktur, Personal, Motorenvertrag. Scheitert
+ein Team, rückt das nächstplatzierte lizenzfähige nach – die Suche endet zwei Plätze hinter der
+Aufstiegszone. Infrastruktur und Personal werden bis M5/M6 aus Liga und Prestige abgeleitet;
+getauscht wird dann nur die Ableitung, nicht die Prüflogik.
+
+**Die Barrage** läuft über zwei Läufe auf neutraler Strecke unter dem Reglement der *unteren*
+Liga – das Auto des höherklassigen Teams wird auf deren Deckel gekappt. Über zehn Saisons
+gewinnt der Herausforderer 31 von 90 Duellen: Der Titelverteidiger ist begünstigt, aber nicht
+sicher.
+
+Gleiche CSVs und gleicher Seed ergeben ein byteweise identisches Savegame – auch über zehn
+Saisons hinweg.
 
 ---
 
@@ -139,7 +162,11 @@ Race-Manager/
 │   ├── car.ts                             # Bauteilwerte aus Deckel und Prestige
 │   ├── scoring.ts                         # Auto- und Fahrer-Score je Strecke
 │   ├── lightsim.ts                        # Rennwochenende
-│   ├── season.ts                          # Saisonlauf und Tabellen
+│   ├── facilities.ts                      # abgeleitete Infrastruktur
+│   ├── licence.ts                         # Lizenzprüfung
+│   ├── finance.ts                         # Ausschüttung und Fallschirm
+│   ├── promotion.ts                       # Auf-/Abstieg und Barrage
+│   ├── season.ts                          # Saisonlauf, Tabellen, Finanzen
 │   └── index.ts                           # CLI
 ├── tools/bootstrap/
 │   ├── csv.ts                             # CSV-Leser nach den Konventionen

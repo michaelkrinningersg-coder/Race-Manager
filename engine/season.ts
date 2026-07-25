@@ -1,14 +1,16 @@
 /**
  * Saisonlauf ueber alle zehn Ligen.
  *
- * M1 aus der Roadmap: eine Saison laeuft komplett durch, die Tabellen stimmen.
- * Auf- und Abstieg (M2) bleibt bewusst aussen vor - team_seasons.movement
- * existiert schon als Spalte, wird hier aber noch nicht gefuellt.
+ * Die Ligazugehoerigkeit eines Teams steht in team_seasons, nicht in
+ * teams.start_tier - letzteres ist ab Saison 2 falsch. prepareSeason legt die
+ * Zeilen an, bevor das erste Rennen laeuft.
  */
 
 import type { Database } from './savegame.js';
 import { loadTrackProfiles } from './scoring.js';
 import { simulateWeekend, type Entry, type ResultRow, type WeekendContext } from './lightsim.js';
+import { nextTier, type Movement } from './promotion.js';
+import { loadPayoutRules, parachuteFor, payoutFor } from './finance.js';
 
 const PART_KEYS = [
   'chassis',
@@ -46,13 +48,14 @@ interface Roster {
 function loadRosters(db: Database, season: number): Map<number, Roster> {
   const drivers = db
     .prepare(
-      `SELECT d.driver_id, d.start_team_id AS team_id, t.start_tier AS tier,
+      `SELECT d.driver_id, d.start_team_id AS team_id, ts.tier AS tier,
               ${DRIVER_KEYS.map((key) => `d.${key}`).join(', ')}
-       FROM drivers d JOIN teams t ON t.team_id = d.start_team_id
+       FROM drivers d
+       JOIN team_seasons ts ON ts.team_id = d.start_team_id AND ts.season = ?
        WHERE d.start_role = 'race'
-       ORDER BY t.start_tier, d.start_team_id, d.start_seat`,
+       ORDER BY ts.tier, d.start_team_id, d.start_seat`,
     )
-    .all() as Record<string, number>[];
+    .all(season) as Record<string, number>[];
 
   const parts = new Map<number, Record<string, number>>();
   const reliability = new Map<number, number>();
@@ -130,9 +133,10 @@ export function runSeason(db: Database, season: number): SeasonSummary {
 
       const system = pointsBySystem.get(league.points_system_id) ?? new Map<number, number>();
       const systemMeta = meta.get(league.points_system_id);
+      // Folgesaisons nutzen bis zum CalendarService den Startkalender.
       const calendar = db
-        .prepare('SELECT * FROM calendar WHERE season = ? AND tier = ? ORDER BY round')
-        .all(season, tier) as Record<string, number>[];
+        .prepare('SELECT * FROM calendar WHERE season = 1 AND tier = ? ORDER BY round')
+        .all(tier) as Record<string, number>[];
 
       for (const round of calendar) {
         const format = formats.get(round.format_id);
@@ -191,18 +195,18 @@ export function runSeason(db: Database, season: number): SeasonSummary {
  */
 export function buildStandings(db: Database, season: number): void {
   const run = db.transaction(() => {
-    db.prepare('DELETE FROM team_seasons WHERE season = ?').run(season);
-    db.prepare('DELETE FROM driver_seasons WHERE season = ?').run(season);
-
+    // team_seasons existiert bereits (prepareSeason) - hier werden nur die
+    // Kennzahlen nachgetragen, die Ligazugehoerigkeit bleibt unangetastet.
     db.prepare(
-      `INSERT INTO team_seasons (team_id, season, tier, points, wins, podiums, dnfs)
-       SELECT team_id, season, tier,
-              SUM(points),
-              SUM(CASE WHEN position = 1 THEN 1 ELSE 0 END),
-              SUM(CASE WHEN position <= 3 THEN 1 ELSE 0 END),
-              SUM(CASE WHEN status = 'dnf' THEN 1 ELSE 0 END)
-       FROM race_results WHERE season = ? GROUP BY team_id, season, tier`,
+      `UPDATE team_seasons SET
+         points  = COALESCE((SELECT SUM(points) FROM race_results r WHERE r.season = team_seasons.season AND r.team_id = team_seasons.team_id), 0),
+         wins    = COALESCE((SELECT COUNT(*) FROM race_results r WHERE r.season = team_seasons.season AND r.team_id = team_seasons.team_id AND r.position = 1), 0),
+         podiums = COALESCE((SELECT COUNT(*) FROM race_results r WHERE r.season = team_seasons.season AND r.team_id = team_seasons.team_id AND r.position <= 3), 0),
+         dnfs    = COALESCE((SELECT COUNT(*) FROM race_results r WHERE r.season = team_seasons.season AND r.team_id = team_seasons.team_id AND r.status = 'dnf'), 0)
+       WHERE season = ?`,
     ).run(season);
+
+    db.prepare('DELETE FROM driver_seasons WHERE season = ?').run(season);
 
     db.prepare(
       `INSERT INTO driver_seasons (driver_id, season, tier, team_id, points, wins, podiums, poles, dnfs)
@@ -231,6 +235,123 @@ export function buildStandings(db: Database, season: number): void {
                    AND other.podiums = ${table}.podiums AND other.${idColumn} < ${table}.${idColumn}))
          ) WHERE season = ?`,
       ).run(season);
+    }
+  });
+
+  run();
+}
+
+/**
+ * Legt die team_seasons-Zeilen einer Saison an und bestimmt damit, wer wo
+ * faehrt. Saison 1 kommt aus teams.start_tier, jede weitere aus Liga und
+ * Bewegung der Vorsaison.
+ */
+export function prepareSeason(db: Database, season: number): void {
+  const run = db.transaction(() => {
+    db.prepare('DELETE FROM team_seasons WHERE season = ?').run(season);
+
+    if (season === 1) {
+      db.prepare(
+        'INSERT INTO team_seasons (team_id, season, tier) SELECT team_id, 1, start_tier FROM teams',
+      ).run();
+      return;
+    }
+
+    const previous = db
+      .prepare('SELECT team_id, tier, movement FROM team_seasons WHERE season = ?')
+      .all(season - 1) as { team_id: number; tier: number; movement: Movement | null }[];
+
+    const insert = db.prepare('INSERT INTO team_seasons (team_id, season, tier) VALUES (?, ?, ?)');
+    for (const row of previous) {
+      insert.run(row.team_id, season, nextTier(row.tier, row.movement));
+    }
+  });
+
+  run();
+}
+
+/**
+ * Bucht Ausschuettung, Fallschirm und Ausgaben einer Saison.
+ *
+ * Muss nach buildStandings laufen: Der variable Anteil haengt am Tabellenplatz.
+ */
+export function applyFinances(db: Database, season: number): void {
+  const rules = loadPayoutRules(db);
+  const costCaps = new Map(
+    (db.prepare('SELECT tier, cost_cap FROM league_regulations WHERE season = 1').all() as Record<
+      string,
+      number
+    >[]).map((row) => [row.tier, row.cost_cap]),
+  );
+  const teamCounts = new Map(
+    (db.prepare('SELECT tier, COUNT(*) n FROM team_seasons WHERE season = ? GROUP BY tier')
+      .all(season) as Record<string, number>[]).map((row) => [row.tier, row.n]),
+  );
+
+  const standings = db
+    .prepare('SELECT team_id, tier, final_rank FROM team_seasons WHERE season = ?')
+    .all(season) as { team_id: number; tier: number; final_rank: number | null }[];
+
+  // Eroeffnungsbestand: Startkapital in Saison 1, sonst der Schlussbestand
+  // der Vorsaison.
+  const opening = new Map<number, number>();
+  if (season === 1) {
+    for (const row of db.prepare('SELECT team_id, start_capital FROM teams').all() as Record<
+      string,
+      number
+    >[]) {
+      opening.set(row.team_id, row.start_capital);
+    }
+  } else {
+    for (const row of db
+      .prepare('SELECT team_id, closing FROM team_finances WHERE season = ?')
+      .all(season - 1) as Record<string, number>[]) {
+      opening.set(row.team_id, row.closing);
+    }
+  }
+
+  // Fallschirm: Wer in einer der beiden Vorsaisons abgestiegen ist, bekommt
+  // einen Anteil der Ausschuettungsdifferenz zur damaligen Liga.
+  const historyRows = db
+    .prepare('SELECT team_id, season, tier FROM team_seasons WHERE season IN (?, ?)')
+    .all(season - 1, season - 2) as { team_id: number; season: number; tier: number }[];
+  const history = new Map<string, number>();
+  for (const row of historyRows) history.set(`${row.team_id}|${row.season}`, row.tier);
+
+  const insert = db.prepare(
+    `INSERT INTO team_finances (team_id, season, tier, opening, payout, parachute, expenses, closing)
+     VALUES (@team_id, @season, @tier, @opening, @payout, @parachute, @expenses, @closing)`,
+  );
+
+  const run = db.transaction(() => {
+    db.prepare('DELETE FROM team_finances WHERE season = ?').run(season);
+
+    for (const team of standings) {
+      const rule = rules.get(team.tier);
+      if (!rule) continue;
+      const count = teamCounts.get(team.tier) ?? 1;
+      const payout = payoutFor(rule, team.final_rank ?? count, count);
+
+      let parachute = 0;
+      for (const back of [1, 2] as const) {
+        const previousTier = history.get(`${team.team_id}|${season - back}`);
+        if (previousTier !== undefined && previousTier < team.tier) {
+          parachute += parachuteFor(rules.get(previousTier), rule, back);
+        }
+      }
+
+      const expenses = Math.round(rule.expenseRatio * (costCaps.get(team.tier) ?? 0));
+      const start = opening.get(team.team_id) ?? 0;
+      insert.run({
+        team_id: team.team_id,
+        season,
+        tier: team.tier,
+        opening: start,
+        payout,
+        parachute,
+        expenses,
+        closing: start + payout + parachute - expenses,
+      });
     }
   });
 
