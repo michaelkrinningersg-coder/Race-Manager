@@ -63,6 +63,11 @@ const DRIVER_KEYS = [
   // entschied allein die Streckentuecke.
   'overtaking',
   'defending',
+  // Zwischenfaelle (Konzept 12.4). Vor dem Eintragen hier gepruefte Regel: Wer
+  // in racesim.ts ein Attribut mit ?? liest, muss es in dieser Liste stehen
+  // haben - sonst rechnet die Sim stillschweigend mit dem Rueckfallwert weiter.
+  'pressure',
+  'aggression',
 ];
 
 export interface SeasonSummary {
@@ -202,13 +207,13 @@ export function runSeason(db: Database, season: number, tickTier = 0): SeasonSum
      VALUES (@season, @tier, @round, @leg, @lap, @driver_id, @position, @lap_time_ms, @gap_to_leader_ms, @compound, @tyre_wear, @fuel_kg, @event, @rival_id)`,
   );
   const insertAnalysis = db.prepare(
-    `INSERT INTO race_analysis (season, tier, round, leg, driver_id, stops, best_lap_ms, total_ms, lost_tyres_s, lost_fuel_s, lost_traffic_s, lost_pits_s)
-     VALUES (@season, @tier, @round, @leg, @driver_id, @stops, @best_lap_ms, @total_ms, @lost_tyres_s, @lost_fuel_s, @lost_traffic_s, @lost_pits_s)`,
+    `INSERT INTO race_analysis (season, tier, round, leg, driver_id, stops, best_lap_ms, total_ms, lost_tyres_s, lost_fuel_s, lost_traffic_s, lost_pits_s, lost_incidents_s)
+     VALUES (@season, @tier, @round, @leg, @driver_id, @stops, @best_lap_ms, @total_ms, @lost_tyres_s, @lost_fuel_s, @lost_traffic_s, @lost_pits_s, @lost_incidents_s)`,
   );
 
   const insert = db.prepare(
-    `INSERT INTO race_results (season, tier, round, leg, driver_id, team_id, grid, position, status, points, pole, fastest_lap)
-     VALUES (@season, @tier, @round, @leg, @driver_id, @team_id, @grid, @position, @status, @points, @pole, @fastest_lap)`,
+    `INSERT INTO race_results (season, tier, round, leg, driver_id, team_id, grid, position, status, points, pole, fastest_lap, penalty_s)
+     VALUES (@season, @tier, @round, @leg, @driver_id, @team_id, @grid, @position, @status, @points, @pole, @fastest_lap, @penalty_s)`,
   );
 
   let weekends = 0;
@@ -260,6 +265,7 @@ export function runSeason(db: Database, season: number, tickTier = 0): SeasonSum
           profile,
           overtakingDifficulty: tracks.get(round.track_id) ?? 0.5,
           dnfBaseRate: league.dnf_base_rate,
+          risk: (trackData.get(round.track_id)?.risk as number) ?? 0.45,
           legCount,
           // Kein Umkehrgitter am Sprintwochenende: Die Startaufstellung des
           // Hauptrennens ist das Sprintergebnis, unveraendert.
@@ -316,6 +322,7 @@ export function runSeason(db: Database, season: number, tickTier = 0): SeasonSum
               dnfBaseRate: league.dnf_base_rate,
               compounds,
               safetyCarRate: track?.safety_car_rate ?? 0.2,
+              risk: track?.risk ?? 0.45,
               weather: drawWeather(
                 weatherProfiles.get(round.track_id),
                 Math.max(8, Math.round((track?.laps ?? 55) * distance)),
@@ -373,6 +380,7 @@ export function runSeason(db: Database, season: number, tickTier = 0): SeasonSum
                 lost_fuel_s: outcome.lostToFuel,
                 lost_traffic_s: outcome.lostToTraffic,
                 lost_pits_s: outcome.lostToPits,
+                lost_incidents_s: outcome.lostToIncidents,
               });
             }
 
@@ -400,6 +408,7 @@ export function runSeason(db: Database, season: number, tickTier = 0): SeasonSum
                   points,
                   pole: isPole,
                   fastestLap: isFastest,
+                  penaltyS: outcome.penaltyS,
                 };
               }),
             );
@@ -420,6 +429,7 @@ export function runSeason(db: Database, season: number, tickTier = 0): SeasonSum
             points: row.points,
             pole: row.pole ? 1 : 0,
             fastest_lap: row.fastestLap ? 1 : 0,
+            penalty_s: row.penaltyS ?? 0,
           });
           results += 1;
           if (row.status === 'dnf') dnfs += 1;

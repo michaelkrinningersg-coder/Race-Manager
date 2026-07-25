@@ -40,6 +40,12 @@ CREATE TABLE race_results (
   points      INTEGER NOT NULL DEFAULT 0,
   pole        INTEGER NOT NULL DEFAULT 0,
   fastest_lap INTEGER NOT NULL DEFAULT 0,
+  -- Zeitstrafe in Sekunden (Konzept 12.4). Sie ist bereits in position und in
+  -- race_analysis.total_ms verrechnet und steht hier nur, damit die Ansicht
+  -- erklaeren kann, warum jemand hinter einem Auto steht, das er im Ziel
+  -- geschlagen hat. Nur die Tick-Sim setzt sie; die Light-Sim kennt keine
+  -- Zwischenfaelle und laesst die Spalte auf null.
+  penalty_s   REAL    NOT NULL DEFAULT 0,
   PRIMARY KEY (season, tier, round, leg, driver_id)
 );
 
@@ -112,6 +118,11 @@ CREATE TABLE race_analysis (
   lost_fuel_s    REAL    NOT NULL,
   lost_traffic_s REAL    NOT NULL,
   lost_pits_s    REAL    NOT NULL,
+  -- Zeitverlust durch Fahrfehler, Dreher, Kollisionen und die Schaeden daraus
+  -- (Konzept 12.4). Ohne eigene Spalte wuerde er in der Zerlegung aus 12.6
+  -- verschwinden - und ausgerechnet der Posten, den der Fahrer selbst zu
+  -- verantworten hat, waere der einzige unsichtbare.
+  lost_incidents_s REAL  NOT NULL DEFAULT 0,
   PRIMARY KEY (season, tier, round, leg, driver_id)
 );
 
