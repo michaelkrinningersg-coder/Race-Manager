@@ -995,3 +995,192 @@ Der Bootstrapper legt eine View an, die den Vorrang auflöst: Streckenzeile gewi
 **Validierung:** Bauteilgewichte je Zeile Summe 1.0 · Fahrergewichte je Zeile Summe 1.0 · jeder Archetyp mit allen drei Sektoren · `sector_share` je Archetyp und je überschreibender Strecke Summe 1.0 · eine Strecke überschreibt **alle drei** Sektoren oder keinen · `track_id` existiert.
 
 Diese Summenregeln sind der Grund, warum die Prüfung hart ist: Eine Gewichtssumme von 1,1 sieht in keiner einzelnen Zahl falsch aus, verschiebt aber alle Rundenzeiten dieser Strecke systematisch.
+
+---
+
+## 18. M5: Fahrerkarrieren
+
+Bis M4 waren Fahrer unveränderlich: `drivers.csv` sagte, wer für wen fährt, und daran änderte sich über zwanzig Saisons nichts. Damit konnte ein aufgestiegenes Team seine neue Liga nie gewinnen – sein Auto wuchs, seine Fahrer nicht. M5 löst die Identität eines Fahrers von seinem Zustand.
+
+### 18.1 `driver_state` – der Verlauf
+
+Dieselbe Trennung wie bei den Teams: `drivers` hält, was sich nie ändert (Name, Land, Jahrgang, Potenzial), `driver_state` hält je Saison eine Zeile mit allem, was sich ändert – die 17 Attribute, Rolle, Team, Cockpitnummer, Vertragslaufzeit, Gehalt, Moral und Superlizenzpunkte. Primärschlüssel `(driver_id, season)`.
+
+`drivers.start_team_id`, `start_role`, `start_seat` und `contract_until_season` sind damit endgültig **Startwerte** – ab Saison 2 wären sie falsch, und keine Abfrage der Engine liest sie noch. `seedDriverState` überträgt sie einmalig in die Saison-1-Zeile.
+
+`contract_until` ist die **letzte gedeckte Saison**: Wer bis 7 unterschrieben hat, fährt Saison 7 noch und ist erst zu Saison 8 frei.
+
+### 18.2 `driver_history` – die Chronik
+
+Eine schmale Tabelle `(driver_id, season, event)` mit `tier`, `team_id` und einem Freitextfeld. Sie hält fest, was aus den Zustandszeilen nicht mehr rekonstruierbar wäre: Verpflichtungen und Rücktritte. Für die spätere Fahrerakte im Frontend ist sie die Quelle.
+
+### 18.3 Entwicklung als Annäherungsrate
+
+Die Alterskurve arbeitet nicht mit festen Punktzuwächsen, sondern mit **Annäherungsraten** an das Potenzial:
+
+| Alter | Tempo (`pace`, `qualifying`, `braking`, `cornering`, `car_control`) | Erfahrung (`pressure`, `feedback`, `racecraft_traffic`, `defending`) |
+| :--- | :--- | :--- |
+| ≤ 21 | 0.20 | 0.24 |
+| 22–26 | 0.15 | 0.20 |
+| 27–31 | 0.10 | 0.14 |
+| 32–35 | −2.0 Punkte | 0.06 |
+| ≥ 36 | −3.5 Punkte | −0.5 Punkte |
+
+Eine Rate von 0.20 heißt: ein Fünftel des Abstands zum Potenzial pro Saison. Ein fester Punktzuwachs wäre hier falsch – er läuft nicht aus, sodass ein Fahrer mit Potenzial 45 genauso schnell wächst wie einer mit 95 und irgendwann sein eigenes Potenzial überschreitet. Abbauwerte sind dagegen echte Punktabzüge: Wer nachlässt, verliert unabhängig davon, wie nah er seinem Potenzial einmal kam.
+
+Die Raten sind an der Alterskurve der handgepflegten Startfahrer kalibriert. Deren `pace`/`potential`-Quote liegt mit 16–19 Jahren bei 0.79, mit 24–27 bei 0.93 und ab 28 bei 0.97; mit diesen Raten trifft ein Newgen dieselbe Kurve.
+
+Zwei Faktoren skalieren die Rate: die **Ligastufe** (`1.16 − 0.04 × (tier − 1)` – wer oben fährt, lernt schneller) und das **Cockpit** (ohne Stammcockpit nur 35 %).
+
+### 18.4 Newgens ziehen aus dem Startfeld
+
+Der Nachwuchs füllt den Bestand jede Saison auf 450 auf. Sein Potenzial wird **nicht** aus einer Formel gezogen, sondern aus der Potenzialverteilung der handgepflegten Startfahrer – die Marke `drivers.is_newgen` trennt beide Bestände dauerhaft. Damit bleibt die Pyramide aus `drivers.csv` mit ihrer breiten Mitte und ihrer dünnen Spitze über beliebig viele Saisons erhalten.
+
+Der erste Versuch mit einer freien Formel (`38 + rng^1.7 × 58`) ließ die Welt verarmen: Nach zwanzig Saisons war die mittlere `pace` in Tier 1 von 89 auf 55 gefallen, weil die zurücktretende Spitze durch schwächere Jahrgänge ersetzt wurde. Namen und Nationen kommen aus `driver_names.csv` (30 Nationen, gewichtet).
+
+Startwerte folgen der Alterskurve: 0.75 des Potenzials mit 17, 0.81 mit 19.
+
+### 18.5 Der Markt füllt nur freie Cockpits
+
+Ein Cockpit wird frei, wenn der Vertrag ausläuft oder der Fahrer zurücktritt – **Abwerbung aus laufenden Verträgen gibt es nicht** (getroffene Entscheidung). Die Vergabe läuft von Tier 1 abwärts, damit die oberen Ligen zuerst zugreifen. Kandidat ist jeder ohne Stammcockpit, sofern er die **Superlizenzpunkte** seiner Liga erfüllt (Tier 1: 30, Tier 4: 15, ab Tier 5: keine). Punkte gibt es nach Saisonplatzierung, in Tier 1 bis 40 für den Meister, in Tier 10 noch 2.
+
+Diese Schranke ist der Aufstiegsweg eines Fahrers: Ein Newgen startet in Tier 5–10, sammelt Punkte und wird erst danach für die obere Hälfte verpflichtbar.
+
+### 18.6 Das Gehalt als zweite Schranke
+
+Die Superlizenz allein reicht nicht. Ohne Geldschranke gibt jedes Team sein Cockpit dem besten Verfügbaren – auch das ärmste – und die Ligen rücken über zwanzig Saisons bis auf wenige Punkte zusammen: gemessen stieg das mittlere Potenzial in Tier 10 von den handgepflegten 43 auf 63, während 105 Fahrer mit Potenzial 48 nie ein Cockpit fanden.
+
+Der Preis eines Fahrers hängt deshalb **allein an seiner Güte, nie an der Liga**. Ein 90er kostet in Tier 10 dasselbe wie in Tier 1, nur kann ihn dort niemand bezahlen. Genau daraus entsteht die Staffelung, die in `drivers.csv` von Hand gesetzt ist.
+
+Beide Ankerpunkte kommen aus den Daten:
+
+* **Preis:** das Sitzbudget von Tier 1 und Tier 10 – 12 % der Ausschüttung bei mittlerer Platzierung, geteilt durch zwei Cockpits. Aktuell 5,22 Mio. gegen 9.360 EUR.
+* **Güte:** der Kernwertschnitt der handgepflegten Stammfahrer dieser beiden Ligen. Aktuell 88,9 gegen 35,6.
+
+Der Exponent ist damit nicht gewählt, sondern die Lösung von `Budget₁ / Budget₁₀ = (Güte₁ / Güte₁₀)^Exponent` – aktuell 6,92. Wer `league_payouts` oder `drivers.csv` nachjustiert, justiert den Markt mit.
+
+Das Budget eines einzelnen Teams folgt der Ausschüttung, die es in seiner **neuen** Liga zu erwarten hat, bezogen auf seine Platzierung der Vorsaison: Der Meister einer Liga hat mehr für Fahrer übrig als ihr Letzter, und ein Aufsteiger rechnet bereits mit dem Geld der neuen Liga.
+
+#### Der Ruf – warum die beiden Schranken sich nicht zuschnüren dürfen
+
+Mit reinem Gütepreis saß ein schneller Neunzehnjähriger in der Falle: für Tier 1–4 fehlten ihm die Punkte, für Tier 5–10 war er zu teuer. Er fuhr nie, verdiente nie Punkte, und die Spitze blutete aus – der Kernwert der Tier-1-Fahrer fiel in zwanzig Saisons von 89 auf 74, während im freien Pool dauerhaft ein 82er saß, den niemand verpflichten konnte.
+
+Der Preis wird deshalb mit dem **Ruf** gedämpft, gemessen an den Superlizenzpunkten: Ein völlig unbeschriebener Fahrer kostet 10 % seines späteren Werts, ab 45 Punkten ruft er ihn voll auf. Ein Rookie unterschreibt billig dort, wo er darf, fährt sich Punkte heraus und wird beim nächsten Vertrag teuer. Ein alternder Fahrer wird über den fallenden Kernwert von selbst wieder billiger und findet weiter unten ein Cockpit.
+
+Ein **Pay-Driver** senkt über `pay_driver_budget` direkt, was er das Team kostet – dafür steht die Spalte.
+
+Findet sich niemand im Rahmen, wird der günstigste Fahrer über Budget verpflichtet; ein Team muss zwei Autos an den Start bringen. Über 20 Saisons trat dieser Fall zuletzt **kein einziges Mal** ein.
+
+Neue Verträge laufen 1–4 Jahre.
+
+### 18.7 Rücktritte
+
+| Alter | Mit Cockpit | Ohne Cockpit |
+| :--- | :--- | :--- |
+| < 32 | 0 % | 3 % |
+| 32–35 | 4 % | 22 % |
+| 36–38 | 16 % | 52 % |
+| 39–41 | 40 % | 100 % |
+| ≥ 42 | 100 % | 100 % |
+
+### 18.8 Reihenfolge im Saisonzyklus
+
+Sie ist zwingend, nicht beliebig:
+
+1. `prepareSeason` – Ligazugehörigkeit der neuen Saison
+2. `developParts` – Autoentwicklung
+3. `ageAndDevelop` – Altern und Entwicklung in die neue Saison
+4. `generateNewgens` – Bestand auf 450 auffüllen
+5. `runMarket` – freie Cockpits besetzen *(kann nur vergeben, wer schon existiert)*
+6. `runSeason` → `buildStandings` → `applyFinances`
+7. `awardSuperlicence` – *vor* den Rücktritten: Wer aufhört, hat sich die Punkte trotzdem verdient
+8. `retireDrivers`
+9. `resolveMovements` – Auf- und Abstieg
+
+### 18.9 Der Aufsteiger-Bonus
+
+Zwei Änderungen an der Bauteilentwicklung, beide auf den Aufsteiger gemünzt:
+
+1. Ein Aufsteiger entwickelt gegen den Deckel der Liga, in der sein Auto **fahren** wird, nicht gegen den, unter dem es gebaut wurde. Am alten Deckel gemessen blieb ihm kein Spielraum – sein Sättigungsterm war nahe null, ausgerechnet in der Saison, in der er aufholen muss.
+2. Ein Faktor von **1,6** auf die Entwicklung, genau eine Saison lang, nämlich die erste in der neuen Liga. Er läuft danach von selbst aus und ist kein zweiter Deckel.
+
+Für Absteiger und Verbleibende bleibt der alte Deckel maßgeblich. Auch den Absteiger am neuen, niedrigeren Deckel zu messen, wurde ausprobiert und verworfen: Er entwickelte dann gar nicht mehr weiter, war mit seinem gekappten Auto unten trotzdem überlegen, und die Quote der direkten Wiederaufstiege stieg von 60 auf 71 Prozent.
+
+**Wirkung, über 20 Saisons gemessen:** Das Auto eines Aufsteigers liegt in seiner ersten Saison in der neuen Liga jetzt bei **101 % des Ligaschnitts** – das Auto ist nicht mehr der Engpass. Er landet damit im Mittelfeld (0,56 auf einer Skala, auf der 0 der Meister und 1 der Letzte ist) und bleibt dort auch in den Folgesaisons.
+
+### 18.10 Was offen bleibt
+
+* **Teams steigen weiterhin höchstens eine Liga.** Der Aufsteiger-Bonus hat den Engpass verschoben, aber nicht aufgelöst: Über 20 Saisons erreicht kein Team einen Netto-Aufstieg von zwei Stufen, und die Zahl der Teams, die zwei Saisons hintereinander aufsteigen, blieb bei 5. Die Ursache ist jetzt sichtbar und liegt tiefer als ein Regler: Der Sättigungsterm zieht alle Autos einer Liga so dicht an den Deckel, dass die Tabelle über die Jahre nahe am Zufall entscheidet. Genau das ist die Anti-Dominanz-Regelung, die dafür sorgt, dass der Tier-1-Titel überhaupt den Besitzer wechselt (4–6 verschiedene Meister in 20 Saisons statt einem). Sie steht im direkten Widerspruch zum Ziel aus Konzept 18, einem Aufstieg alle 3–4 Saisons – **das ist eine Designentscheidung, keine weitere Justierung.**
+* **Tier 5 liegt leicht über Tier 4.** Tier 5 ist die oberste Liga ohne Superlizenzhürde, also landet dort das beste noch unlizenzierte Talent. Gemessen: Potenzial 78,6 in Tier 5 gegen 75,3 in Tier 4.
+* Der Homologations-Ratchet aus M3 (+8 % je Aufstieg, unbegrenzt kumulierend) ist weiterhin ungeklärt.
+* `grace_period_seasons` in `licence_requirements.csv` ist weiterhin ungenutzt.
+* Personal (8 Rollen) ist ausdrücklich auf einen späteren Schritt verschoben.
+
+---
+
+## 19. M5 Teil 2: Personal
+
+Konzept 8.1 nennt acht Rollen. Drei Entscheidungen prägen die Umsetzung.
+
+### 19.1 Rollen von Hand, Personen generiert
+
+167 Teams × 9 Stellen sind rund **1.500 Personen** – zum Vergleich: die gesamte Handarbeit in M0 waren 617 Zeilen. Handgepflegt ist deshalb nur `staff_roles.csv` mit **acht Zeilen**: sie legt fest, *was* eine Rolle bewirkt, nicht *wer* sie ausfüllt. Der Bestand entsteht deterministisch aus dem Seed, Namen aus `driver_names.csv`.
+
+Das ist dasselbe Muster wie bei `car_part_types.csv`: Typdefinition von Hand, Bestand zur Laufzeit.
+
+#### Die Normierung
+
+Jede Wirkungsspalte summiert sich **über alle acht Rollen auf genau 1.0**. Der Validator prüft das hart, wie bei den Gewichtsprofilen der Strecken. Nur dadurch ist der Personalwert einer Wirkung ein sauberer gewichteter Mittelwert auf derselben 0–100-Skala wie die Einzelwerte – eine Summe von 1,1 sähe in keiner einzelnen Zahl falsch aus, verschöbe aber jede Entwicklung im Spiel.
+
+| Spalte | Wirkung |
+| :--- | :--- |
+| `w_chassis` … `w_brakes` | Entwicklung der neun Bauteilgruppen |
+| `w_reliability` | Wachstum der Standfestigkeit |
+| `w_strategy` | Güte der Boxenstopp- und Reifenentscheidungen (Tick-Sim) |
+| `w_pit` | Boxenstoppzeit und Fehlerrate |
+| `w_feedback` | Verwertung des Fahrer-Feedbacks |
+| `w_morale` | Fahrermoral (noch ohne Wirkung, siehe 19.5) |
+| `w_newgen` | Qualität des eigenen Nachwuchses (noch ohne Wirkung) |
+
+Zusätzlich summiert sich `salary_share × count_per_team` über alle Rollen auf 1.0 – das Personalbudget wird über die tatsächlich besetzten Stellen verteilt, der Renningenieur zählt doppelt.
+
+Ein Team ohne besetzte Stelle fällt nicht auf null, sondern aus der Gewichtung: Der Wert wird auf den abgedeckten Anteil hochgerechnet.
+
+### 19.2 Sieben Rollen wirken, der Nachwuchsleiter noch nicht
+
+Seine Wirkung ist Sichtbarkeit und Schätzgenauigkeit – das braucht erst einen Spieler, der etwas nicht weiß. Er wird trotzdem besetzt und bezahlt, damit später kein Bestand nachgezogen werden muss. Dieselbe Vorgehensweise wie bei den Regenmischungen in `tyre_compounds.csv`.
+
+### 19.3 Abwerbung nur über zwei Ligen hinweg
+
+Ein Tier-6-Team verliert seinen Chefkonstrukteur an Tier 4 und höher, **nie an den direkten Ligarivalen**. Konzept 8.1 will die Dramatik, dass ein erfolgreiches kleines Team seine Leute nach oben verliert; der Abstand von zwei Stufen nimmt ihr die Spitze gegen genau den Konkurrenten, gegen den der Aufstieg entschieden wird.
+
+Loyalität (steigt um 8 je Saison im Amt) und Restlaufzeit senken die Erfolgsquote, verhindern den Wechsel aber nie ganz – das ist die Ausstiegsklausel aus Konzept 8.1. Gemessen: 245 Abwerbungen in 20 Saisons.
+
+### 19.4 Was das Personal ersetzt hat
+
+Bis hierher war `staff` in `developParts` eine reine Ligafunktion (`68 − 4,5 × (Tier−1)`) und damit **für jedes Team einer Liga identisch** – es gab innerhalb einer Liga schlicht keinen personellen Unterschied. Dieselbe Formel stand für Stratege und Boxencrew in der Tick-Sim.
+
+Beim Verkabeln fiel eine Abweichung vom Konzept auf: Der Crewwert wirkte nur auf die *Streuung* der Stoppzeit. Zwischen der besten und der schlechtesten Crew in Tier 1 lagen damit neun Hundertstel – weniger als das Rauschen einer Saison. Konzept 8.1 verlangt ausdrücklich „Mittelwert **und** Fehlerrate"; die Standzeit folgt jetzt `2,9 − 1,2 × (Crew/100)`. Gemessen liegen zwischen der besten und schlechtesten Tier-1-Crew nun 0,26 s.
+
+### 19.5 Gemessen über 20 Saisons
+
+| | Saison 1 | Saison 20 |
+| :--- | :--- | :--- |
+| Personalwert Tier 1 | 87,2 | 86,7 |
+| Personalwert Tier 4 | 69,1 | 64,8 |
+| Personalwert Tier 10 | 33,0 | 32,1 |
+| Streuung innerhalb Tier 1 | – | SD 4,9 (78,4 – 94,4) |
+| Streuung innerhalb Tier 10 | – | SD 1,2 (28,8 – 35,1) |
+| Verschiedene Tier-1-Meister | – | 7 (vorher 4) |
+
+Die Pyramide hält, und Teams derselben Liga unterscheiden sich jetzt personell. Der Zusammenhang zwischen Personalwert und Tabellenplatz liegt im Mittel der Saisons 10–20 bei **r = −0,52 (Tier 1)**, −0,46 (Tier 7) und −0,33 (Tier 10) – in Tier 4 dagegen bei −0,02.
+
+Ein Fehler, der dabei auffiel und behoben ist: Teams griffen nach jedem freien Kandidaten, auch weit unter ihrem Ligaband, statt einen besseren Neuzugang zu holen. Der Personalwert der Mittelfeldligen sackte dadurch um bis zu 14 Punkte ab.
+
+### 19.6 Was offen bleibt
+
+* **Die Mobilität hat sich nicht bewegt.** Auch mit Personal steigt netto kein Team zwei Ligen (Spannweite ≥ 2: 23 von 167 Teams, unbewegt 46). Die Erwartung, dass personelle Unterschiede innerhalb einer Liga den Aufsteiger tragen, hat sich **nicht** bestätigt. Der Befund aus 18.10 steht unverändert.
+* **In Tier 4 wirkt das Personal nicht messbar** (r = −0,02 gegen −0,52 in Tier 1). Ungeklärt.
+* **Gehälter werden weiterhin nicht verbucht** – weder die der Fahrer noch die des Personals. `applyFinances` rechnet Ausgaben pauschal als `expense_ratio × cost_cap`. Gehört nach M6.
+* `w_morale` und `w_newgen` sind ohne Wirkung: Die Fahrermoral wird geführt, aber nirgends gelesen, und der Nachwuchsleiter wartet auf das Scouting.
+* Infrastruktur (Konzept 8.2, Level 0–5) ist nicht angefasst.
